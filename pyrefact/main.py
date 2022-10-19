@@ -46,16 +46,16 @@ _PACKAGE_ALIASES = {"pd": "pandas", "np": "numpy", "plt": "matplotlib.pyplot"}
 _ASSUMED_SOURCES = {
     "typing": frozenset(
         (
-            "List",
-            "Iterable",
-            "Tuple",
             "Callable",
-            "Sequence",
             "Collection",
+            "Iterable",
+            "List",
             "Literal",
-            "Union",
-            "Optional",
             "NamedTuple",
+            "Optional",
+            "Sequence",
+            "Tuple",
+            "Union",
         )
     ),
     "pathlib": frozenset(("Path",)),
