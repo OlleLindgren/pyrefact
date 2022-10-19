@@ -48,9 +48,11 @@ _ASSUMED_SOURCES = {
         (
             "Callable",
             "Collection",
+            "Dict",
             "Iterable",
             "List",
             "Literal",
+            "Mapping",
             "NamedTuple",
             "Optional",
             "Sequence",
