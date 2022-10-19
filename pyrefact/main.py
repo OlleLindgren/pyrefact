@@ -183,17 +183,39 @@ def _fix_isort(filename: Path) -> None:
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("filename", help="File to refactor", type=Path)
+    parser.add_argument("paths", help="Paths to refactor", type=Path, nargs="+", default=())
     return parser.parse_args(args)
+
+
+def _default_fixes(filename: Path) -> None:
+    _fix_isort(filename)
+    _fix_black(filename)
+
+
+def run_pyrefact(filename: Path) -> None:
+    _default_fixes(filename)
+    if _fix_undefined_imports(filename):
+        _default_fixes(filename)
+
+
+def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:
+    for path in paths:
+        if path.is_file():
+            yield path
+        elif path.is_dir():
+            yield from path.rglob("*.py")
 
 
 def main(args: Sequence[str]) -> int:
     args = _parse_args(args)
 
-    filename = args.filename
+    count = 0
+    for filename in _iter_python_files(args.paths):
+        count += 1
+        run_pyrefact(filename)
 
-    _fix_isort(filename)
-    _fix_black(filename)
+    if count == 0:
+        print("No files provided")
+        return 1
 
-    if _fix_undefined_imports(filename):
-        _fix_isort(filename)
+    return 0
