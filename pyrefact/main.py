@@ -10,52 +10,56 @@ from typing import Collection, Iterable, Sequence
 import rmspace
 from pylint.lint import Run
 
-_PACKAGE_SOURCES = (
-    "argparse",
-    "collections",
-    "configparser",
-    "datetime",
-    "Flask",
-    "itertools",
-    "json",
-    "keras",
-    "math",
-    "matplotlib",
-    "numpy",
-    "os",
-    "pandas",
-    "re",
-    "requests",
-    "scipy",
-    "setuptools",
-    "shlex",
-    "sklearn",
-    "subprocess",
-    "sys",
-    "tensorflow",
-    "time",
-    "traceback",
-    "urllib",
-    "warnings",
+_PACKAGE_SOURCES = frozenset(
+    (
+        "argparse",
+        "collections",
+        "configparser",
+        "datetime",
+        "Flask",
+        "itertools",
+        "json",
+        "keras",
+        "math",
+        "matplotlib",
+        "numpy",
+        "os",
+        "pandas",
+        "re",
+        "requests",
+        "scipy",
+        "setuptools",
+        "shlex",
+        "sklearn",
+        "subprocess",
+        "sys",
+        "tensorflow",
+        "time",
+        "traceback",
+        "urllib",
+        "warnings",
+    )
 )
 
 _PACKAGE_ALIASES = {"pd": "pandas", "np": "numpy", "plt": "matplotlib.pyplot"}
 
 _ASSUMED_SOURCES = {
-    "typing": (
-        "List",
-        "Iterable",
-        "Tuple",
-        "Callable",
-        "Sequence",
-        "Collection",
-        "Literal",
-        "Union",
-        "Optional",
-        "NamedTuple",
+    "typing": frozenset(
+        (
+            "List",
+            "Iterable",
+            "Tuple",
+            "Callable",
+            "Sequence",
+            "Collection",
+            "Literal",
+            "Union",
+            "Optional",
+            "NamedTuple",
+        )
     ),
-    "pathlib": ("Path",),
-    "types": ("MappingProxyType",),
+    "pathlib": frozenset(("Path",)),
+    "types": frozenset(("MappingProxyType",)),
 }
 
 _PACKAGE_ALIASES = MappingProxyType(_PACKAGE_ALIASES)
@@ -123,13 +127,13 @@ def _fix_undefined_variables(filename: Path, variables: Collection[str]) -> bool
         and not line.startswith("from __future__ import")
     )
     for package, package_variables in _ASSUMED_SOURCES.items():
-        overlap = set(package_variables) & variables
+        overlap = package_variables & variables
         if overlap:
             fix = f"from {package} import " + ", ".join(sorted(overlap))
             print(f"Inserting '{fix}' at line {lineno}")
             lines.insert(lineno, fix)
 
-    for package in set(_PACKAGE_SOURCES) & variables:
+    for package in _PACKAGE_SOURCES & variables:
         fix = f"import {package}"
         print(f"Inserting '{fix}' at line {lineno}")
         lines.insert(lineno, fix)
