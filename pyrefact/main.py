@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 from types import MappingProxyType
-from typing import Collection, Iterable, Sequence
+from typing import Collection, Iterable, Sequence, Tuple
 
 import rmspace
 from pylint.lint import Run
@@ -69,7 +69,7 @@ _PACKAGE_ALIASES = MappingProxyType(_PACKAGE_ALIASES)
 _ASSUMED_SOURCES = MappingProxyType(_ASSUMED_SOURCES)
 
 
-def _deconstruct_pylint_warning(error_line: str) -> int:
+def _deconstruct_pylint_warning(error_line: str) -> Tuple[Path, int, int, str, str]:
     filename, lineno, charno, error_code, error_msg = error_line.split(":")
 
     return filename, lineno, charno, error_code.strip(), error_msg.strip()
