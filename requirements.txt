@@ -1,0 +1,3 @@
+black>=22.1.0
+pylint>=2.12.2
+rmspace>=5
