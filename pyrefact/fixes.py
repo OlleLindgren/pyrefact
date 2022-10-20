@@ -5,8 +5,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from types import MappingProxyType
-from typing import Collection, Iterable, Tuple
+from typing import Collection, Iterable, Sequence, Tuple
 
 import rmspace
 from pylint.lint import Run
@@ -15,12 +14,10 @@ with open(Path(__file__).parent / "known_packages.json", "r", encoding="utf-8") 
     _PACKAGE_SOURCES = frozenset(json.load(stream))
 
 with open(Path(__file__).parent / "package_aliases.json", "r", encoding="utf-8") as stream:
-    _PACKAGE_ALIASES = MappingProxyType(json.load(stream))
+    _PACKAGE_ALIASES = json.load(stream)
 
 with open(Path(__file__).parent / "package_variables.json", "r", encoding="utf-8") as stream:
-    _ASSUMED_SOURCES = MappingProxyType(
-        {package: frozenset(variables) for package, variables in json.load(stream).items()}
-    )
+    _ASSUMED_SOURCES = json.load(stream)
 
 with open(Path(__file__).parent / "python_keywords.json", "r", encoding="utf-8") as stream:
     _PYTHON_KEYWORDS = frozenset(json.load(stream))
@@ -83,38 +80,148 @@ def _get_unused_imports(filename: Path) -> Iterable[Tuple[int, str, str]]:
             pass
 
 
+def _get_is_code_mask(content: str) -> Sequence[bool]:
+    singleq = "'''"
+    doubleq = '"""'
+    s_doubleq = '"'
+    s_singleq = "'"
+    is_comment = {
+        doubleq: False,
+        singleq: False,
+        s_doubleq: False,
+        s_singleq: False,
+    }
+
+    mask = []
+
+    buffer = []
+
+    for line in content.splitlines(keepends=True):
+        is_hash_comment = False
+        for char in line:
+            buffer.append(char)
+            if len(buffer) > 3:
+                del buffer[0]
+
+            if char == "#" and not any(is_comment.values()):
+                is_hash_comment = True
+
+            if is_hash_comment:
+                mask.append(False)
+                continue
+
+            if char == s_singleq:
+                is_comment[s_singleq] = not any(is_comment.values())
+
+            if char == s_doubleq:
+                is_comment[s_doubleq] = not any(is_comment.values())
+
+            if is_comment[singleq] and buffer == list(singleq):
+                is_comment[singleq] = False
+                mask.append(False)
+                mask[-3:] = False, False, False
+                continue
+
+            if is_comment[doubleq] and buffer == list(doubleq):
+                is_comment[doubleq] = False
+                mask.append(False)
+                mask[-3:] = False, False, False
+                continue
+
+            if buffer == list(doubleq):
+                is_comment[doubleq] = True
+                is_comment[s_doubleq] = False
+                mask.append(False)
+                continue
+
+            if buffer == list(singleq):
+                is_comment[singleq] = True
+                is_comment[s_singleq] = False
+                mask.append(False)
+                continue
+
+            mask.append(not any(is_comment.values()))
+
+        is_comment[s_singleq] = False
+        is_comment[s_doubleq] = False
+
+    return mask
+
+
+def _get_paren_depths(content: str) -> Sequence[int]:
+    code_mask = _get_is_code_mask(content)
+    depth = 0
+    depths = []
+    for is_code, character in zip(code_mask, content):
+        if not is_code:
+            depths.append(depth)
+            continue
+        if character in "([{":
+            depth += 1
+        elif character in ")]}":
+            depth -= 1
+        depths.append(depth)
+
+    return depths
+
+
 def _get_wrong_name_statics(filename: Path) -> Iterable[str]:
     with open(filename, "r", encoding="utf-8") as stream:
         lines = stream.readlines()
+        stream.seek(0)
+        content = stream.read()
 
-    singleq = "'''"
-    doubleq = '"""'
-    is_comment = {doubleq: False, singleq: False}
+    is_code_mask = _get_is_code_mask(content)
+    assert len(is_code_mask) == len(content), (len(is_code_mask), len(content))
 
-    for line in lines:
-        if line.startswith("#"):
-            continue
-        if singleq in line and doubleq in line:
-            return
-        if doubleq in line and not is_comment[singleq]:
-            is_comment[doubleq] = not is_comment[doubleq]
-        if singleq in line and not is_comment[doubleq]:
-            is_comment[singleq] = not is_comment[singleq]
-        if "=" not in line:
-            continue
-        if line.startswith("  "):
+    scopes = []
+
+    indent = 0
+    parsed_chars = 0
+    paren_depth = 0
+    for full_line in lines:
+        line = "".join(char for i, char in enumerate(full_line) if is_code_mask[i + parsed_chars])
+        parsed_chars += len(full_line)
+        line_paren_depth = _get_paren_depths(full_line)
+        line = "".join(
+            char for i, char in enumerate(line) if line_paren_depth[i] + paren_depth == 0
+        )
+        paren_depth += line_paren_depth[-1]
+        if not line.strip():
             continue
 
-        variable, _ = line.split("=", 1)
-        variable, *_ = line.split("'", 1)
-        variable, *_ = line.split('"', 1)
-        variable, *_ = line.split(" ", 1)
+        indent = len(re.findall(r"^ *", full_line)[0])
+
+        variable, *_ = line.split("=", 1)
+        variable = variable.lstrip()
+        variable, *_ = variable.split(" ", 1)
         variable = variable.strip()
 
+        if variable:
+            scopes = [
+                (name, start_indent) for (name, start_indent) in scopes if start_indent < indent
+            ]
+
         if variable in _PYTHON_KEYWORDS:
+            if variable in {"def", "class"} or (variable == "async" and "async def" in line):
+                scopes.append((variable, indent))
+
             continue
 
-        if not re.match(r"^_[A-Z_]+$", variable) and not re.match(r"^__[a-z_]+__$", variable):
+        if "=" not in line:
+            continue
+
+        if scopes:
+            continue
+
+        if not variable:
+            continue
+
+        if (
+            re.match(r"^[a-zA-Z_]+$", variable)
+            and not re.match(r"^_[A-Z_]+$", variable)
+            and not re.match(r"^__[a-z_]+__$", variable)
+        ):
             yield variable
 
 
@@ -122,10 +229,22 @@ def _fix_wrongly_named_statics(filename: Path, variables: Collection[str]) -> No
     with open(filename, "r", encoding="utf-8") as stream:
         content = stream.read()
 
+    code_mask = _get_is_code_mask(content)
+    paranthesis_map = _get_paren_depths(content)
+
+    vis = ""
+    for is_code, c in zip(code_mask, content):
+        if c in " \n":
+            vis += c
+        elif is_code:
+            vis += c
+        else:
+            vis += "#"
+
     for variable in variables:
         replacements = []
-        for match in re.finditer(r"[^A-Za-z_]" + variable + r"[^A-Za-z_]", content):
-            replacements.append((match.start() + 1, match.end() - 1))
+        for match in re.finditer(r"(?<=[^A-Za-z_\.])" + variable + r"(?=[^A-Za-z_])", content):
+            replacements.append((match.start(), match.end()))
 
         if not replacements:
             raise RuntimeError(f"Unable to find '{variable}' in {filename}")
@@ -141,6 +260,15 @@ def _fix_wrongly_named_statics(filename: Path, variables: Collection[str]) -> No
             raise RuntimeError(f"Unable to find a replacement name for {variable}")
 
         for start, end in sorted(replacements, reverse=True):
+            if not all(code_mask[start:end]):
+                continue
+            if (
+                max(paranthesis_map[start:end]) > 0
+                and "=" in content[end : min(len(content) - 1, end + 3)]
+            ):
+                # kwarg names shouldn't be replaced
+                continue
+
             content = content[:start] + renamed_variable + content[end:]
 
     with open(filename, "w", encoding="utf-8") as stream:
@@ -285,6 +413,6 @@ def fix_isort(filename: Path, *, line_length: int = 100) -> None:
 def capitalize_underscore_statics(filename: Path) -> None:
     wrongly_named_statics = set(_get_wrong_name_statics(filename))
     if wrongly_named_statics:
-        return _fix_wrongly_named_statics(filename, wrongly_named_statics)
+        _fix_wrongly_named_statics(filename, wrongly_named_statics)
 
     return False
