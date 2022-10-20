@@ -95,7 +95,6 @@ def _find_pylint_errors(filename: Path, error_code: str) -> Iterable[str]:
 
     output = stdout.getvalue()
     for line in output.splitlines():
-        print(line)
         if re_pattern.match(line):
             yield line
 
@@ -104,13 +103,22 @@ def _get_undefined_variables(filename: Path) -> Collection[str]:
     variables = set()
     for line in _find_pylint_errors(filename, "undefined-variable"):
         try:
-            filename, lineno, charno, error_code, error_msg = _deconstruct_pylint_warning(line)
+            filename, *_, error_msg = _deconstruct_pylint_warning(line)
             _, variable_name, _ = error_msg.split("'")
             variables.add(variable_name)
         except ValueError:
             pass
 
     return variables
+
+
+def _get_unused_imports(filename: Path) -> Iterable[int]:
+    for line in _find_pylint_errors(filename, "unused-import"):
+        try:
+            _, lineno, *_ = _deconstruct_pylint_warning(line)
+            yield lineno
+        except ValueError:
+            pass
 
 
 def _fix_undefined_variables(filename: Path, variables: Collection[str]) -> bool:
@@ -162,10 +170,45 @@ def _fix_undefined_variables(filename: Path, variables: Collection[str]) -> bool
     return change_count > 0
 
 
-def _fix_undefined_imports(filename: Path) -> bool:
+def _fix_unused_imports(filename: Path, linenos: Collection[int]) -> bool:
+    linenos = set(int(lineno) for lineno in linenos)
+
+    with open(filename, "r", encoding="utf-8") as stream:
+        lines = stream.readlines()
+
+    new_lines = []
+    for i, line in enumerate(lines):
+        if i + 1 in linenos:
+            print(f"Removing '{line.strip()}'")
+        else:
+            new_lines.append(line)
+
+    change_count = len(lines) - len(new_lines)
+
+    assert change_count >= 0
+
+    if change_count == 0:
+        return False
+
+    with open(filename, "w", encoding="utf-8") as stream:
+        for line in new_lines:
+            stream.write(line)
+
+    return change_count > 0
+
+
+def _define_undefined_variables(filename: Path) -> bool:
     undefined_variables = _get_undefined_variables(filename)
     if undefined_variables:
         return _fix_undefined_variables(filename, undefined_variables)
+
+    return False
+
+
+def _remove_unused_imports(filename: Path) -> bool:
+    unused_import_linenos = set(_get_unused_imports(filename))
+    if unused_import_linenos:
+        return _fix_unused_imports(filename, unused_import_linenos)
 
     return False
 
@@ -196,8 +239,19 @@ def _default_fixes(filename: Path) -> None:
 
 
 def run_pyrefact(filename: Path) -> None:
+    """Fix a file.
+
+    Args:
+        filename (Path): File to fix
+    """
     _default_fixes(filename)
-    if _fix_undefined_imports(filename):
+    _fix_rmspace(filename)
+    any_fixes = False
+    if _define_undefined_variables(filename):
+        any_fixes = True
+    if _remove_unused_imports(filename):
+        any_fixes = True
+    if any_fixes:
         _default_fixes(filename)
 
 

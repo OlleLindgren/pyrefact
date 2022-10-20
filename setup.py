@@ -1,5 +1,4 @@
 """Installer for pyrefact"""
-
 from pathlib import Path
 
 import setuptools
