@@ -264,6 +264,15 @@ def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:
 
 
 def main(args: Sequence[str]) -> int:
+    """Parse command-line arguments and run pyrefact on provided files.
+
+    Args:
+        args (Sequence[str]): sys.argv[1:]
+
+    Returns:
+        int: 0 if successful.
+
+    """
     args = _parse_args(args)
 
     count = 0
