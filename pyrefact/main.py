@@ -17,6 +17,7 @@ _PACKAGE_SOURCES = frozenset(
         "configparser",
         "datetime",
         "Flask",
+        "functools",
         "itertools",
         "json",
         "keras",
