@@ -1,0 +1,17 @@
+{
+    "typing": [
+            "Callable",
+            "Collection",
+            "Dict",
+            "Iterable",
+            "List",
+            "Literal",
+            "Mapping",
+            "NamedTuple",
+            "Optional",
+            "Sequence",
+            "Tuple",
+            "Union"],
+    "pathlib": ["Path"],
+    "types": ["MappingProxyType"]
+}
