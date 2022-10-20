@@ -22,6 +22,9 @@ with open(Path(__file__).parent / "package_variables.json", "r", encoding="utf-8
         {package: frozenset(variables) for package, variables in json.load(stream).items()}
     )
 
+with open(Path(__file__).parent / "python_keywords.json", "r", encoding="utf-8") as stream:
+    _PYTHON_KEYWORDS = frozenset(json.load(stream))
+
 
 def _deconstruct_pylint_warning(error_line: str) -> Tuple[Path, int, int, str, str]:
     filename, lineno, charno, error_code, error_msg = error_line.split(":")
@@ -78,6 +81,70 @@ def _get_unused_imports(filename: Path) -> Iterable[Tuple[int, str, str]]:
                 yield lineno, package, variable
         except ValueError:
             pass
+
+
+def _get_wrong_name_statics(filename: Path) -> Iterable[str]:
+    with open(filename, "r", encoding="utf-8") as stream:
+        lines = stream.readlines()
+
+    singleq = "'''"
+    doubleq = '"""'
+    is_comment = {doubleq: False, singleq: False}
+
+    for line in lines:
+        if line.startswith("#"):
+            continue
+        if singleq in line and doubleq in line:
+            return
+        if doubleq in line and not is_comment[singleq]:
+            is_comment[doubleq] = not is_comment[doubleq]
+        if singleq in line and not is_comment[doubleq]:
+            is_comment[singleq] = not is_comment[singleq]
+        if "=" not in line:
+            continue
+        if line.startswith("  "):
+            continue
+
+        variable, _ = line.split("=", 1)
+        variable, *_ = line.split("'", 1)
+        variable, *_ = line.split('"', 1)
+        variable, *_ = line.split(" ", 1)
+        variable = variable.strip()
+
+        if variable in _PYTHON_KEYWORDS:
+            continue
+
+        if not re.match(r"^_[A-Z_]+$", variable) and not re.match(r"^__[a-z_]+__$", variable):
+            yield variable
+
+
+def _fix_wrongly_named_statics(filename: Path, variables: Collection[str]) -> None:
+    with open(filename, "r", encoding="utf-8") as stream:
+        content = stream.read()
+
+    for variable in variables:
+        replacements = []
+        for match in re.finditer(r"[^A-Za-z_]" + variable + r"[^A-Za-z_]", content):
+            replacements.append((match.start() + 1, match.end() - 1))
+
+        if not replacements:
+            raise RuntimeError(f"Unable to find '{variable}' in {filename}")
+
+        renamed_variable = re.sub("_{1,}", "_", variable.upper())
+        if not renamed_variable.startswith("_"):
+            renamed_variable = f"_{renamed_variable}"
+
+        if renamed_variable.endswith("_"):
+            renamed_variable = renamed_variable[:-1]
+
+        if not renamed_variable:
+            raise RuntimeError(f"Unable to find a replacement name for {variable}")
+
+        for start, end in sorted(replacements, reverse=True):
+            content = content[:start] + renamed_variable + content[end:]
+
+    with open(filename, "w", encoding="utf-8") as stream:
+        stream.write(content)
 
 
 def _fix_undefined_variables(filename: Path, variables: Collection[str]) -> bool:
@@ -213,3 +280,11 @@ def fix_isort(filename: Path, *, line_length: int = 100) -> None:
         filename,
     ]
     subprocess.check_call(cmd)
+
+
+def capitalize_underscore_statics(filename: Path) -> None:
+    wrongly_named_statics = set(_get_wrong_name_statics(filename))
+    if wrongly_named_statics:
+        return _fix_wrongly_named_statics(filename, wrongly_named_statics)
+
+    return False

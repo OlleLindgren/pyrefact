@@ -4,10 +4,7 @@ import argparse
 from pathlib import Path
 from typing import Iterable, Sequence
 
-if __package__:
-    from . import fixes
-else:
-    import fixes
+from . import completion, fixes
 
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
@@ -22,6 +19,9 @@ def run_pyrefact(filename: Path) -> None:
     Args:
         filename (Path): File to fix
     """
+    completion.autocomplete(filename)
+    fixes.capitalize_underscore_statics(filename)
+
     fixes.fix_black(filename)
     fixes.fix_isort(filename, line_length=10_000)
 
@@ -39,6 +39,8 @@ def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:
             yield path
         elif path.is_dir():
             yield from path.rglob("*.py")
+        else:
+            raise FileNotFoundError(f"Not found: {path}")
 
 
 def main(args: Sequence[str]) -> int:
