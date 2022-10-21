@@ -128,19 +128,22 @@ def _get_is_code_mask(content: str) -> Sequence[bool]:
                 mask[-3:] = False, False, False
                 continue
 
-            if buffer == list(doubleq):
+            if buffer == list(doubleq) and not is_comment[s_singleq] and not is_comment[s_doubleq]:
                 is_comment[doubleq] = True
                 is_comment[s_doubleq] = False
                 mask.append(False)
                 continue
 
-            if buffer == list(singleq):
+            if buffer == list(singleq) and not is_comment[s_singleq] and not is_comment[s_doubleq]:
                 is_comment[singleq] = True
                 is_comment[s_singleq] = False
                 mask.append(False)
                 continue
 
-            mask.append(not any(is_comment.values()))
+            if any(is_comment.values()) and len(buffer) >= 2 and buffer[-2] in "brf":
+                mask[-1] = False
+
+            mask.append(char not in (s_singleq, s_doubleq) and not any(is_comment.values()))
 
         is_comment[s_singleq] = False
         is_comment[s_doubleq] = False
@@ -165,12 +168,7 @@ def _get_paren_depths(content: str) -> Sequence[int]:
     return depths
 
 
-def _get_wrong_name_statics(filename: Path) -> Iterable[str]:
-    with open(filename, "r", encoding="utf-8") as stream:
-        lines = stream.readlines()
-        stream.seek(0)
-        content = stream.read()
-
+def _get_static_variables(content: str) -> Iterable[str]:
     is_code_mask = _get_is_code_mask(content)
     assert len(is_code_mask) == len(content), (len(is_code_mask), len(content))
 
@@ -179,7 +177,7 @@ def _get_wrong_name_statics(filename: Path) -> Iterable[str]:
     indent = 0
     parsed_chars = 0
     paren_depth = 0
-    for full_line in lines:
+    for full_line in content.splitlines(keepends=True):
         line = "".join(char for i, char in enumerate(full_line) if is_code_mask[i + parsed_chars])
         parsed_chars += len(full_line)
         line_paren_depth = _get_paren_depths(full_line)
@@ -217,11 +215,24 @@ def _get_wrong_name_statics(filename: Path) -> Iterable[str]:
         if not variable:
             continue
 
-        if (
-            re.match(r"^[a-zA-Z_]+$", variable)
-            and not re.match(r"^_[A-Z_]+$", variable)
-            and not re.match(r"^__[a-z_]+__$", variable)
-        ):
+        if re.match(r"^[a-zA-Z_]+$", variable):
+            yield variable
+
+
+def _is_uppercase_static_name(variable: str) -> bool:
+    return re.match(r"^_[A-Z_]+$", variable) is not None
+
+
+def _is_magic_variable(variable: str) -> bool:
+    return re.match(r"^__[a-z_]+__$", variable) is not None
+
+
+def _get_wrong_name_statics(filename: Path) -> Iterable[str]:
+    with open(filename, "r", encoding="utf-8") as stream:
+        content = stream.read()
+
+    for variable in _get_static_variables(content):
+        if not _is_uppercase_static_name(variable) and not _is_magic_variable(variable):
             yield variable
 
 
