@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from . import completion, fixes
+from . import completion, fixes, parsing
 
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
@@ -19,18 +19,29 @@ def run_pyrefact(filename: Path) -> None:
     Args:
         filename (Path): File to fix
     """
-    completion.autocomplete(filename)
-    fixes.capitalize_underscore_statics(filename)
+    with open(filename, "r", encoding="utf-8") as stream:
+        content = stream.read()
 
-    fixes.fix_black(filename)
-    fixes.fix_isort(filename, line_length=10_000)
+    try:
+        if not parsing.is_valid_python(content):
+            content = completion.autocomplete(content)
 
-    fixes.fix_rmspace(filename)
-    fixes.define_undefined_variables(filename)
-    fixes.remove_unused_imports(filename)
+        content = fixes.capitalize_underscore_statics(content)
 
-    fixes.fix_isort(filename)
-    fixes.fix_black(filename)
+        content = fixes.fix_black(content)
+        content = fixes.fix_isort(content, line_length=10_000)
+
+        content = fixes.fix_rmspace(content)
+        content = fixes.define_undefined_variables(content)
+        content = fixes.remove_unused_imports(content)
+
+        content = fixes.fix_isort(content)
+        content = fixes.fix_black(content)
+
+    finally:
+        if parsing.is_valid_python(content):
+            with open(filename, "w", encoding="utf-8") as stream:
+                stream.write(content)
 
 
 def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:

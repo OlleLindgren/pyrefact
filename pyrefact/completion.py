@@ -1,8 +1,6 @@
 """Primitive autocomplete logic"""
 
-import ast
 import re
-from pathlib import Path
 
 _COMPLETIONS = {
     "def main(args: Sequence[str]) -> int:": """
@@ -44,33 +42,17 @@ def _match_pattern(line1, line2) -> bool:
     return matching > 5 and non_matching < max(2, matching * 0.1)
 
 
-def _is_valid_python(filename: Path) -> bool:
-    try:
-        with open(filename, "r", encoding="utf-8") as stream:
-            ast.parse(stream.read(), filename)
-        return True
-    except SyntaxError:
-        return False
-
-
-def autocomplete(filename: Path) -> None:
+def autocomplete(content: str) -> None:
     """Autocomplete a file according to known patterns.
 
     Args:
         filename (Path): File to run autocomplete on.
 
     """
-    if str(filename.resolve().absolute()) == __file__:
-        return
-
-    if _is_valid_python(filename):
-        return
-
-    with open(filename, "r", encoding="utf-8") as stream:
-        lines = stream.readlines()
+    lines = content.splitlines(keepends=True)
 
     if not lines:
-        return
+        return content
 
     new_lines = []
 
@@ -97,8 +79,7 @@ def autocomplete(filename: Path) -> None:
         lines[0] = "#!/usr/bin/env python3"
 
     if n_completes == 0:
-        return
+        return content
 
-    with open(filename, "w", encoding="utf-8") as stream:
-        for line in new_lines:
-            stream.write(line)
+    content = "".join(new_lines)
+    return content
