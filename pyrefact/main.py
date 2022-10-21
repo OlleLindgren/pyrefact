@@ -26,7 +26,7 @@ def run_pyrefact(filename: Path) -> None:
         if not parsing.is_valid_python(content):
             content = completion.autocomplete(content)
 
-        content = fixes.capitalize_underscore_statics(content)
+        content = fixes.align_variable_names_with_convention(content)
 
         content = fixes.fix_black(content)
         content = fixes.fix_isort(content, line_length=10_000)

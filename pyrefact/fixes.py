@@ -5,7 +5,7 @@ import re
 import sys
 import tempfile
 from pathlib import Path
-from typing import Collection, Iterable, Tuple
+from typing import Collection, Iterable, Literal, Tuple
 
 import black
 import isort
@@ -122,18 +122,58 @@ def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
     raise RuntimeError(f"Unable to find a replacement name for {variable}")
 
 
-def _get_variable_name_substitutions(content: str) -> Iterable[str]:
-    for variable, scopes in parsing.iter_variables(content):
-        if variable == "_":
-            continue
-        if scopes:
-            keyword = scopes[-1][0]
-            private = keyword == "class" and _is_private(variable)
-            substitute = _rename_variable(variable, static=False, private=private)
-        else:
-            substitute = _rename_variable(variable, static=True, private=_is_private(variable))
+def _rename_class(name: str, *, private: bool) -> str:
+    name = re.sub("_{1,}", "_", name)
+    if len(name) == 0:
+        raise ValueError("Cannot rename empty name")
+    if len(name) == 1:
+        name = name.upper()
+    else:
+        accum = (last := name[0].upper())
+        for char in name[1:]:
+            if last == "_":
+                accum += (last := char.upper())
+            else:
+                accum += char
+            last = char
 
-        if variable != substitute:
+        name = accum
+
+    if private and not _is_private(name):
+        return f"_{name}"
+    if not private and _is_private(name):
+        return name[1:]
+
+    return name
+
+
+def _substitute_name(
+    variable: str, variable_type: parsing.VariableType, scope: Literal["class", "def", "enum", None]
+) -> str:
+    if variable == "_":
+        return variable
+
+    if variable_type == parsing.VariableType.CLASS:
+        private = _is_private(variable)
+        return _rename_class(variable, private=private)
+
+    if variable_type == parsing.VariableType.CALLABLE:
+        return _rename_variable(variable, static=False, private=_is_private(variable))
+
+    if variable_type == parsing.VariableType.VARIABLE and scope not in {None, "enum"}:
+        private = scope == "class" and _is_private(variable)
+        return _rename_variable(variable, static=False, private=private)
+
+    if variable_type == parsing.VariableType.VARIABLE:
+        return _rename_variable(variable, static=True, private=_is_private(variable))
+
+    raise NotImplementedError(f"Unknown variable type: {variable_type}")
+
+
+def _get_variable_name_substitutions(content: str) -> Iterable[str]:
+    for variable, scopes, variable_type in parsing.iter_definitions(content):
+        substitute = _substitute_name(variable, variable_type, scopes[-1][0] if scopes else None)
+        if variable != substitute and substitute not in parsing.PYTHON_KEYWORDS:
             yield variable, substitute
 
 
@@ -245,7 +285,15 @@ def _fix_unused_imports(content: str, problems: Collection[Tuple[int, str, str]]
     return "".join(new_lines)
 
 
-def define_undefined_variables(content: str) -> bool:
+def define_undefined_variables(content: str) -> str:
+    """Attempt to find imports matching all undefined variables.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Source code with added imports
+    """
     undefined_variables = _get_undefined_variables(content)
     if undefined_variables:
         return _fix_undefined_variables(content, undefined_variables)
@@ -253,7 +301,15 @@ def define_undefined_variables(content: str) -> bool:
     return content
 
 
-def remove_unused_imports(content: str) -> bool:
+def remove_unused_imports(content: str) -> str:
+    """Remove unused imports from source code.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Source code, with added imports removed
+    """
     unused_import_linenos = set(_get_unused_imports(content))
     if unused_import_linenos:
         return _fix_unused_imports(content, unused_import_linenos)
@@ -262,20 +318,63 @@ def remove_unused_imports(content: str) -> bool:
 
 
 def fix_rmspace(content: str) -> str:
+    """Remove trailing whitespace from source code.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Source code, without trailing whitespace
+    """
     return rmspace.format_str(content)
 
 
 def fix_black(content: str) -> str:
+    """Format source code with black.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Source code, formatted with black
+    """
     return black.format_str(content, mode=black.Mode(line_length=100))
 
 
 def fix_isort(content: str, *, line_length: int = 100) -> str:
+    """Format source code with isort
+
+    Args:
+        content (str): Python source code
+        line_length (int, optional): Line length. Defaults to 100.
+
+    Returns:
+        str: Source code, formatted with isort
+    """
     return isort.code(content, config=isort.Config(profile="black", line_length=line_length))
 
 
-def capitalize_underscore_statics(content: str) -> str:
+def align_variable_names_with_convention(content: str) -> str:
+    """Align variable names with normal convention
+
+    Class names should have CamelCase names
+    Non-static variables and functions should have snake_case names
+    Static variables should have UPPERCASE_UNDERSCORED names
+
+    All names defined in global scope may be private and start with a single underscore
+    Names outside global scope are never allowed to be private
+    __magic__ names may only be defined in global scope
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Source code, where all variable names comply with normal convention
+    """
     renamings = set(_get_variable_name_substitutions(content))
     if renamings:
         content = _fix_variable_names(content, renamings)
+
+    print(content)
 
     return content

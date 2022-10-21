@@ -1,14 +1,29 @@
 import ast
+import enum
 import json
 import re
 from pathlib import Path
 from typing import Iterable, Sequence, Tuple
 
 with open(Path(__file__).parent / "python_keywords.json", "r", encoding="utf-8") as stream:
-    _PYTHON_KEYWORDS = frozenset(json.load(stream))
+    PYTHON_KEYWORDS = frozenset(json.load(stream))
+
+
+class VariableType(enum.Enum):
+    VARIABLE = enum.auto()
+    CLASS = enum.auto()
+    CALLABLE = enum.auto()
 
 
 def is_valid_python(content: str) -> bool:
+    """Determine if source code is valid python.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        bool: True if content is valid python.
+    """
     try:
         ast.parse(content, "")
         return True
@@ -17,6 +32,14 @@ def is_valid_python(content: str) -> bool:
 
 
 def get_is_code_mask(content: str) -> Sequence[bool]:
+    """Get boolean mask of whether content is code or not.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        Sequence[bool]: True if source code, False if comment or string, for every character.
+    """
     singleq = "'''"
     doubleq = '"""'
     s_doubleq = '"'
@@ -88,6 +111,14 @@ def get_is_code_mask(content: str) -> Sequence[bool]:
 
 
 def get_paren_depths(content: str) -> Sequence[int]:
+    """Get paranthesis depths of every character in content.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        Sequence[int]: A list of non-negative paranthesis depths, corresponding to every character.
+    """
     code_mask = get_is_code_mask(content)
     depth = 0
     depths = []
@@ -104,7 +135,19 @@ def get_paren_depths(content: str) -> Sequence[int]:
     return depths
 
 
-def iter_variables(content: str) -> Iterable[Tuple[str, Sequence[str]]]:
+class FFF:
+    prop = 1
+
+
+def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, int]]]]:
+    """Iterate over all variables or objects defined in content.
+
+    Args:
+        content (str): Python source code
+
+    Yields:
+        Tuple[str, Sequence[str]]: name,
+    """
     is_code_mask = get_is_code_mask(content)
     assert len(is_code_mask) == len(content), (len(is_code_mask), len(content))
 
@@ -119,37 +162,41 @@ def iter_variables(content: str) -> Iterable[Tuple[str, Sequence[str]]]:
         line = "".join(char for i, char in enumerate(full_line) if is_code_mask[i + parsed_chars])
         parsed_chars += len(full_line)
         line_paren_depth = get_paren_depths(full_line)
-        line = "".join(
-            char for i, char in enumerate(line) if line_paren_depth[i] + paren_depth == 0
-        )
         paren_depth += line_paren_depth[-1]
         if not line.strip():
             continue
 
         indent = len(re.findall(r"^ *", full_line)[0])
 
-        variable, *_ = line.split("=", 1)
-        variable = variable.lstrip()
-        variable, *_ = variable.split(" ", 1)
-        variable = variable.strip()
+        *assignments, _ = line.split("=")
 
-        if variable:
+        if line.strip() and paren_depth - line_paren_depth[-1] == 0:
             scopes = [
                 (name, start_indent) for (name, start_indent) in scopes if start_indent < indent
             ]
 
-        if variable in _PYTHON_KEYWORDS:
-            if variable in {"def", "class"} or (variable == "async" and "async def" in line):
-                scopes.append((variable, indent))
+        words = [x.strip() for x in line.split(" ") if x.strip()]
+        if words and words[0] in PYTHON_KEYWORDS:
+            if words[0] == "class":
+                scopes.append(("enum" if "Enum" in words[1] else words[0], indent))
+                yield re.sub(r"(\(|:).*", "", words[1]), tuple(scopes[:-1]), VariableType.CLASS
+            elif words[0] == "def" or words[0:2] == ["async", "def"]:
+                scopes.append(("def", indent))
+                yield re.sub(r"(\(|:).*", "", words[1]), tuple(scopes[:-1]), VariableType.CALLABLE
 
             continue
 
-        if "=" not in line:
-            continue
+        for variable in assignments:
+            variable = variable.lstrip()
+            variable, *_ = variable.split(" ", 1)
+            variable = variable.strip()
 
-        if not variable:
-            continue
+            if "=" not in line:
+                continue
 
-        if re.match(r"^[a-zA-Z_]+$", variable):
-            yielded_variables.add(variable)
-            yield variable, tuple(scopes)
+            if not variable:
+                continue
+
+            if re.match(r"^[a-zA-Z_]+$", variable):
+                yielded_variables.add(variable)
+                yield variable, tuple(scopes), VariableType.VARIABLE
