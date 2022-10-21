@@ -292,7 +292,7 @@ def _fix_undefined_variables(filename: Path, variables: Collection[str]) -> bool
         and not line.startswith("from __future__ import")
     )
     for package, package_variables in _ASSUMED_SOURCES.items():
-        overlap = package_variables & variables
+        overlap = variables.intersection(package_variables)
         if overlap:
             fix = f"from {package} import " + ", ".join(sorted(overlap))
             print(f"Inserting '{fix}' at line {lineno}")
