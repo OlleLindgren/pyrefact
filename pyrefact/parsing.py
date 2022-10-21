@@ -2,7 +2,7 @@ import ast
 import json
 import re
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, Tuple
 
 with open(Path(__file__).parent / "python_keywords.json", "r", encoding="utf-8") as stream:
     _PYTHON_KEYWORDS = frozenset(json.load(stream))
@@ -104,11 +104,13 @@ def get_paren_depths(content: str) -> Sequence[int]:
     return depths
 
 
-def get_static_variables(content: str) -> Iterable[str]:
+def iter_variables(content: str) -> Iterable[Tuple[str, Sequence[str]]]:
     is_code_mask = get_is_code_mask(content)
     assert len(is_code_mask) == len(content), (len(is_code_mask), len(content))
 
     scopes = []
+
+    yielded_variables = set()
 
     indent = 0
     parsed_chars = 0
@@ -148,8 +150,6 @@ def get_static_variables(content: str) -> Iterable[str]:
         if not variable:
             continue
 
-        if scopes:
-            continue
-
         if re.match(r"^[a-zA-Z_]+$", variable):
-            yield variable
+            yielded_variables.add(variable)
+            yield variable, tuple(scopes)

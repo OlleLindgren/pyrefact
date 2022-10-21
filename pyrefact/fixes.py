@@ -91,42 +91,63 @@ def _is_magic_variable(variable: str) -> bool:
     return re.match(r"^__[a-z_]+__$", variable) is not None
 
 
-def _get_wrong_name_statics(content: str) -> Iterable[str]:
-    for variable in parsing.get_static_variables(content):
-        if not _is_uppercase_static_name(variable) and not _is_magic_variable(variable):
-            yield variable
+def _is_regular_variable(variable: str) -> bool:
+    if variable.startswith("__"):
+        return False
+    if variable.endswith("_"):
+        return False
+    return re.match(r"^[a-z_]+$", variable) is not None
 
 
-def _fix_wrongly_named_statics(content: str, variables: Collection[str]) -> str:
+def _is_private(variable: str) -> bool:
+    return variable.startswith("_")
+
+
+def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
+
+    renamed_variable = variable.upper() if static else variable.lower()
+    renamed_variable = re.sub("_{1,}", "_", renamed_variable)
+
+    if renamed_variable.endswith("_"):
+        renamed_variable = renamed_variable[:-1]
+
+    if private and not _is_private(renamed_variable):
+        renamed_variable = f"_{renamed_variable}"
+    if not private and _is_private(renamed_variable):
+        renamed_variable = renamed_variable.lstrip("_")
+
+    if renamed_variable:
+        return renamed_variable
+
+    raise RuntimeError(f"Unable to find a replacement name for {variable}")
+
+
+def _get_variable_name_substitutions(content: str) -> Iterable[str]:
+    for variable, scopes in parsing.iter_variables(content):
+        if variable == "_":
+            continue
+        if scopes:
+            keyword = scopes[-1][0]
+            private = keyword == "class" and _is_private(variable)
+            substitute = _rename_variable(variable, static=False, private=private)
+        else:
+            substitute = _rename_variable(variable, static=True, private=_is_private(variable))
+
+        if variable != substitute:
+            yield variable, substitute
+
+
+def _fix_variable_names(content: str, renamings: Iterable[Tuple[str, str]]) -> str:
     code_mask = parsing.get_is_code_mask(content)
     paranthesis_map = parsing.get_paren_depths(content)
 
-    vis = ""
-    for is_code, c in zip(code_mask, content):
-        if c in " \n":
-            vis += c
-        elif is_code:
-            vis += c
-        else:
-            vis += "#"
-
-    for variable in variables:
+    for variable, substiture in renamings:
         replacements = []
         for match in re.finditer(r"(?<=[^A-Za-z_\.])" + variable + r"(?=[^A-Za-z_])", content):
             replacements.append((match.start(), match.end()))
 
         if not replacements:
             raise RuntimeError(f"Unable to find '{variable}' in {filename}")
-
-        renamed_variable = re.sub("_{1,}", "_", variable.upper())
-        if not renamed_variable.startswith("_"):
-            renamed_variable = f"_{renamed_variable}"
-
-        if renamed_variable.endswith("_"):
-            renamed_variable = renamed_variable[:-1]
-
-        if not renamed_variable:
-            raise RuntimeError(f"Unable to find a replacement name for {variable}")
 
         for start, end in sorted(replacements, reverse=True):
             if not all(code_mask[start:end]):
@@ -138,7 +159,7 @@ def _fix_wrongly_named_statics(content: str, variables: Collection[str]) -> str:
                 # kwarg names shouldn't be replaced
                 continue
 
-            content = content[:start] + renamed_variable + content[end:]
+            content = content[:start] + substiture + content[end:]
 
     return content
 
@@ -253,8 +274,8 @@ def fix_isort(content: str, *, line_length: int = 100) -> str:
 
 
 def capitalize_underscore_statics(content: str) -> str:
-    wrongly_named_statics = set(_get_wrong_name_statics(content))
-    if wrongly_named_statics:
-        content = _fix_wrongly_named_statics(content, wrongly_named_statics)
+    renamings = set(_get_variable_name_substitutions(content))
+    if renamings:
+        content = _fix_variable_names(content, renamings)
 
     return content
