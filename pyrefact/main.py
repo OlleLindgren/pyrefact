@@ -13,14 +13,17 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def run_pyrefact(filename: Path) -> None:
+def run_pyrefact(filename: Path) -> int:
     """Fix a file.
 
     Args:
         filename (Path): File to fix
+
+    Returns:
+        int: 0 if successful
     """
     with open(filename, "r", encoding="utf-8") as stream:
-        content = stream.read()
+        initial_content = content = stream.read()
 
     try:
         if not parsing.is_valid_python(content):
@@ -28,20 +31,24 @@ def run_pyrefact(filename: Path) -> None:
 
         content = fixes.align_variable_names_with_convention(content)
 
-        content = fixes.fix_black(content)
-        content = fixes.fix_isort(content, line_length=10_000)
+        if parsing.is_valid_python(content):
+            content = fixes.fix_black(content)
+            content = fixes.fix_isort(content, line_length=10_000)
+            content = fixes.define_undefined_variables(content)
+            content = fixes.remove_unused_imports(content)
+            content = fixes.fix_isort(content)
+            content = fixes.fix_black(content)
 
         content = fixes.fix_rmspace(content)
-        content = fixes.define_undefined_variables(content)
-        content = fixes.remove_unused_imports(content)
-
-        content = fixes.fix_isort(content)
-        content = fixes.fix_black(content)
 
     finally:
-        if parsing.is_valid_python(content):
+        if content != initial_content and (
+            parsing.is_valid_python(content) or not parsing.is_valid_python(initial_content)
+        ):
             with open(filename, "w", encoding="utf-8") as stream:
                 stream.write(content)
+
+    return 0
 
 
 def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:
@@ -66,13 +73,17 @@ def main(args: Sequence[str]) -> int:
     """
     args = _parse_args(args)
 
+    return_code = 0
     count = 0
     for filename in _iter_python_files(args.paths):
         count += 1
-        run_pyrefact(filename)
+        code = run_pyrefact(filename)
+        if code != 0:
+            print(f"pyrefact failed for filename {filename}")
+            return_code = max(return_code, code)
 
     if count == 0:
         print("No files provided")
         return 1
 
-    return 0
+    return return_code

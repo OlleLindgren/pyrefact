@@ -4,7 +4,7 @@ from pathlib import Path
 import setuptools
 
 with open(Path(__file__).parent / "requirements.txt", encoding="utf-8") as stream:
-    requirements = list(filter(bool, (x.strip() for x in stream.readlines())))
+    REQUIREMENTS = list(filter(bool, (x.strip() for x in stream.readlines())))
 
 setuptools.setup(
     name="pyrefact",
@@ -13,5 +13,5 @@ setuptools.setup(
     author="Olle Lindgren",
     author_email="olle.ln@outlook.com",
     packages=["pyrefact"],
-    install_requires=requirements,
+    install_requires=REQUIREMENTS,
 )

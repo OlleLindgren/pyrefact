@@ -174,31 +174,47 @@ def _get_variable_name_substitutions(content: str) -> Iterable[str]:
     for variable, scopes, variable_type in parsing.iter_definitions(content):
         substitute = _substitute_name(variable, variable_type, scopes[-1][0] if scopes else None)
         if variable != substitute and substitute not in parsing.PYTHON_KEYWORDS:
+            print(f"{variable} should be named {substitute}")
             yield variable, substitute
+
+
+def _get_variable_re_pattern(variable) -> str:
+    return r"(?<![A-Za-z_\.])" + variable + r"(?![A-Za-z_])"
 
 
 def _fix_variable_names(content: str, renamings: Iterable[Tuple[str, str]]) -> str:
     code_mask = parsing.get_is_code_mask(content)
-    paranthesis_map = parsing.get_paren_depths(content)
+    paranthesis_map = parsing.get_paren_depths(content, code_mask)
 
     for variable, substiture in renamings:
         replacements = []
-        for match in re.finditer(r"(?<=[^A-Za-z_\.])" + variable + r"(?=[^A-Za-z_])", content):
-            replacements.append((match.start(), match.end()))
+        for match in re.finditer(_get_variable_re_pattern(variable), content):
+            start = match.start()
+            end = match.end()
 
-        if not replacements:
-            raise RuntimeError(f"Unable to find '{variable}' in {filename}")
-
-        for start, end in sorted(replacements, reverse=True):
+            # Ignore string contents or comments
             if not all(code_mask[start:end]):
                 continue
-            if (
-                max(paranthesis_map[start:end]) > 0
-                and "=" in content[end : min(len(content) - 1, end + 3)]
-            ):
-                # kwarg names shouldn't be replaced
+
+            is_in_paranthesis = max(paranthesis_map[start:end]) > 0
+
+            if not is_in_paranthesis:
+                replacements.append((start, end))
                 continue
 
+            # If inside paranthesis, a = means a keyword argument is being assigned,
+            # which should be ignored.
+            # The only valid assignment syntax is with the walrus operator :=
+            substring = content[end : min(len(content) - 1, end + 3)]
+            is_assigned_by_equals = re.match(parsing.ASSIGN_RE_PATTERN, substring) is not None
+
+            if not is_assigned_by_equals:
+                replacements.append((start, end))
+
+        if not replacements:
+            raise RuntimeError(f"Unable to find '{variable}' in content")
+
+        for start, end in sorted(replacements, reverse=True):
             content = content[:start] + substiture + content[end:]
 
     return content
@@ -374,7 +390,5 @@ def align_variable_names_with_convention(content: str) -> str:
     renamings = set(_get_variable_name_substitutions(content))
     if renamings:
         content = _fix_variable_names(content, renamings)
-
-    print(content)
 
     return content
