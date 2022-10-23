@@ -1,5 +1,6 @@
 import collections
 import io
+import itertools
 import json
 import re
 import sys
@@ -516,4 +517,41 @@ def delete_pointless_statements(content: str) -> str:
     Returns:
         str: Source code, with no pointless statements.
     """
+    code_mask = parsing.get_is_code_mask(content)
+    paren_depths = parsing.get_paren_depths(content, code_mask)
+
+    keep_mask = [True] * len(content)
+    for hit in itertools.chain(
+        re.finditer(r'(?<![="])[frb]?"{1} *[^"]*?"{1}(?!["])', content),
+        re.finditer(r"(?<![='])[frb]?'{1} *[^']*?'{1}(?!['])", content),
+        re.finditer(r'(?<![="^])[frb]?"{3} *[^"]*?"{3}(?!["])', content),
+        re.finditer(r"(?<![='^])[frb]?'{3} *[^']*?'{3}(?!['])", content),
+    ):
+        start = hit.start()
+        end = hit.end()
+        if any(code_mask[start:end]):
+            continue
+        if max(paren_depths[start:end]) > 0:
+            continue
+        if re.findall(r"=[ \(\n]*$", content[:start]):
+            continue
+
+        # Docstrings
+        if re.findall(
+            r"(?<![a-zA-Z0-9_])(def|class|async def) .*\n?.*\n?.*",
+            "".join(char for char, indent in zip(content[:start], paren_depths) if indent == 0),
+        ):
+            continue
+
+        value = hit.group()
+        # Module docstrings
+        if start == 0 and (value.startswith("'''") or value.startswith('"""')):
+            continue
+
+        keep_mask[start:end] = [False] * (end - start)
+        print("Removing:")
+        print(value)
+
+    content = "".join(char for char, keep in zip(content, keep_mask) if keep)
+
     return content
