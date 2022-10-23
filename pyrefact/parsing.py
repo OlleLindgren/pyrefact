@@ -1,9 +1,7 @@
 import ast
 import dataclasses
 import enum
-import json
 import re
-from pathlib import Path
 from typing import Iterable, Sequence, Tuple
 
 WALRUS_RE_PATTERN = r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <=, ==, !=
@@ -12,9 +10,7 @@ ASSIGN_OR_WALRUS_RE_PATTERN = r"(?<![<>=!:]):?=(?![=])"
 VARIABLE_RE_PATTERN = r"(?<![a-zA-Z0-9_])[a-zA-Z_]+[a-zA-Z0-9_]*"
 STATEMENT_DELIMITER_RE_PATTERN = r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
 
-
-with open(Path(__file__).parent / "python_keywords.json", "r", encoding="utf-8") as stream:
-    PYTHON_KEYWORDS = frozenset(json.load(stream))
+from .constants import PYTHON_KEYWORDS
 
 
 class VariableType(enum.Enum):

@@ -1,7 +1,6 @@
 import collections
 import io
 import itertools
-import json
 import re
 import sys
 import tempfile
@@ -12,17 +11,8 @@ import black
 import isort
 import rmspace
 from pylint.lint import Run
-
-from . import parsing
-
-with open(Path(__file__).parent / "known_packages.json", "r", encoding="utf-8") as stream:
-    _PACKAGE_SOURCES = frozenset(json.load(stream))
-
-with open(Path(__file__).parent / "package_aliases.json", "r", encoding="utf-8") as stream:
-    _PACKAGE_ALIASES = json.load(stream)
-
-with open(Path(__file__).parent / "package_variables.json", "r", encoding="utf-8") as stream:
-    _ASSUMED_SOURCES = json.load(stream)
+from pyrefact import parsing
+from pyrefact.constants import ASSUMED_PACKAGES, ASSUMED_SOURCES, PACKAGE_ALIASES
 
 
 def _deconstruct_pylint_warning(error_line: str) -> Tuple[Path, int, int, str, str]:
@@ -220,20 +210,20 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
         and not line.startswith('"""')
         and not line.startswith("from __future__ import")
     )
-    for package, package_variables in _ASSUMED_SOURCES.items():
+    for package, package_variables in ASSUMED_SOURCES.items():
         overlap = variables.intersection(package_variables)
         if overlap:
             fix = f"from {package} import " + ", ".join(sorted(overlap))
             print(f"Inserting '{fix}' at line {lineno}")
             lines.insert(lineno, fix)
 
-    for package in _PACKAGE_SOURCES & variables:
+    for package in ASSUMED_PACKAGES & variables:
         fix = f"import {package}"
         print(f"Inserting '{fix}' at line {lineno}")
         lines.insert(lineno, fix)
 
-    for alias in _PACKAGE_ALIASES.keys() & variables:
-        package = _PACKAGE_ALIASES[alias]
+    for alias in PACKAGE_ALIASES.keys() & variables:
+        package = PACKAGE_ALIASES[alias]
         fix = f"import {package} as {alias}"
         print(f"Inserting '{fix}' at line {lineno}")
         lines.insert(lineno, fix)
