@@ -184,7 +184,7 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
         content (str): Python source code
 
     Yields:
-        Tuple[str, Sequence[str]]: name,
+        Tuple[str, Sequence[str]]: name, scopes
     """
     is_code_mask = get_is_code_mask(content)
     assert len(is_code_mask) == len(content), (len(is_code_mask), len(content))
