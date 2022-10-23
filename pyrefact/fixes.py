@@ -4,6 +4,7 @@ import itertools
 import re
 import sys
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Collection, Iterable, Literal, Tuple
 
@@ -11,6 +12,7 @@ import black
 import isort
 import rmspace
 from pylint.lint import Run
+
 from pyrefact import parsing
 from pyrefact.constants import ASSUMED_PACKAGES, ASSUMED_SOURCES, PACKAGE_ALIASES
 
@@ -189,7 +191,7 @@ def _fix_variable_names(content: str, renamings: Iterable[Tuple[str, str]]) -> s
                 replacements.append((start, end))
 
         if not replacements:
-            raise RuntimeError(f"Unable to find '{variable}' in content")
+            warnings.warn(f"Unable to find '{variable}' in content")
 
         for start, end in sorted(replacements, reverse=True):
             content = content[:start] + substiture + content[end:]
