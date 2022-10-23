@@ -29,6 +29,8 @@ def run_pyrefact(filename: Path) -> int:
         if not parsing.is_valid_python(content):
             content = completion.autocomplete(content)
 
+        content = fixes.fix_rmspace(content)
+
         content = fixes.align_variable_names_with_convention(content)
         content = fixes.undefine_unused_variables(content)
         content = fixes.delete_pointless_statements(content)
