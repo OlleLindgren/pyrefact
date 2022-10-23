@@ -1,4 +1,5 @@
 import ast
+import dataclasses
 import enum
 import json
 import re
@@ -8,7 +9,8 @@ from typing import Iterable, Sequence, Tuple
 WALRUS_RE_PATTERN = r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <=, ==, !=
 ASSIGN_RE_PATTERN = r"(?<![<>=!:])=(?![=])"  #  match =,  do not match :=, >=, <=, ==, !=
 ASSIGN_OR_WALRUS_RE_PATTERN = r"(?<![<>=!:]):?=(?![=])"
-_VARIABLE_RE_PATTERN = r"(?<![a-zA-Z0-9_])[a-zA-Z_]+[a-zA-Z0-9_]*"
+VARIABLE_RE_PATTERN = r"(?<![a-zA-Z0-9_])[a-zA-Z_]+[a-zA-Z0-9_]*"
+_STATEMENT_DELIMITER_RE_PATTERN = r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
 
 
 with open(Path(__file__).parent / "python_keywords.json", "r", encoding="utf-8") as stream:
@@ -19,6 +21,16 @@ class VariableType(enum.Enum):
     VARIABLE = enum.auto()
     CLASS = enum.auto()
     CALLABLE = enum.auto()
+
+
+@dataclasses.dataclass()
+class Statement:
+    start: int
+    end: int
+    statement_type: VariableType
+    indent: int
+    paranthesis_depth: int
+    statement: str
 
 
 def is_valid_python(content: str) -> bool:
@@ -57,28 +69,28 @@ def get_is_code_mask(content: str) -> Sequence[bool]:
         "\n": "\n",
     }
 
-    breakpoints = set()
+    statement_breaks = set()
 
     for key, regex in regexes.items():
-        breakpoints.update(
+        statement_breaks.update(
             (hit.start(), hit.end(), key, content[hit.start() - 1] == "f")
             for hit in re.finditer(regex, content)
         )
 
     triple_overlapping_singles = set()
 
-    for hit in breakpoints:
+    for hit in statement_breaks:
         if hit[2] in ("'", '"'):
             triple_matches = [
                 candidate
-                for candidate in breakpoints
+                for candidate in statement_breaks
                 if candidate[2] == hit[2] * 3 and candidate[0] <= hit[0] <= hit[1] <= candidate[1]
             ]
             if triple_matches:
                 triple_overlapping_singles.add(hit)
 
     for hit in triple_overlapping_singles:
-        breakpoints.discard(hit)
+        statement_breaks.discard(hit)
 
     string_types = {
         '"""',
@@ -95,9 +107,9 @@ def get_is_code_mask(content: str) -> Sequence[bool]:
 
     context = []
 
-    while breakpoints:
-        start_item = min(breakpoints)
-        breakpoints.remove(start_item)
+    while statement_breaks:
+        start_item = min(statement_breaks)
+        statement_breaks.remove(start_item)
         start, s_end, key, is_f = start_item
         if key in string_types:
             end_key = key
@@ -120,16 +132,16 @@ def get_is_code_mask(content: str) -> Sequence[bool]:
         else:
             raise ValueError(f"Unknown delimiter: {key}")
 
-        if not breakpoints:
+        if not statement_breaks:
             break
 
-        end_item = min(item for item in breakpoints if item[2] == end_key)
-        breakpoints.remove(end_item)
+        end_item = min(item for item in statement_breaks if item[2] == end_key)
+        statement_breaks.remove(end_item)
         _, end, _, _ = end_item
         if is_f:
             context.append(key)
         else:
-            breakpoints = {item for item in breakpoints if item[0] >= end}
+            statement_breaks = {item for item in statement_breaks if item[0] >= end}
 
         comment_super_ranges.append([start, end, key, is_f])
 
@@ -168,13 +180,123 @@ def get_paren_depths(content: str, code_mask_subset: Sequence[bool]) -> Sequence
         if not is_code:
             depths.append(depth)
             continue
-        if character in "([{":
-            depth += 1
-        elif character in ")]}":
+        if character in ")]}":
             depth -= 1
         depths.append(depth)
+        if character in "([{":
+            depth += 1
 
     return depths
+
+
+def _get_line(content: str, charno: int) -> str:
+    for hit in re.finditer(".*\n", content):
+        if hit.start() <= charno < hit.end():
+            return hit.group()
+
+    raise RuntimeError(
+        f"Cannot find a line for charno {charno} in content of length {len(content)}"
+    )
+
+
+def _get_indent(line: str) -> int:
+    return len(next(re.finditer(r"^ *", line)).group())
+
+
+def iter_statements(content: str) -> Iterable[Statement]:
+    """Find all statements in content
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        Iterable[Tuple[str, str, int, int]]: type, name, start, stop
+    """
+    is_code_mask = get_is_code_mask(content)
+
+    statement_breaks = [(0, "\n")]
+    for hit in re.finditer(_STATEMENT_DELIMITER_RE_PATTERN, content):
+        start = hit.start()
+        end = hit.end()
+        if not all(is_code_mask[start:end]):
+            continue
+        value = hit.group()
+        if value in {"class", "def", "async def"}:
+            statement_breaks.append((start, value))
+        elif value in "([{":
+            statement_breaks.append((end, value))
+        elif value in ")]}":
+            statement_breaks.append((start, value))
+        elif value == "\n":
+            statement_breaks.append((end, value))
+        else:
+            raise ValueError(f"Invalid brakpoint: {value}")
+
+    paren_depths = get_paren_depths(content, is_code_mask)
+
+    start_end_matches = {"(": ")", "[": "]", "{": "}"}
+    end_start_matches = {end: start for start, end in start_end_matches.items()}
+
+    yield Statement(0, len(content), "global", 0, None, content)
+
+    ongoing_statements: Sequence[Statement] = []
+    for statement_break, statement_break_type in statement_breaks:
+        try:
+            depth = paren_depths[statement_break]
+        except IndexError:
+            for statement in ongoing_statements:
+                statement.end = statement_break
+                statement.statement = content[statement.start : statement.end]
+                yield statement
+
+            break
+
+        line = _get_line(content, statement_break)
+        indent = _get_indent(line)
+
+        completed_statements: Sequence[Statement] = []
+        if statement_break_type in {"class", "def", "async def", "\n"} and line.strip():
+            for statement in reversed(ongoing_statements):
+                if (
+                    statement.statement_type in {"class", "def", "async def"}
+                    and statement.indent >= indent
+                    and any(re.finditer(r"\n.*\n", content[statement.start : statement_break]))
+                    and not line.startswith(")")
+                ):
+                    statement.end = statement_break
+                    statement.statement = content[statement.start : statement.end]
+                    completed_statements.append(statement)
+                if statement.statement_type == "\n":
+                    statement.end = statement_break
+                    statement.statement = content[statement.start : statement.end]
+                    completed_statements.append(statement)
+
+        if statement_break_type in {")", "]", "}"}:
+            start_match = end_start_matches[statement_break_type]
+            for statement in reversed(ongoing_statements):
+                if statement.statement_type == start_match:
+                    statement.end = statement_break
+                    statement.statement = content[statement.start : statement.end]
+                    completed_statements.append(statement)
+                    break
+
+        for statement in completed_statements:
+            ongoing_statements.remove(statement)
+            yield statement
+
+        completed_statements.clear()
+
+        if statement_break_type in {"(", "[", "{", "class", "def", "async def", "\n"}:
+            ongoing_statements.append(
+                Statement(
+                    statement_break,
+                    None,
+                    statement_break_type,
+                    indent,
+                    depth,
+                    None,
+                )
+            )
 
 
 def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, int]]]]:
@@ -187,7 +309,6 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
         Tuple[str, Sequence[str]]: name, scopes
     """
     is_code_mask = get_is_code_mask(content)
-    assert len(is_code_mask) == len(content), (len(is_code_mask), len(content))
 
     scopes = []
 
@@ -216,11 +337,15 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
             hit_depth = hit_depths.pop()
 
             # Do not parse comments and strings
-            line = "".join(char for i, char in enumerate(hit.group()) if code_mask_subset[i])
+            line = "".join(
+                char
+                for i, char in enumerate(full_line)
+                if code_mask_subset[i] and hit.start() <= i <= hit.end()
+            )
 
             words = [x.strip() for x in line.split(" ") if x.strip()]
 
-            if words and words[0] in PYTHON_KEYWORDS:
+            if len(words) >= 2 and words[0] in PYTHON_KEYWORDS:
                 if words[0] == "class":
                     scopes = [
                         (name, start_indent)
@@ -245,14 +370,15 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
                 continue
 
             *assignments, _ = re.split(
-                ASSIGN_OR_WALRUS_RE_PATTERN if hit_depth == 0 else WALRUS_RE_PATTERN, line
+                ASSIGN_OR_WALRUS_RE_PATTERN if hit_depth == 0 else WALRUS_RE_PATTERN,
+                line,
             )
 
             assignments = [
                 var
                 for part in assignments
-                if re.findall(_VARIABLE_RE_PATTERN, part) and part not in PYTHON_KEYWORDS
-                for var in re.findall(_VARIABLE_RE_PATTERN, part)
+                if re.findall(VARIABLE_RE_PATTERN, part) and part not in PYTHON_KEYWORDS
+                for var in re.findall(VARIABLE_RE_PATTERN, part)
                 if var not in PYTHON_KEYWORDS
             ]
 
@@ -270,9 +396,48 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
                     continue
 
                 if (
-                    re.match(r"^[a-zA-Z_]+$", variable)
+                    re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", variable)
                     and variable not in PYTHON_KEYWORDS
                     and variable not in yielded_variables
                 ):
                     yielded_variables.add(variable)
                     yield variable, tuple(scopes), VariableType.VARIABLE
+
+
+def iter_usages(content: str) -> Iterable[str]:
+    """Iterate over all names referenced in
+
+    Args:
+        content (str): _description_
+
+    Returns:
+        Iterable[str]: _description_
+
+    Yields:
+        Iterator[Iterable[str]]: _description_
+    """
+    code_mask = get_is_code_mask(content)
+    paranthesis_depths = get_paren_depths(content, code_mask)
+    for hit in re.finditer(VARIABLE_RE_PATTERN, content):
+        start = hit.start()
+        end = hit.end()
+        if not all(code_mask[start:end]):
+            continue
+
+        value = hit.group()
+        if value in PYTHON_KEYWORDS:
+            continue
+
+        # Assignments are not usages
+        if set(paranthesis_depths[start:end]) == {0} and re.match(
+            value + r"[ a-zA-Z0-9_,\*]*=[^=]", content[start:]
+        ):
+            continue
+
+        # b, f, r etc in f-strings are not usages of b/f/r
+        if re.match(value + r"'(.|\n)*", content[start:]):
+            continue
+        if re.match(value + r'"(.|\n)*', content[start:]):
+            continue
+
+        yield Statement(start, end, None, None, None, value)

@@ -148,7 +148,9 @@ def _rename_class(name: str, *, private: bool) -> str:
 
 
 def _substitute_name(
-    variable: str, variable_type: parsing.VariableType, scope: Literal["class", "def", "enum", None]
+    variable: str,
+    variable_type: parsing.VariableType,
+    scope: Literal["class", "def", "enum", None],
 ) -> str:
     if variable == "_":
         return variable
@@ -391,4 +393,127 @@ def align_variable_names_with_convention(content: str) -> str:
     if renamings:
         content = _fix_variable_names(content, renamings)
 
+    return content
+
+
+def undefine_unused_variables(content: str) -> str:
+    """Remove definitions of unused variables.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Source code, with no variables pointlessly being set.
+    """
+    for statement in sorted(
+        parsing.iter_statements(content), key=lambda stmt: stmt.end - stmt.start, reverse=True
+    ):
+        if statement.statement_type not in {"def", "async def", "global"}:
+            continue
+
+        altered_statement = initial_statement = statement.statement
+        defined_variables = set()
+        for variable, *_ in parsing.iter_definitions(altered_statement):
+            defined_variables.add(variable)
+
+        used_variables = {stmt.statement for stmt in parsing.iter_usages(statement.statement)}
+
+        pointless_variables = defined_variables - used_variables
+        if not pointless_variables:
+            continue
+
+        # Do not remove non-private static variables without a local use
+        pointless_variables = {
+            variable
+            for variable in pointless_variables
+            if not (
+                statement.statement_type == "global"
+                and not _is_private(variable)
+                and variable == variable.upper()
+            )
+        }
+
+        keep_mask = [True] * len(altered_statement)
+        underscore_mask = [False] * len(altered_statement)
+        for variable in pointless_variables:
+            code_mask = parsing.get_is_code_mask(altered_statement)
+            paranthesis_depths = parsing.get_paren_depths(altered_statement, code_mask)
+            hits = [
+                hit
+                for hit in re.finditer(
+                    variable + r"[^=](=|(| |,|\/|\+|-|\*)+=|[^a-zA-Z0-9_][ a-zA-Z0-9_,\*]+=)[^=] *",
+                    altered_statement,
+                )
+            ]
+            variable_definitions = []
+            for hit in hits:
+                for true_hit in re.finditer(parsing.VARIABLE_RE_PATTERN, hit.group()):
+                    if true_hit.group() != variable:
+                        continue
+
+                    start = hit.start() + true_hit.start()
+                    end = hit.start() + true_hit.end()
+
+                    if set(paranthesis_depths[start:end]) == {0} and all(code_mask[start:end]):
+                        variable_definitions.append((start, end))
+
+            variable_definitions = [
+                (start, end)
+                for (start, end) in variable_definitions
+                if set(paranthesis_depths[start:end]) == {0} and all(code_mask[start:end])
+            ]
+            if not variable_definitions:
+                raise RuntimeError(f"Cannot find any definitions of {variable} in code")
+
+            for start, end in variable_definitions:
+                chars_before = re.split("\n", altered_statement[:start])[-1]
+                chars_after = re.split(r"[:\+-\/\*]?=(?![=])", altered_statement[end:])[0]
+                if "," in chars_before or "," in chars_after:
+                    if variable != "_":
+                        print(f"{variable} should be replaced with _")
+                        underscore_mask[start:end] = [True] * (end - start)
+                else:
+                    print(f"{variable} should be deleted")
+                    end += next(
+                        re.finditer(r"[:\+-\/\*]?=(?![=])" + " *", altered_statement[end:])
+                    ).end()
+                    keep_mask[start:end] = [False] * (end - start)
+
+        altered_statement_chars = []
+        for char, keep, underscore in zip(altered_statement, keep_mask, underscore_mask):
+            if underscore:
+                if altered_statement_chars and altered_statement_chars[-1] != "_":
+                    altered_statement_chars.append("_")
+            elif keep:
+                altered_statement_chars.append(char)
+
+        altered_statement = "".join(altered_statement_chars)
+
+        keep_mask = [True] * len(altered_statement)
+        for hit in re.finditer(r"(?<=[\n]) *[ ,_\*]+= *", altered_statement):
+            true_hit = next(re.finditer(r"[_\*][ ,_\*]*= *", hit.group()))
+            start = hit.start() + true_hit.start()
+            end = hit.start() + true_hit.end()
+            keep_mask[start:end] = [False] * (end - start)
+
+        altered_statement = "".join(
+            char for char, keep in zip(altered_statement, keep_mask) if keep
+        )
+
+        if altered_statement != initial_statement:
+            print(f"Made replacements under scope: {initial_statement.splitlines()[0]}")
+            content = content.replace(initial_statement, altered_statement)
+
+    return content
+
+
+def delete_pointless_statements(content: str) -> str:
+    """Define pointless statements.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Source code, with no pointless statements.
+    """
     return content
