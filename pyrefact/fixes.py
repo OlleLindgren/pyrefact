@@ -524,8 +524,8 @@ def delete_pointless_statements(content: str) -> str:
     for hit in itertools.chain(
         re.finditer(r'(?<![="])[frb]?"{1} *[^"]*?"{1}(?!["])', content),
         re.finditer(r"(?<![='])[frb]?'{1} *[^']*?'{1}(?!['])", content),
-        re.finditer(r'(?<![="^])[frb]?"{3} *[^"]*?"{3}(?!["])', content),
-        re.finditer(r"(?<![='^])[frb]?'{3} *[^']*?'{3}(?!['])", content),
+        re.finditer(r'(?<![="])[frb]?"{3} *[^"]*?"{3}(?!["])', content),
+        re.finditer(r"(?<![='])[frb]?'{3} *[^']*?'{3}(?!['])", content),
     ):
         start = hit.start()
         end = hit.end()
