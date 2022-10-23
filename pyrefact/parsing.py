@@ -5,8 +5,9 @@ import re
 from pathlib import Path
 from typing import Iterable, Sequence, Tuple
 
-WALRUS_RE_PATTERN = r"(?<![<>=!]):=(?![=])"  # match = or :=,  do not match >=, <=, ==, !=
-ASSIGN_RE_PATTERN = r"(?<![<>=!:])=(?![=])"  # match = or :=,  do not match >=, <=, ==, !=
+WALRUS_RE_PATTERN = r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <=, ==, !=
+ASSIGN_RE_PATTERN = r"(?<![<>=!:])=(?![=])"  #  match =,  do not match :=, >=, <=, ==, !=
+ASSIGN_OR_WALRUS_RE_PATTERN = r"(?<![<>=!:]):?=(?![=])"
 _VARIABLE_RE_PATTERN = r"(?<![a-zA-Z0-9_])[a-zA-Z_]+[a-zA-Z0-9_]*"
 
 
@@ -198,11 +199,10 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
     parsed_chars = 0
     for full_line in content.splitlines(keepends=True):
         code_mask_subset = is_code_mask[parsed_chars : parsed_chars + len(full_line)]
-        line = "".join(char for i, char in enumerate(full_line) if code_mask_subset[i])
         line_paren_depth = paren_depths[parsed_chars : parsed_chars + len(full_line)]
         parsed_chars += len(full_line)
 
-        if not line.strip():
+        if not any(code_mask_subset):
             continue
 
         indent = len(re.findall(r"^ *", full_line)[0])
@@ -214,31 +214,28 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
             hit_depths = set(line_paren_depth[hit.start() : hit.end()])
             assert len(hit_depths) == 1
             hit_depth = hit_depths.pop()
-            line = hit.group()
 
-            *assignments, _ = re.split(
-                ASSIGN_RE_PATTERN if hit_depth == 0 else WALRUS_RE_PATTERN, line
-            )
-
-            assignments = [
-                re.findall(_VARIABLE_RE_PATTERN, part)[-1]
-                for part in assignments
-                if re.findall(_VARIABLE_RE_PATTERN, part)
-            ]
-
-            if line.strip() and hit_depth == 0 and not added_scope:
-                scopes = [
-                    (name, start_indent) for (name, start_indent) in scopes if start_indent < indent
-                ]
+            # Do not parse comments and strings
+            line = "".join(char for i, char in enumerate(hit.group()) if code_mask_subset[i])
 
             words = [x.strip() for x in line.split(" ") if x.strip()]
 
             if words and words[0] in PYTHON_KEYWORDS:
                 if words[0] == "class":
+                    scopes = [
+                        (name, start_indent)
+                        for (name, start_indent) in scopes
+                        if start_indent < indent
+                    ]
                     scopes.append(("enum" if "Enum" in full_line else "class", indent))
                     added_scope = True
                     yield re.sub(r"(\(|:).*", "", words[1]), tuple(scopes[:-1]), VariableType.CLASS
                 elif words[0] == "def" or words[0:2] == ["async", "def"]:
+                    scopes = [
+                        (name, start_indent)
+                        for (name, start_indent) in scopes
+                        if start_indent < indent
+                    ]
                     scopes.append(("def", indent))
                     added_scope = True
                     yield re.sub(r"(\(|:).*", "", words[1]), tuple(
@@ -246,6 +243,23 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
                     ), VariableType.CALLABLE
 
                 continue
+
+            *assignments, _ = re.split(
+                ASSIGN_OR_WALRUS_RE_PATTERN if hit_depth == 0 else WALRUS_RE_PATTERN, line
+            )
+
+            assignments = [
+                var
+                for part in assignments
+                if re.findall(_VARIABLE_RE_PATTERN, part) and part not in PYTHON_KEYWORDS
+                for var in re.findall(_VARIABLE_RE_PATTERN, part)
+                if var not in PYTHON_KEYWORDS
+            ]
+
+            if line.strip() and hit_depth == 0 and not added_scope:
+                scopes = [
+                    (name, start_indent) for (name, start_indent) in scopes if start_indent < indent
+                ]
 
             for variable in assignments:
                 variable = variable.strip("* ")
@@ -255,6 +269,10 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
                 if not variable:
                     continue
 
-                if re.match(r"^[a-zA-Z_]+$", variable) and variable not in PYTHON_KEYWORDS:
+                if (
+                    re.match(r"^[a-zA-Z_]+$", variable)
+                    and variable not in PYTHON_KEYWORDS
+                    and variable not in yielded_variables
+                ):
                     yielded_variables.add(variable)
                     yield variable, tuple(scopes), VariableType.VARIABLE
