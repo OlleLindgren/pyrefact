@@ -15,9 +15,8 @@ Automatic python refactoring
 ## Usage
 
 ```bash
-git clone <pyrefact git url>
-pip install -e ./pyrefact
-python -m pyrefact ./path/to/filename.py ./path/to/directory
+pip install pyrefact
+python -m pyrefact /path/to/filename.py
 ```
 
 ## The purpose of pyrefact
