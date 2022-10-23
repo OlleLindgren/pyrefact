@@ -84,22 +84,6 @@ def _get_unused_imports(content: str) -> Iterable[Tuple[int, str, str]]:
             pass
 
 
-def _is_uppercase_static_name(variable: str) -> bool:
-    return re.match(r"^_[A-Z_]+$", variable) is not None
-
-
-def _is_magic_variable(variable: str) -> bool:
-    return re.match(r"^__[a-z_]+__$", variable) is not None
-
-
-def _is_regular_variable(variable: str) -> bool:
-    if variable.startswith("__"):
-        return False
-    if variable.endswith("_"):
-        return False
-    return re.match(r"^[a-z_]+$", variable) is not None
-
-
 def _is_private(variable: str) -> bool:
     return variable.startswith("_")
 
@@ -407,15 +391,18 @@ def undefine_unused_variables(content: str) -> str:
         str: Source code, with no variables pointlessly being set.
     """
     for statement in sorted(
-        parsing.iter_statements(content), key=lambda stmt: stmt.end - stmt.start, reverse=True
+        parsing.iter_statements(content),
+        key=lambda stmt: stmt.end - stmt.start,
+        reverse=True,
     ):
         if statement.statement_type not in {"def", "async def", "global"}:
             continue
 
         altered_statement = initial_statement = statement.statement
         defined_variables = set()
-        for variable, *_ in parsing.iter_definitions(altered_statement):
-            defined_variables.add(variable)
+        for variable, _, variable_type in parsing.iter_definitions(altered_statement):
+            if variable_type is parsing.VariableType.VARIABLE:
+                defined_variables.add(variable)
 
         used_variables = {stmt.statement for stmt in parsing.iter_usages(statement.statement)}
 
@@ -553,5 +540,47 @@ def delete_pointless_statements(content: str) -> str:
         print(value)
 
     content = "".join(char for char, keep in zip(content, keep_mask) if keep)
+
+    return content
+
+
+def delete_unused_functions_and_classes(content: str) -> str:
+    """Delete unused functions and classes.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Code, with unused functions deleted
+    """
+    defined_functions = [
+        statement
+        for statement in parsing.iter_statements(content)
+        if statement.statement_type in {"def", "async def"}
+    ]
+    referenced_names = {statement.statement for statement in parsing.iter_usages(content)}
+
+    for statement in sorted(
+        defined_functions, key=lambda stmt: (stmt.start, stmt.end), reverse=True
+    ):
+        name = statement.statement.splitlines()[0].lstrip()
+        name = re.sub(" +", " ", name)
+        if statement.statement_type == "def":
+            _, name = name.split(" ", 1)
+        elif statement.statement_type == "async def":
+            _, _, name = name.split(" ", 2)
+        else:
+            raise RuntimeError(f"Cannot parse: {statement.statement_type}")
+
+        name, *_ = re.split(parsing.STATEMENT_DELIMITER_RE_PATTERN, name, 1)
+
+        if name in referenced_names:
+            continue
+
+        if not _is_private(name):
+            continue
+
+        print(f"Deleting {name}")
+        content = content.replace(statement.statement, "")
 
     return content

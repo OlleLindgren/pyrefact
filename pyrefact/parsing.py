@@ -10,7 +10,7 @@ WALRUS_RE_PATTERN = r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <
 ASSIGN_RE_PATTERN = r"(?<![<>=!:])=(?![=])"  #  match =,  do not match :=, >=, <=, ==, !=
 ASSIGN_OR_WALRUS_RE_PATTERN = r"(?<![<>=!:]):?=(?![=])"
 VARIABLE_RE_PATTERN = r"(?<![a-zA-Z0-9_])[a-zA-Z_]+[a-zA-Z0-9_]*"
-_STATEMENT_DELIMITER_RE_PATTERN = r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
+STATEMENT_DELIMITER_RE_PATTERN = r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
 
 
 with open(Path(__file__).parent / "python_keywords.json", "r", encoding="utf-8") as stream:
@@ -215,7 +215,7 @@ def iter_statements(content: str) -> Iterable[Statement]:
     is_code_mask = get_is_code_mask(content)
 
     statement_breaks = [(0, "\n")]
-    for hit in re.finditer(_STATEMENT_DELIMITER_RE_PATTERN, content):
+    for hit in re.finditer(STATEMENT_DELIMITER_RE_PATTERN, content):
         start = hit.start()
         end = hit.end()
         if not all(is_code_mask[start:end]):
@@ -404,17 +404,14 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
                     yield variable, tuple(scopes), VariableType.VARIABLE
 
 
-def iter_usages(content: str) -> Iterable[str]:
+def iter_usages(content: str) -> Iterable[Statement]:
     """Iterate over all names referenced in
 
     Args:
         content (str): _description_
 
-    Returns:
-        Iterable[str]: _description_
-
     Yields:
-        Iterator[Iterable[str]]: _description_
+        Statement: _description_
     """
     code_mask = get_is_code_mask(content)
     paranthesis_depths = get_paren_depths(content, code_mask)
@@ -438,6 +435,10 @@ def iter_usages(content: str) -> Iterable[str]:
         if re.match(value + r"'(.|\n)*", content[start:]):
             continue
         if re.match(value + r'"(.|\n)*', content[start:]):
+            continue
+
+        # Function and class definitions are not usages
+        if re.findall(f"(def|class) +{value}$", content[:end]):
             continue
 
         yield Statement(start, end, None, None, None, value)

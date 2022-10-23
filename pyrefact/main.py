@@ -32,6 +32,7 @@ def run_pyrefact(filename: Path) -> int:
         content = fixes.align_variable_names_with_convention(content)
         content = fixes.undefine_unused_variables(content)
         content = fixes.delete_pointless_statements(content)
+        content = fixes.delete_unused_functions_and_classes(content)
 
         if parsing.is_valid_python(content):
             content = fixes.fix_black(content)
