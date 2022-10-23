@@ -8,7 +8,7 @@ with open(Path(__file__).parent / "requirements.txt", encoding="utf-8") as strea
 
 setuptools.setup(
     name="pyrefact",
-    version="1",
+    version="2",
     description="Automatic python refactoring",
     author="Olle Lindgren",
     author_email="olle.ln@outlook.com",
