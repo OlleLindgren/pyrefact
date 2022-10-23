@@ -5,9 +5,11 @@ Automatic python refactoring
 
 * Run black and isort with --line-length=100.
 * Delete unused imports
-* Make educated guesses for missing imports
+* Add missing imports by guessing what you probably wanted.
   * For example, if pylint reports an undefined variable for `Sequence`, it will insert `from typing import Sequence` at the top of the file.
-* Rename lowercased static variables to uppercase. For example, `some_variable` would become `_SOME_VARIABLE`.
+* Rename variables, functions and classes with conventions.
+* Delete unused functions, classes and variables.
+* Remove pointless string statements.
 * More to come!
 
 ## Usage
