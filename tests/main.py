@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+"""Maing script for running all tests."""
 import subprocess
 import sys
 from pathlib import Path

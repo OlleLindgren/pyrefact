@@ -6,7 +6,7 @@ import sys
 import tempfile
 import warnings
 from pathlib import Path
-from typing import Collection, Iterable, Literal, Tuple
+from typing import Collection, Iterable, Literal, Sequence, Tuple
 
 import black
 import isort
@@ -14,7 +14,7 @@ import rmspace
 from pylint.lint import Run
 
 from pyrefact import parsing
-from pyrefact.constants import ASSUMED_PACKAGES, ASSUMED_SOURCES, PACKAGE_ALIASES
+from pyrefact.constants import ASSUMED_PACKAGES, ASSUMED_SOURCES, PACKAGE_ALIASES, PYTHON_KEYWORDS
 
 
 def _deconstruct_pylint_warning(error_line: str) -> Tuple[Path, int, int, str, str]:
@@ -487,6 +487,35 @@ def undefine_unused_variables(content: str) -> str:
     return content
 
 
+def _is_docstring(content: str, paren_depths: Sequence[int], value: str, start: int) -> bool:
+    """Determine if a string is a docstring.
+
+    Args:
+        content (str): Python source code
+        paren_depths (Sequence[int]): Paranthesis depths of code
+        value (str): Matched string statement
+        start (int): Character number in code where the matched string starts
+
+    Returns:
+        bool: True if the matched string is a docstring
+    """
+    code_before_value = content[:start]
+    # Function docstrings
+    if re.findall(
+        r"(?<![a-zA-Z0-9_])(def|class|async def) .*\n?.*\n?.*$",
+        "".join(char for char, indent in zip(code_before_value, paren_depths) if indent == 0),
+    ):
+        return True
+
+    # Module docstrings
+    if all(line.startswith("#!") for line in code_before_value.splitlines()) and (
+        value.startswith("'''") or value.startswith('"""')
+    ):
+        return True
+
+    return False
+
+
 def delete_pointless_statements(content: str) -> str:
     """Define pointless statements.
 
@@ -498,6 +527,8 @@ def delete_pointless_statements(content: str) -> str:
     """
     code_mask = parsing.get_is_code_mask(content)
     paren_depths = parsing.get_paren_depths(content, code_mask)
+
+    list(parsing.iter_statements(content))
 
     keep_mask = [True] * len(content)
     for hit in itertools.chain(
@@ -512,19 +543,17 @@ def delete_pointless_statements(content: str) -> str:
             continue
         if max(paren_depths[start:end]) > 0:
             continue
+
+        # Assignment
         if re.findall(r"=[ \(\n]*$", content[:start]):
             continue
 
-        # Docstrings
-        if re.findall(
-            r"(?<![a-zA-Z0-9_])(def|class|async def) .*\n?.*\n?.*",
-            "".join(char for char, indent in zip(content[:start], paren_depths) if indent == 0),
-        ):
+        value = hit.group()
+        if _is_docstring(content, paren_depths, value, start):
             continue
 
-        value = hit.group()
-        # Module docstrings
-        if start == 0 and (value.startswith("'''") or value.startswith('"""')):
+        line = parsing._get_line(content, start)
+        if PYTHON_KEYWORDS & set(re.findall(parsing.VARIABLE_RE_PATTERN, line.replace(value, ""))):
             continue
 
         keep_mask[start:end] = [False] * (end - start)
