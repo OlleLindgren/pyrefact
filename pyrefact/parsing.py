@@ -185,7 +185,7 @@ def get_paren_depths(content: str, code_mask_subset: Sequence[bool]) -> Sequence
     return depths
 
 
-def _get_line(content: str, charno: int) -> str:
+def get_line(content: str, charno: int) -> str:
     for hit in re.finditer(".*\n", content):
         if hit.start() <= charno < hit.end():
             return hit.group()
@@ -195,7 +195,7 @@ def _get_line(content: str, charno: int) -> str:
     )
 
 
-def _get_indent(line: str) -> int:
+def get_indent(line: str) -> int:
     return len(next(re.finditer(r"^ *", line)).group())
 
 
@@ -247,8 +247,8 @@ def iter_statements(content: str) -> Iterable[Statement]:
 
             break
 
-        line = _get_line(content, statement_break)
-        indent = _get_indent(line)
+        line = get_line(content, statement_break)
+        indent = get_indent(line)
 
         completed_statements: Sequence[Statement] = []
         if statement_break_type in {"class", "def", "async def", "\n"} and line.strip():
@@ -459,7 +459,7 @@ def has_side_effect(
     nonempty_lines = [line for line in statement.statement.splitlines() if line.strip()]
     if not nonempty_lines:
         return False
-    indent = min(_get_indent(line) for line in nonempty_lines)
+    indent = min(get_indent(line) for line in nonempty_lines)
     deindented_code = "".join(
         line[indent:] if len(line) > indent else line
         for line in statement.statement.splitlines(keepends=True)

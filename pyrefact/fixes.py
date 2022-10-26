@@ -552,7 +552,7 @@ def delete_pointless_statements(content: str) -> str:
         if _is_docstring(content, paren_depths, value, start):
             continue
 
-        line = parsing._get_line(content, start)
+        line = parsing.get_line(content, start)
         if PYTHON_KEYWORDS & set(re.findall(parsing.VARIABLE_RE_PATTERN, line.replace(value, ""))):
             continue
 
@@ -583,8 +583,8 @@ def delete_pointless_statements(content: str) -> str:
             continue
         if statement.statement.lstrip()[0] in {"#", "'", '"'}:
             continue
-        line = parsing._get_line(content, statement.start)
-        indent = parsing._get_indent(line)
+        line = parsing.get_line(content, statement.start)
+        indent = parsing.get_indent(line)
         if indent > 0:
             continue
         varnames = [
