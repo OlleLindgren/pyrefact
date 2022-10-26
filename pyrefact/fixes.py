@@ -570,7 +570,11 @@ def delete_pointless_statements(content: str) -> str:
         print("Removing:")
         print(value)
 
-    usages = {statement.statement for statement in parsing.iter_usages(content)}
+    usages = {
+        statement.statement
+        for statement in parsing.iter_usages(content)
+        if len(re.findall(statement.statement, content)) > 1
+    }
 
     function_ranges = []
 
@@ -586,6 +590,8 @@ def delete_pointless_statements(content: str) -> str:
         if any(start <= statement.start <= statement.end <= end for start, end in function_ranges):
             continue
         if not statement.statement.strip():
+            continue
+        if all(depth > 0 for depth in paren_depths[statement.start : statement.end]):
             continue
         if not parsing.is_valid_python(statement.statement):
             continue
@@ -604,7 +610,11 @@ def delete_pointless_statements(content: str) -> str:
         ]
         if varnames:
             first_varname = varnames[0]
-            if not _is_private(first_varname):
+            if (
+                first_varname != "_"
+                and not _is_private(first_varname)
+                and first_varname not in PYTHON_KEYWORDS
+            ):
                 continue
         keep_mask[statement.start : statement.end] = [False] * (statement.end - statement.start)
 
