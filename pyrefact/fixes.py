@@ -575,7 +575,7 @@ def delete_pointless_statements(content: str) -> str:
     for statement in parsing.iter_statements(content):
         if any(start <= statement.start <= statement.end <= end for start, end in function_ranges):
             continue
-        if not set(statement.statement) - {"", "\n"}:
+        if not statement.statement.strip():
             continue
         if not parsing.is_valid_python(statement.statement):
             continue
