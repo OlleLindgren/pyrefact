@@ -421,7 +421,6 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
             for variable in pointless_variables
             if not (
                 statement.statement_type == "global"
-                and not _is_private(variable)
                 and variable == variable.upper()
             )
         }
@@ -628,7 +627,6 @@ def delete_pointless_statements(content: str, preserve: Collection[str] = frozen
             first_varname = varnames[0]
             if (
                 first_varname != "_"
-                and not _is_private(first_varname)
                 and first_varname not in PYTHON_KEYWORDS
             ):
                 continue
@@ -675,9 +673,6 @@ def delete_unused_functions_and_classes(
             continue
 
         if name in referenced_names:
-            continue
-
-        if not _is_private(name):
             continue
 
         print(f"Deleting {name}")
