@@ -190,9 +190,7 @@ def get_line(content: str, charno: int) -> str:
         if hit.start() <= charno < hit.end():
             return hit.group()
 
-    raise RuntimeError(
-        f"Cannot find a line for charno {charno} in content of length {len(content)}"
-    )
+    return content.splitlines()[-1]
 
 
 def get_indent(line: str) -> int:
