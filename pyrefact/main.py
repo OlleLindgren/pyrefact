@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-
 import argparse
+import sys
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Collection, Iterable, Sequence
 
 from . import completion, fixes, parsing
 
@@ -10,10 +10,13 @@ from . import completion, fixes, parsing
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("paths", help="Paths to refactor", type=Path, nargs="+", default=())
+    parser.add_argument(
+        "--preserve", help="Paths to preserve names in", type=Path, nargs="+", default=()
+    )
     return parser.parse_args(args)
 
 
-def run_pyrefact(filename: Path) -> int:
+def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int:
     """Fix a file.
 
     Args:
@@ -31,10 +34,11 @@ def run_pyrefact(filename: Path) -> int:
 
         content = fixes.fix_rmspace(content)
 
-        content = fixes.align_variable_names_with_convention(content)
-        content = fixes.undefine_unused_variables(content)
-        content = fixes.delete_pointless_statements(content)
-        content = fixes.delete_unused_functions_and_classes(content)
+        content = fixes.undefine_unused_variables(content, preserve=preserve)
+        content = fixes.delete_pointless_statements(content, preserve=preserve)
+        content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
+
+        content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
         if parsing.is_valid_python(content):
             content = fixes.fix_black(content)
@@ -82,9 +86,15 @@ def main(args: Sequence[str]) -> int:
 
     return_code = 0
     count = 0
+    used_names = set()
+    for filename in _iter_python_files(args.preserve):
+        with open(filename, "r", encoding="utf-8") as stream:
+            content = stream.read()
+            used_names.update(stmt.statement for stmt in parsing.iter_usages(content))
+
     for filename in _iter_python_files(args.paths):
         count += 1
-        code = run_pyrefact(filename)
+        code = run_pyrefact(filename, preserve=frozenset(used_names))
         if code != 0:
             print(f"pyrefact failed for filename {filename}")
             return_code = max(return_code, code)
@@ -94,3 +104,7 @@ def main(args: Sequence[str]) -> int:
         return 1
 
     return return_code
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

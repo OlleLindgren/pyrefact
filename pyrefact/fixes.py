@@ -359,7 +359,9 @@ def fix_isort(content: str, *, line_length: int = 100) -> str:
     return isort.code(content, config=isort.Config(profile="black", line_length=line_length))
 
 
-def align_variable_names_with_convention(content: str) -> str:
+def align_variable_names_with_convention(
+    content: str, preserve: Collection[str] = frozenset()
+) -> str:
     """Align variable names with normal convention
 
     Class names should have CamelCase names
@@ -377,13 +379,14 @@ def align_variable_names_with_convention(content: str) -> str:
         str: Source code, where all variable names comply with normal convention
     """
     renamings = set(_get_variable_name_substitutions(content))
+    renamings = {(name, substitute) for name, substitute in renamings if name not in preserve}
     if renamings:
         content = _fix_variable_names(content, renamings)
 
     return content
 
 
-def undefine_unused_variables(content: str) -> str:
+def undefine_unused_variables(content: str, preserve: Collection[str] = frozenset()) -> str:
     """Remove definitions of unused variables.
 
     Args:
@@ -408,7 +411,7 @@ def undefine_unused_variables(content: str) -> str:
 
         used_variables = {stmt.statement for stmt in parsing.iter_usages(statement.statement)}
 
-        pointless_variables = defined_variables - used_variables
+        pointless_variables = defined_variables - used_variables - preserve
         if not pointless_variables:
             continue
 
@@ -526,7 +529,7 @@ def _is_docstring(content: str, paren_depths: Sequence[int], value: str, start: 
     return False
 
 
-def delete_pointless_statements(content: str) -> str:
+def delete_pointless_statements(content: str, preserve: Collection[str] = frozenset()) -> str:
     """Define pointless statements.
 
     Args:
@@ -583,11 +586,19 @@ def delete_pointless_statements(content: str) -> str:
         used_vars = {
             var
             for var, var_usages in usages.items()
-            if any(start < statement.start or end > statement.end for start, end in var_usages)
+            if any(start > statement.end for start, _ in var_usages)
         }
+        function_ranges.append((statement.start, statement.end))
+        varnames = [
+            name
+            for name in re.findall(parsing.VARIABLE_RE_PATTERN, statement.statement)
+            if name not in PYTHON_KEYWORDS
+        ]
+        if not varnames or varnames[0] in preserve:
+            continue
+
         if parsing.has_side_effect(statement, (), used_vars):
             continue
-        function_ranges.append((statement.start, statement.end))
         keep_mask[statement.start : statement.end] = [False] * (statement.end - statement.start)
 
     for statement in parsing.iter_statements(content):
@@ -602,15 +613,11 @@ def delete_pointless_statements(content: str) -> str:
         used_vars = {
             var
             for var, var_usages in usages.items()
-            if any(start < statement.start or end > statement.end for start, end in var_usages)
+            if any(start > statement.end for start, _ in var_usages)
         }
         if parsing.has_side_effect(statement, (), used_vars):
             continue
         if statement.statement.lstrip()[0] in {"#", "'", '"'}:
-            continue
-        line = parsing.get_line(content, statement.start)
-        indent = parsing.get_indent(line)
-        if indent > 0:
             continue
         varnames = [
             name
@@ -632,7 +639,9 @@ def delete_pointless_statements(content: str) -> str:
     return content
 
 
-def delete_unused_functions_and_classes(content: str) -> str:
+def delete_unused_functions_and_classes(
+    content: str, preserve: Collection[str] = frozenset()
+) -> str:
     """Delete unused functions and classes.
 
     Args:
@@ -661,6 +670,9 @@ def delete_unused_functions_and_classes(content: str) -> str:
             raise RuntimeError(f"Cannot parse: {statement.statement_type}")
 
         name, *_ = re.split(parsing.STATEMENT_DELIMITER_RE_PATTERN, name, 1)
+
+        if name in preserve:
+            continue
 
         if name in referenced_names:
             continue

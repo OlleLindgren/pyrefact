@@ -1,5 +1,4 @@
 """Installer for pyrefact"""
-
 import setuptools
 
 setuptools.setup(
