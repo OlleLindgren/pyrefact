@@ -456,7 +456,10 @@ def has_side_effect(
         bool: True if it may have a side effect.
 
     """
-    indent = min(_get_indent(line) for line in statement.statement.splitlines() if line.strip())
+    nonempty_lines = [line for line in statement.statement.splitlines() if line.strip()]
+    if not nonempty_lines:
+        return False
+    indent = min(_get_indent(line) for line in nonempty_lines)
     deindented_code = "".join(
         line[indent:] if len(line) > indent else line
         for line in statement.statement.splitlines(keepends=True)
