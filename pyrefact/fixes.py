@@ -518,7 +518,7 @@ def _is_docstring(content: str, paren_depths: Sequence[int], value: str, start: 
         return True
 
     # Module docstrings
-    if all(line.startswith("#!") for line in code_before_value.splitlines()) and (
+    if all(line.startswith("#") for line in code_before_value.splitlines()) and (
         value.startswith("'''") or value.startswith('"""')
     ):
         return True
