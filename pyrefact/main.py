@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import collections
 import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
@@ -72,6 +73,11 @@ def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:
             raise FileNotFoundError(f"Not found: {path}")
 
 
+def _namespace_name(filename: Path) -> str:
+    filename = Path(filename).absolute()
+    return ".".join([directory.name for directory in filename.parents] + [filename.name])
+
+
 def main(args: Sequence[str]) -> int:
     """Parse command-line arguments and run pyrefact on provided files.
 
@@ -86,15 +92,21 @@ def main(args: Sequence[str]) -> int:
 
     return_code = 0
     count = 0
-    used_names = set()
+    used_names = collections.defaultdict(set)
     for filename in _iter_python_files(args.preserve):
         with open(filename, "r", encoding="utf-8") as stream:
             content = stream.read()
-            used_names.update(stmt.statement for stmt in parsing.iter_usages(content))
+        used_names[_namespace_name(filename)].update(
+            stmt.statement for stmt in parsing.iter_usages(content)
+        )
 
     for filename in _iter_python_files(args.paths):
         count += 1
-        code = run_pyrefact(filename, preserve=frozenset(used_names))
+        preserve = set()
+        for name, variables in used_names.items():
+            if name != _namespace_name(filename):
+                preserve.update(variables)
+        code = run_pyrefact(filename, preserve=frozenset(preserve))
         if code != 0:
             print(f"pyrefact failed for filename {filename}")
             return_code = max(return_code, code)

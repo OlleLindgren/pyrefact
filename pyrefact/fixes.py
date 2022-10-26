@@ -262,10 +262,11 @@ def _fix_unused_imports(content: str, problems: Collection[Tuple[int, str, str]]
     for i, line in enumerate(content.splitlines(keepends=True)):
         if i + 1 in lineno_problems:
             if re.match(r"from .*? import .*", line):
-                packages = {package for package, variable in lineno_problems[i + 1]}
+                packages = {package for package, _ in lineno_problems[i + 1]}
                 if len(packages) != 1:
                     raise RuntimeError("Unable to parse unique package")
-                bad_variables = {variable for package, variable in lineno_problems[i + 1]}
+                package = packages.pop()
+                bad_variables = {variable for _, variable in lineno_problems[i + 1]}
                 _, existing_variables = line.split(" import ")
                 existing_variables = set(x.strip() for x in existing_variables.split(","))
                 keep_variables = existing_variables - bad_variables
@@ -414,16 +415,6 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         pointless_variables = defined_variables - used_variables - preserve
         if not pointless_variables:
             continue
-
-        # Do not remove non-private static variables without a local use
-        pointless_variables = {
-            variable
-            for variable in pointless_variables
-            if not (
-                statement.statement_type == "global"
-                and variable == variable.upper()
-            )
-        }
 
         keep_mask = [True] * len(altered_statement)
         underscore_mask = [False] * len(altered_statement)
@@ -625,10 +616,7 @@ def delete_pointless_statements(content: str, preserve: Collection[str] = frozen
         ]
         if varnames:
             first_varname = varnames[0]
-            if (
-                first_varname != "_"
-                and first_varname not in PYTHON_KEYWORDS
-            ):
+            if first_varname != "_" and first_varname not in PYTHON_KEYWORDS:
                 continue
         keep_mask[statement.start : statement.end] = [False] * (statement.end - statement.start)
 
