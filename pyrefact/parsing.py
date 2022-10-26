@@ -2,7 +2,7 @@ import ast
 import dataclasses
 import enum
 import re
-from typing import Iterable, Sequence, Tuple
+from typing import Collection, Iterable, Sequence, Tuple
 
 WALRUS_RE_PATTERN = r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <=, ==, !=
 ASSIGN_RE_PATTERN = r"(?<![<>=!:])=(?![=])"  #  match =,  do not match :=, >=, <=, ==, !=
@@ -438,3 +438,59 @@ def iter_usages(content: str) -> Iterable[Statement]:
             continue
 
         yield Statement(start, end, None, None, None, value)
+
+
+def has_side_effect(
+    statement: Statement,
+    safe_callable_whitelist: Collection[str] = frozenset(),
+    used_variables: Collection[str] = frozenset(),
+) -> bool:
+    """Determine if a statement has a side effect.
+
+    Args:
+        statement (Statement): Statement to check
+        safe_callable_whitelist (Collection[str]): Items known to not have a side effect
+        used_variables (Collection[str]): Used variables and names
+
+    Returns:
+        bool: True if it may have a side effect.
+
+    """
+    indent = min(_get_indent(line) for line in statement.statement.splitlines() if line.strip())
+    deindented_code = "".join(
+        line[indent:] if len(line) > indent else line
+        for line in statement.statement.splitlines(keepends=True)
+    )
+    code_mask = get_is_code_mask(deindented_code)
+    if not any(code_mask):
+        return False
+    try:
+        ast.literal_eval(deindented_code)
+    except (SyntaxError, ValueError):
+        pass
+
+    builtins = set(dir(__builtins__))
+
+    for hit in re.finditer(VARIABLE_RE_PATTERN, deindented_code):
+        start = hit.start()
+        end = hit.end()
+        value = hit.group()
+        is_code_states = set(code_mask[start:end])
+        assert (
+            len(is_code_states) == 1
+        ), f"Got ambiguous regex hit for VARIABLE_RE_PATTERN:\n{value}"
+        is_code = is_code_states.pop()
+        if not is_code:
+            continue
+        if value in {"raise", "assert"}:
+            return True
+        if value in PYTHON_KEYWORDS:
+            continue
+        if value in builtins:
+            continue
+        if value in used_variables:
+            return True
+        if value in safe_callable_whitelist:
+            continue
+
+    return False

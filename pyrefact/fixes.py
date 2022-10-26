@@ -560,6 +560,44 @@ def delete_pointless_statements(content: str) -> str:
         print("Removing:")
         print(value)
 
+    usages = {statement.statement for statement in parsing.iter_usages(content)}
+
+    function_ranges = []
+
+    for statement in parsing.iter_statements(content):
+        if statement.statement_type not in {"def", "class", "async def"}:
+            continue
+        if parsing.has_side_effect(statement, (), usages):
+            continue
+        function_ranges.append((statement.start, statement.end))
+        keep_mask[statement.start : statement.end] = [False] * (statement.end - statement.start)
+
+    for statement in parsing.iter_statements(content):
+        if any(start <= statement.start <= statement.end <= end for start, end in function_ranges):
+            continue
+        if not set(statement.statement) - {"", "\n"}:
+            continue
+        if not parsing.is_valid_python(statement.statement):
+            continue
+        if parsing.has_side_effect(statement, (), usages):
+            continue
+        if statement.statement.lstrip()[0] in {"#", "'", '"'}:
+            continue
+        line = parsing._get_line(content, statement.start)
+        indent = parsing._get_indent(line)
+        if indent > 0:
+            continue
+        varnames = [
+            name
+            for name in re.findall(parsing.VARIABLE_RE_PATTERN, statement.statement)
+            if name not in {"def", "async def", "class"}
+        ]
+        if varnames:
+            first_varname = varnames[0]
+            if not _is_private(first_varname):
+                continue
+        keep_mask[statement.start : statement.end] = [False] * (statement.end - statement.start)
+
     content = "".join(char for char, keep in zip(content, keep_mask) if keep)
 
     return content

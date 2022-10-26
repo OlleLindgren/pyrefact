@@ -2,13 +2,10 @@ import sys
 
 from pyrefact.fixes import delete_pointless_statements
 
-CODE = """
+CODE = """12
 
-12
-
-
-
-
+def pointless_function() -> None:
+    555
 
 variable = "asdf"
 
@@ -17,38 +14,42 @@ var2 = 'asdfasdf'
 var3 = '''
 this should not be deleted'''
 
+def h():
+    '''
+    This is a docstring and should be left alone
+    '''
+    99
+
+    111
 
 def f():
     '''
     This is a docstring and should be left alone
     '''
+    _QFQWERF += 99
 
-
+if __name__ == "__main__":
+    f()
+    sys.exit(0)
 """
 
 
-EXPECTED = """
-
-12
-
-
-
-
-
-variable = "asdf"
+EXPECTED = """variable = "asdf"
 
 var2 = 'asdfasdf'
 
 var3 = '''
 this should not be deleted'''
 
-
 def f():
     '''
     This is a docstring and should be left alone
     '''
+    _QFQWERF += 99
 
-
+if __name__ == "__main__":
+    f()
+    sys.exit(0)
 """
 
 
@@ -70,7 +71,6 @@ if __name__ == "__main__":
 
 
 def main() -> int:
-
     got = delete_pointless_statements(CODE)
     assert got == EXPECTED, "\n".join(("Wrong result: (got, expected)", got, EXPECTED))
     assert SHEBANG == delete_pointless_statements(SHEBANG)
