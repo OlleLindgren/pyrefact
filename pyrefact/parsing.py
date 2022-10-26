@@ -365,10 +365,15 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
 
                 continue
 
-            *assignments, _ = re.split(
+            *assignments, rvalue = re.split(
                 ASSIGN_OR_WALRUS_RE_PATTERN if hit_depth == 0 else WALRUS_RE_PATTERN,
                 line,
             )
+
+            if "namedtuple" in re.findall(VARIABLE_RE_PATTERN, rvalue):
+                variable_type = VariableType.CLASS
+            else:
+                variable_type = VariableType.VARIABLE
 
             assignments = [
                 var
@@ -397,7 +402,7 @@ def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, in
                     and variable not in yielded_variables
                 ):
                     yielded_variables.add(variable)
-                    yield variable, tuple(scopes), VariableType.VARIABLE
+                    yield variable, tuple(scopes), variable_type
 
 
 def iter_usages(content: str) -> Iterable[Statement]:

@@ -80,6 +80,16 @@ def _is_private(variable: str) -> bool:
     return variable.startswith("_")
 
 
+def _is_magic(variable: str) -> bool:
+    return (
+        variable.startswith("__")
+        and variable.endswith("__")
+        and not variable.startswith("___")
+        and not variable.endswith("___")
+        and re.match("^[a-z_]+$", variable)
+    )
+
+
 def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
 
     renamed_variable = variable.upper() if static else variable.lower()
@@ -129,7 +139,7 @@ def _substitute_name(
     variable_type: parsing.VariableType,
     scope: Literal["class", "def", "enum", None],
 ) -> str:
-    if variable == "_":
+    if variable == "_" or _is_magic(variable):
         return variable
 
     if variable_type == parsing.VariableType.CLASS:
