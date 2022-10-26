@@ -570,18 +570,22 @@ def delete_pointless_statements(content: str) -> str:
         print("Removing:")
         print(value)
 
-    usages = {
-        statement.statement
-        for statement in parsing.iter_usages(content)
-        if len(re.findall(statement.statement, content)) > 1
-    }
+    usages = collections.defaultdict(list)
+    for statement in parsing.iter_usages(content):
+        if len(re.findall(statement.statement, content)) > 1:
+            usages[statement.statement].append((statement.start, statement.end))
 
     function_ranges = []
 
     for statement in parsing.iter_statements(content):
         if statement.statement_type not in {"def", "class", "async def"}:
             continue
-        if parsing.has_side_effect(statement, (), usages):
+        used_vars = {
+            var
+            for var, var_usages in usages.items()
+            if any(start < statement.start or end > statement.end for start, end in var_usages)
+        }
+        if parsing.has_side_effect(statement, (), used_vars):
             continue
         function_ranges.append((statement.start, statement.end))
         keep_mask[statement.start : statement.end] = [False] * (statement.end - statement.start)
@@ -595,7 +599,12 @@ def delete_pointless_statements(content: str) -> str:
             continue
         if not parsing.is_valid_python(statement.statement):
             continue
-        if parsing.has_side_effect(statement, (), usages):
+        used_vars = {
+            var
+            for var, var_usages in usages.items()
+            if any(start < statement.start or end > statement.end for start, end in var_usages)
+        }
+        if parsing.has_side_effect(statement, (), used_vars):
             continue
         if statement.statement.lstrip()[0] in {"#", "'", '"'}:
             continue
