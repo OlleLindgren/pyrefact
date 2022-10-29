@@ -35,9 +35,9 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
 
         content = fixes.fix_rmspace(content)
 
-        content = fixes.undefine_unused_variables(content, preserve=preserve)
-        content = fixes.delete_pointless_statements(content, preserve=preserve)
-        content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
+        # content = fixes.undefine_unused_variables(content, preserve=preserve)
+        # content = fixes.delete_pointless_statements(content, preserve=preserve)
+        # content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
         content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 

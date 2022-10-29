@@ -1,29 +1,34 @@
 import ast
 import dataclasses
 import enum
+import functools
 import re
 from typing import Collection, Iterable, Sequence, Tuple
+from unicodedata import name
 
-WALRUS_RE_PATTERN = r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <=, ==, !=
-ASSIGN_RE_PATTERN = r"(?<![<>=!:])=(?![=])"  #  match =,  do not match :=, >=, <=, ==, !=
+WALRUS_RE_PATTERN = (
+    r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <=, ==, !=
+)
+ASSIGN_RE_PATTERN = (
+    r"(?<![<>=!:])=(?![=])"  #  match =,  do not match :=, >=, <=, ==, !=
+)
 ASSIGN_OR_WALRUS_RE_PATTERN = r"(?<![<>=!:]):?=(?![=])"
 VARIABLE_RE_PATTERN = r"(?<![a-zA-Z0-9_])[a-zA-Z_]+[a-zA-Z0-9_]*"
-STATEMENT_DELIMITER_RE_PATTERN = r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
+SCOPED_VAR_RE_PATTERN = r"(?<![a-zA-Z0-9_])([a-zA-Z_]+[a-zA-Z0-9_]*\.?)+"
+STATEMENT_DELIMITER_RE_PATTERN = (
+    r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
+)
+_WHITESPACE_RE_PATTERN = re.compile("( |\n)+")
+_INDENT_RE_PATTERN = re.compile("(?<![^\n]) *")
 
 from .constants import PYTHON_KEYWORDS
-
-
-class VariableType(enum.Enum):
-    VARIABLE = enum.auto()
-    CLASS = enum.auto()
-    CALLABLE = enum.auto()
 
 
 @dataclasses.dataclass()
 class Statement:
     start: int
     end: int
-    statement_type: VariableType
+    ast_node: ast.AST
     indent: int
     paranthesis_depth: int
     statement: str
@@ -45,6 +50,7 @@ def is_valid_python(content: str) -> bool:
         return False
 
 
+@functools.lru_cache()
 def get_is_code_mask(content: str) -> Sequence[bool]:
     """Get boolean mask of whether content is code or not.
 
@@ -80,7 +86,8 @@ def get_is_code_mask(content: str) -> Sequence[bool]:
             triple_matches = [
                 candidate
                 for candidate in statement_breaks
-                if candidate[2] == hit[2] * 3 and candidate[0] <= hit[0] <= hit[1] <= candidate[1]
+                if candidate[2] == hit[2] * 3
+                and candidate[0] <= hit[0] <= hit[1] <= candidate[1]
             ]
             if triple_matches:
                 triple_overlapping_singles.add(hit)
@@ -158,9 +165,10 @@ def get_is_code_mask(content: str) -> Sequence[bool]:
         else:
             mask[start + 1 : end - 1] = [value] * (end - start - 2)
 
-    return mask
+    return tuple(mask)
 
 
+@functools.lru_cache()
 def get_paren_depths(content: str, code_mask_subset: Sequence[bool]) -> Sequence[int]:
     """Get paranthesis depths of every character in content.
 
@@ -197,7 +205,7 @@ def get_indent(line: str) -> int:
     return len(next(re.finditer(r"^ *", line)).group())
 
 
-def iter_statements(content: str) -> Iterable[Statement]:
+def iter_statements(content: str, ast_tree: ast.AST) -> Iterable[Statement]:
     """Find all statements in content
 
     Args:
@@ -206,201 +214,91 @@ def iter_statements(content: str) -> Iterable[Statement]:
     Returns:
         Iterable[Tuple[str, str, int, int]]: type, name, start, stop
     """
-    is_code_mask = get_is_code_mask(content)
-
-    statement_breaks = [(0, "\n")]
-    for hit in re.finditer(STATEMENT_DELIMITER_RE_PATTERN, content):
-        start = hit.start()
-        end = hit.end()
-        if not all(is_code_mask[start:end]):
-            continue
-        value = hit.group()
-        if value in {"class", "def", "async def"}:
-            statement_breaks.append((start, value))
-        elif value in "([{":
-            statement_breaks.append((end, value))
-        elif value in ")]}":
-            statement_breaks.append((start, value))
-        elif value == "\n":
-            statement_breaks.append((end, value))
-        else:
-            raise ValueError(f"Invalid brakpoint: {value}")
-
-    paren_depths = get_paren_depths(content, is_code_mask)
-
-    start_end_matches = {"(": ")", "[": "]", "{": "}"}
-    end_start_matches = {end: start for start, end in start_end_matches.items()}
-
-    yield Statement(0, len(content), "global", 0, None, content)
-
-    ongoing_statements: Sequence[Statement] = []
-    for statement_break, statement_break_type in statement_breaks:
-        try:
-            depth = paren_depths[statement_break]
-        except IndexError:
-            for statement in ongoing_statements:
-                statement.end = statement_break
-                statement.statement = content[statement.start : statement.end]
-                yield statement
-
-            break
-
-        line = get_line(content, statement_break)
-        indent = get_indent(line)
-
-        completed_statements: Sequence[Statement] = []
-        if statement_break_type in {"class", "def", "async def", "\n"} and line.strip():
-            for statement in reversed(ongoing_statements):
-                if (
-                    statement.statement_type in {"class", "def", "async def"}
-                    and statement.indent >= indent
-                    and any(re.finditer(r"\n.*\n", content[statement.start : statement_break]))
-                    and not line.startswith(")")
-                ):
-                    statement.end = statement_break
-                    statement.statement = content[statement.start : statement.end]
-                    completed_statements.append(statement)
-                if statement.statement_type == "\n":
-                    statement.end = statement_break
-                    statement.statement = content[statement.start : statement.end]
-                    completed_statements.append(statement)
-
-        if statement_break_type in {")", "]", "}"}:
-            start_match = end_start_matches[statement_break_type]
-            for statement in reversed(ongoing_statements):
-                if statement.statement_type == start_match:
-                    statement.end = statement_break
-                    statement.statement = content[statement.start : statement.end]
-                    completed_statements.append(statement)
-                    break
-
-        for statement in completed_statements:
-            ongoing_statements.remove(statement)
-            yield statement
-
-        completed_statements.clear()
-
-        if statement_break_type in {"(", "[", "{", "class", "def", "async def", "\n"}:
-            ongoing_statements.append(
-                Statement(
-                    statement_break,
-                    None,
-                    statement_break_type,
-                    indent,
-                    depth,
-                    None,
-                )
-            )
+    line_charnos = [len(line) for line in content.splitlines(keepends=True)]
+    line_indents = [match.end() - match.start() for match in _INDENT_RE_PATTERN.finditer(content)]
+    code_mask = get_is_code_mask(content)
+    paren_depths = get_paren_depths(content, code_mask)
+    for item in ast_tree.body:
+        start_charno = sum(line_charnos[: item.lineno - 1]) + item.col_offset
+        end_charno = sum(line_charnos[: item.end_lineno - 1]) + item.end_col_offset
+        yield Statement(
+            start=start_charno,
+            end=end_charno,
+            ast_node=item,
+            indent=line_indents[item.lineno - 1],
+            paranthesis_depth=paren_depths[start_charno],
+            statement=content[start_charno:end_charno],
+        )
 
 
-def iter_definitions(content: str) -> Iterable[Tuple[str, Sequence[Tuple[str, int]]]]:
-    """Iterate over all variables or objects defined in content.
+def _flatten_code(code: str) -> str:
+    code_mask = get_is_code_mask(code)
+    flattened_code = "".join(ch for ch, is_code in zip(code, code_mask) if is_code)
+    return _WHITESPACE_RE_PATTERN.sub(" ", flattened_code)
+
+
+def _iter_lvalues(code: str) -> Iterable[str]:
+    *lvalues, _ = _flatten_code(code).split(ASSIGN_OR_WALRUS_RE_PATTERN)
+    for values in lvalues:
+        for value in values.split(","):
+            yield value
+
+
+def _iter_rvalues(code: str) -> Iterable[str]:
+    *_, rvalues = _flatten_code(code).split(ASSIGN_OR_WALRUS_RE_PATTERN)
+    return re.findall(SCOPED_VAR_RE_PATTERN, rvalues)
+
+
+def _unpack_ast_target(target:ast.AST) -> Iterable[str]:
+    if isinstance(target, ast.Name):
+        yield target.id
+        return
+    if isinstance(target, ast.Tuple):
+        for subtarget in target.elts:
+            yield from _unpack_ast_target(subtarget)
+
+
+def iter_assignments(ast_tree: ast.Module) -> Iterable[str]:
+    """Iterate over defined variables in code
 
     Args:
         content (str): Python source code
 
     Yields:
-        Tuple[str, Sequence[str]]: name, scopes
+        Tuple[Statement, str]: Statement, and lvalue assigned in statement
     """
-    is_code_mask = get_is_code_mask(content)
+    for node in ast_tree.body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            for target in node.targets:
+                yield from _unpack_ast_target(target)
 
-    scopes = []
 
-    yielded_variables = set()
+def iter_funcdefs(ast_tree: ast.Module) -> Iterable[ast.FunctionDef]:
+    """Iterate over defined variables in code
 
-    paren_depths = get_paren_depths(content, is_code_mask)
+    Args:
+        content (str): Python source code
 
-    indent = 0
-    parsed_chars = 0
-    for full_line in content.splitlines(keepends=True):
-        code_mask_subset = is_code_mask[parsed_chars : parsed_chars + len(full_line)]
-        line_paren_depth = paren_depths[parsed_chars : parsed_chars + len(full_line)]
-        parsed_chars += len(full_line)
+    Yields:
+        Tuple[Statement, str]: Statement, and lvalue assigned in statement
+    """
+    for node in ast_tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            yield node
 
-        if not any(code_mask_subset):
-            continue
 
-        indent = len(re.findall(r"^ *", full_line)[0])
-        if full_line.lstrip(" ").startswith(")"):
-            indent += 4
+def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
+    """Iterate over defined variables in code
 
-        added_scope = False
-        for hit in re.finditer(r"[^\(|\)|\[|\]|\{|\}]+", full_line):
-            hit_depths = set(line_paren_depth[hit.start() : hit.end()])
-            assert len(hit_depths) == 1
-            hit_depth = hit_depths.pop()
+    Args:
+        content (str): Python source code
 
-            # Do not parse comments and strings
-            line = "".join(
-                char
-                for i, char in enumerate(full_line)
-                if code_mask_subset[i] and hit.start() <= i <= hit.end()
-            )
-
-            words = [x.strip() for x in line.split(" ") if x.strip()]
-
-            if len(words) >= 2 and words[0] in PYTHON_KEYWORDS:
-                if words[0] == "class":
-                    scopes = [
-                        (name, start_indent)
-                        for (name, start_indent) in scopes
-                        if start_indent < indent
-                    ]
-                    scopes.append(("enum" if "Enum" in full_line else "class", indent))
-                    added_scope = True
-                    yield re.sub(r"(\(|:).*", "", words[1]), tuple(scopes[:-1]), VariableType.CLASS
-                elif words[0] == "def" or words[0:2] == ["async", "def"]:
-                    scopes = [
-                        (name, start_indent)
-                        for (name, start_indent) in scopes
-                        if start_indent < indent
-                    ]
-                    scopes.append(("def", indent))
-                    added_scope = True
-                    yield re.sub(r"(\(|:).*", "", words[1]), tuple(
-                        scopes[:-1]
-                    ), VariableType.CALLABLE
-
-                continue
-
-            *assignments, rvalue = re.split(
-                ASSIGN_OR_WALRUS_RE_PATTERN if hit_depth == 0 else WALRUS_RE_PATTERN,
-                line,
-            )
-
-            if "namedtuple" in re.findall(VARIABLE_RE_PATTERN, rvalue):
-                variable_type = VariableType.CLASS
-            else:
-                variable_type = VariableType.VARIABLE
-
-            assignments = [
-                var
-                for part in assignments
-                if re.findall(VARIABLE_RE_PATTERN, part) and part not in PYTHON_KEYWORDS
-                for var in re.findall(VARIABLE_RE_PATTERN, part)
-                if var not in PYTHON_KEYWORDS
-            ]
-
-            if line.strip() and hit_depth == 0 and not added_scope:
-                scopes = [
-                    (name, start_indent) for (name, start_indent) in scopes if start_indent < indent
-                ]
-
-            for variable in assignments:
-                variable = variable.strip("* ")
-                if " " in variable:
-                    continue
-
-                if not variable:
-                    continue
-
-                if (
-                    re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", variable)
-                    and variable not in PYTHON_KEYWORDS
-                    and variable not in yielded_variables
-                ):
-                    yielded_variables.add(variable)
-                    yield variable, tuple(scopes), variable_type
+    Yields:
+        Tuple[Statement, str]: Statement, and lvalue assigned in statement
+    """
+    for node in ast_tree.body:
+        if isinstance(node, (ast.ClassDef)):
+            yield node
 
 
 def iter_usages(content: str) -> Iterable[Statement]:
@@ -412,35 +310,22 @@ def iter_usages(content: str) -> Iterable[Statement]:
     Yields:
         Statement: _description_
     """
-    code_mask = get_is_code_mask(content)
-    paranthesis_depths = get_paren_depths(content, code_mask)
-    for hit in re.finditer(VARIABLE_RE_PATTERN, content):
-        start = hit.start()
-        end = hit.end()
-        if not all(code_mask[start:end]):
-            continue
-
-        value = hit.group()
-        if value in PYTHON_KEYWORDS:
-            continue
-
-        # Assignments are not usages
-        if set(paranthesis_depths[start:end]) == {0} and re.match(
-            value + r"[ a-zA-Z0-9_,\*]*=[^=]", content[start:]
-        ):
-            continue
-
-        # b, f, r etc in f-strings are not usages of b/f/r
-        if re.match(value + r"'(.|\n)*", content[start:]):
-            continue
-        if re.match(value + r'"(.|\n)*', content[start:]):
-            continue
-
-        # Function and class definitions are not usages
-        if re.findall(f"(def|class) +{value}$", content[:end]):
-            continue
-
-        yield Statement(start, end, None, None, None, value)
+    for statement in iter_statements(content):
+        if isinstance(statement.ast_node, ast.Assign):
+            rvalues = set(_iter_rvalues(statement.statement))
+            for re_match in re.finditer(SCOPED_VAR_RE_PATTERN, statement.statement):
+                value = re_match.group()
+                if value in rvalues:
+                    start = re_match.start()
+                    end = re_match.end()
+                    yield Statement(
+                        start=statement.start + start,
+                        end=statement.start + end,
+                        ast_node=statement.ast_node,
+                        indent=statement.indent,
+                        paranthesis_depth=statement.paranthesis_depth,
+                        statement=value,
+                    )
 
 
 def has_side_effect(

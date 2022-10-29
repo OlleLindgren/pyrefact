@@ -1,3 +1,4 @@
+import ast
 import collections
 import io
 import itertools
@@ -6,7 +7,7 @@ import sys
 import tempfile
 import warnings
 from pathlib import Path
-from typing import Collection, Iterable, Literal, Sequence, Tuple
+from typing import Collection, Iterable, List, Sequence, Tuple
 
 import black
 import isort
@@ -14,7 +15,12 @@ import rmspace
 from pylint.lint import Run
 
 from pyrefact import parsing
-from pyrefact.constants import ASSUMED_PACKAGES, ASSUMED_SOURCES, PACKAGE_ALIASES, PYTHON_KEYWORDS
+from pyrefact.constants import (
+    ASSUMED_PACKAGES,
+    ASSUMED_SOURCES,
+    PACKAGE_ALIASES,
+    PYTHON_KEYWORDS,
+)
 
 
 def _deconstruct_pylint_warning(error_line: str) -> Tuple[Path, int, int, str, str]:
@@ -134,37 +140,74 @@ def _rename_class(name: str, *, private: bool) -> str:
     return name
 
 
-def _substitute_name(
-    variable: str,
-    variable_type: parsing.VariableType,
-    scope: Literal["class", "def", "enum", None],
-) -> str:
-    if variable == "_" or _is_magic(variable):
-        return variable
-
-    if variable_type == parsing.VariableType.CLASS:
-        private = _is_private(variable)
-        return _rename_class(variable, private=private)
-
-    if variable_type == parsing.VariableType.CALLABLE:
-        return _rename_variable(variable, static=False, private=_is_private(variable))
-
-    if variable_type == parsing.VariableType.VARIABLE and scope not in {None, "enum"}:
-        private = scope == "class" and _is_private(variable)
-        return _rename_variable(variable, static=False, private=private)
-
-    if variable_type == parsing.VariableType.VARIABLE:
-        return _rename_variable(variable, static=True, private=_is_private(variable))
-
-    raise NotImplementedError(f"Unknown variable type: {variable_type}")
+def _iter_ast_nodes(root: ast.AST) -> Iterable[ast.AST]:
+    try:
+        for child in root.body:
+            yield from _iter_ast_nodes(child)
+    except AttributeError:
+        yield root
 
 
-def _get_variable_name_substitutions(content: str) -> Iterable[str]:
-    for variable, scopes, variable_type in parsing.iter_definitions(content):
-        substitute = _substitute_name(variable, variable_type, scopes[-1][0] if scopes else None)
-        if variable != substitute and substitute not in parsing.PYTHON_KEYWORDS:
-            print(f"{variable} should be named {substitute}")
-            yield variable, substitute
+def _get_variable_name_substitutions(ast_tree: ast.AST) -> Iterable[str]:
+    renamings = collections.defaultdict(set)
+    classdefs: List[parsing.Statement] = []
+    funcdefs: List[parsing.Statement] = []
+    for node in parsing.iter_classdefs(ast_tree):
+        name = node.name
+        substitute = _rename_class(name, private=_is_private(name))
+        classdefs.append(node)
+        renamings[name].add(substitute)
+
+    for node in parsing.iter_funcdefs(ast_tree):
+        name = node.name
+        substitute = _rename_variable(name, private=_is_private(name), static=False)
+        funcdefs.append(node)
+        renamings[name].add(substitute)
+
+    for name in parsing.iter_assignments(ast_tree):
+        print(name)
+        substitute = _rename_variable(name, private=_is_private(name), static=True)
+        renamings[name].add(substitute)
+
+    while funcdefs or classdefs:
+        for partial_tree in classdefs.copy():
+            classdefs.remove(partial_tree)
+            for node in parsing.iter_classdefs(partial_tree):
+                name = node.name
+                classdefs.append(node)
+                substitute = _rename_class(name, private=_is_private(name))
+                renamings[name].add(substitute)
+            for node in parsing.iter_funcdefs(partial_tree):
+                name = node.name
+                funcdefs.append(node)
+                substitute = _rename_variable(name, private=_is_private(name), static=False)
+                renamings[name].add(substitute)
+            for name in parsing.iter_assignments(partial_tree):
+                substitute = _rename_variable(name, private=_is_private(name), static=False)
+                renamings[name].add(substitute)
+        for partial_tree in funcdefs.copy():
+            funcdefs.remove(partial_tree)
+            for node in parsing.iter_classdefs(partial_tree):
+                name = node.name
+                classdefs.append(node)
+                substitute = _rename_class(name, private=False)
+                renamings[name].add(substitute)
+            for node in parsing.iter_funcdefs(partial_tree):
+                name = node.name
+                funcdefs.append(node)
+                substitute = _rename_variable(name, private=False, static=False)
+                renamings[name].add(substitute)
+            for name in parsing.iter_assignments(partial_tree):
+                substitute = _rename_variable(name, private=False, static=False)
+                renamings[name].add(substitute)
+
+    print(renamings)
+
+    for name, substitutes in renamings.items():
+        assert len(substitutes) == 1, f"Multiple substitutes found for {name}: {substitutes}"
+        substitute = substitutes.pop()
+        if name != substitute:
+            yield name, substitute
 
 
 def _get_variable_re_pattern(variable) -> str:
@@ -195,7 +238,9 @@ def _fix_variable_names(content: str, renamings: Iterable[Tuple[str, str]]) -> s
             # which should be ignored.
             # The only valid assignment syntax is with the walrus operator :=
             substring = content[end : min(len(content) - 1, end + 3)]
-            is_assigned_by_equals = re.match(parsing.ASSIGN_RE_PATTERN, substring) is not None
+            is_assigned_by_equals = (
+                re.match(parsing.ASSIGN_RE_PATTERN, substring) is not None
+            )
 
             if not is_assigned_by_equals:
                 replacements.append((start, end))
@@ -250,7 +295,9 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _fix_unused_imports(content: str, problems: Collection[Tuple[int, str, str]]) -> bool:
+def _fix_unused_imports(
+    content: str, problems: Collection[Tuple[int, str, str]]
+) -> bool:
 
     lineno_problems = collections.defaultdict(set)
     for lineno, package, variable in problems:
@@ -268,10 +315,16 @@ def _fix_unused_imports(content: str, problems: Collection[Tuple[int, str, str]]
                 package = packages.pop()
                 bad_variables = {variable for _, variable in lineno_problems[i + 1]}
                 _, existing_variables = line.split(" import ")
-                existing_variables = set(x.strip() for x in existing_variables.split(","))
+                existing_variables = set(
+                    x.strip() for x in existing_variables.split(",")
+                )
                 keep_variables = existing_variables - bad_variables
                 if keep_variables:
-                    fix = f"from {package} import " + ", ".join(sorted(keep_variables)) + "\n"
+                    fix = (
+                        f"from {package} import "
+                        + ", ".join(sorted(keep_variables))
+                        + "\n"
+                    )
                     new_lines.append(fix)
                     print(f"Replacing {line.strip()} \nwith      {fix.strip()}")
                     change_count += 1
@@ -357,7 +410,9 @@ def fix_isort(content: str, *, line_length: int = 100) -> str:
     Returns:
         str: Source code, formatted with isort
     """
-    return isort.code(content, config=isort.Config(profile="black", line_length=line_length))
+    return isort.code(
+        content, config=isort.Config(profile="black", line_length=line_length)
+    )
 
 
 def align_variable_names_with_convention(
@@ -379,15 +434,20 @@ def align_variable_names_with_convention(
     Returns:
         str: Source code, where all variable names comply with normal convention
     """
-    renamings = set(_get_variable_name_substitutions(content))
-    renamings = {(name, substitute) for name, substitute in renamings if name not in preserve}
+    ast_tree = ast.parse(content)
+    renamings = set(_get_variable_name_substitutions(ast_tree))
+    renamings = {
+        (name, substitute) for name, substitute in renamings if name not in preserve
+    }
     if renamings:
         content = _fix_variable_names(content, renamings)
 
     return content
 
 
-def undefine_unused_variables(content: str, preserve: Collection[str] = frozenset()) -> str:
+def undefine_unused_variables(
+    content: str, preserve: Collection[str] = frozenset()
+) -> str:
     """Remove definitions of unused variables.
 
     Args:
@@ -401,16 +461,21 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         key=lambda stmt: stmt.end - stmt.start,
         reverse=True,
     ):
-        if statement.statement_type not in {"def", "async def", "global"}:
+        if statement.ast_node.__class__ not in {
+            ast.ClassDef,
+            ast.FunctionDef,
+            ast.AsyncFunctionDef,
+        }:
             continue
 
         altered_statement = initial_statement = statement.statement
         defined_variables = set()
-        for variable, _, variable_type in parsing.iter_definitions(altered_statement):
-            if variable_type is parsing.VariableType.VARIABLE:
-                defined_variables.add(variable)
+        for variable in parsing.iter_assignments(altered_statement):
+            defined_variables.add(variable)
 
-        used_variables = {stmt.statement for stmt in parsing.iter_usages(statement.statement)}
+        used_variables = {
+            stmt.statement for stmt in parsing.iter_usages(statement.statement)
+        }
 
         pointless_variables = defined_variables - used_variables - preserve
         if not pointless_variables:
@@ -424,7 +489,8 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
             hits = [
                 hit
                 for hit in re.finditer(
-                    variable + r"[^=](=|(| |,|\/|\+|-|\*)+=|[^a-zA-Z0-9_][ a-zA-Z0-9_,\*]+=)[^=] *",
+                    variable
+                    + r"[^=](=|(| |,|\/|\+|-|\*)+=|[^a-zA-Z0-9_][ a-zA-Z0-9_,\*]+=)[^=] *",
                     altered_statement,
                 )
             ]
@@ -437,20 +503,25 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                     start = hit.start() + true_hit.start()
                     end = hit.start() + true_hit.end()
 
-                    if set(paranthesis_depths[start:end]) == {0} and all(code_mask[start:end]):
+                    if set(paranthesis_depths[start:end]) == {0} and all(
+                        code_mask[start:end]
+                    ):
                         variable_definitions.append((start, end))
 
             variable_definitions = [
                 (start, end)
                 for (start, end) in variable_definitions
-                if set(paranthesis_depths[start:end]) == {0} and all(code_mask[start:end])
+                if set(paranthesis_depths[start:end]) == {0}
+                and all(code_mask[start:end])
             ]
             if not variable_definitions:
                 raise RuntimeError(f"Cannot find any definitions of {variable} in code")
 
             for start, end in variable_definitions:
                 chars_before = re.split("\n", altered_statement[:start])[-1]
-                chars_after = re.split(r"[:\+-\/\*]?=(?![=])", altered_statement[end:])[0]
+                chars_after = re.split(r"[:\+-\/\*]?=(?![=])", altered_statement[end:])[
+                    0
+                ]
                 if "," in chars_before or "," in chars_after:
                     if variable != "_":
                         print(f"{variable} should be replaced with _")
@@ -458,12 +529,16 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                 else:
                     print(f"{variable} should be deleted")
                     end += next(
-                        re.finditer(r"[:\+-\/\*]?=(?![=])" + " *", altered_statement[end:])
+                        re.finditer(
+                            r"[:\+-\/\*]?=(?![=])" + " *", altered_statement[end:]
+                        )
                     ).end()
                     keep_mask[start:end] = [False] * (end - start)
 
         altered_statement_chars = []
-        for char, keep, underscore in zip(altered_statement, keep_mask, underscore_mask):
+        for char, keep, underscore in zip(
+            altered_statement, keep_mask, underscore_mask
+        ):
             if underscore:
                 if altered_statement_chars and altered_statement_chars[-1] != "_":
                     altered_statement_chars.append("_")
@@ -477,6 +552,8 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
             true_hit = next(re.finditer(r"[_\*][ ,_\*]*= *", hit.group()))
             start = hit.start() + true_hit.start()
             end = hit.start() + true_hit.end()
+            print("Removing:")
+            print(hit.group().strip().splitlines()[0])
             keep_mask[start:end] = [False] * (end - start)
 
         altered_statement = "".join(
@@ -490,7 +567,9 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
     return content
 
 
-def _is_docstring(content: str, paren_depths: Sequence[int], value: str, start: int) -> bool:
+def _is_docstring(
+    content: str, paren_depths: Sequence[int], value: str, start: int
+) -> bool:
     """Determine if a string is a docstring.
 
     Args:
@@ -506,7 +585,9 @@ def _is_docstring(content: str, paren_depths: Sequence[int], value: str, start: 
     # Function docstrings
     if re.findall(
         r"(?<![a-zA-Z0-9_])(def|class|async def) .*\n?.*\n?.*$",
-        "".join(char for char, indent in zip(code_before_value, paren_depths) if indent == 0),
+        "".join(
+            char for char, indent in zip(code_before_value, paren_depths) if indent == 0
+        ),
     ):
         return True
 
@@ -519,7 +600,9 @@ def _is_docstring(content: str, paren_depths: Sequence[int], value: str, start: 
     return False
 
 
-def delete_pointless_statements(content: str, preserve: Collection[str] = frozenset()) -> str:
+def delete_pointless_statements(
+    content: str, preserve: Collection[str] = frozenset()
+) -> str:
     """Define pointless statements.
 
     Args:
@@ -530,8 +613,6 @@ def delete_pointless_statements(content: str, preserve: Collection[str] = frozen
     """
     code_mask = parsing.get_is_code_mask(content)
     paren_depths = parsing.get_paren_depths(content, code_mask)
-
-    list(parsing.iter_statements(content))
 
     keep_mask = [True] * len(content)
     for hit in itertools.chain(
@@ -556,7 +637,9 @@ def delete_pointless_statements(content: str, preserve: Collection[str] = frozen
             continue
 
         line = parsing.get_line(content, start)
-        if PYTHON_KEYWORDS & set(re.findall(parsing.VARIABLE_RE_PATTERN, line.replace(value, ""))):
+        if PYTHON_KEYWORDS & set(
+            re.findall(parsing.VARIABLE_RE_PATTERN, line.replace(value, ""))
+        ):
             continue
 
         keep_mask[start:end] = [False] * (end - start)
@@ -571,7 +654,11 @@ def delete_pointless_statements(content: str, preserve: Collection[str] = frozen
     function_ranges = []
 
     for statement in parsing.iter_statements(content):
-        if statement.statement_type not in {"def", "class", "async def"}:
+        if statement.ast_node.__class__ not in (
+            ast.AsyncFunctionDef,
+            ast.FunctionDef,
+            ast.ClassDef,
+        ):
             continue
         used_vars = {
             var
@@ -589,10 +676,16 @@ def delete_pointless_statements(content: str, preserve: Collection[str] = frozen
 
         if parsing.has_side_effect(statement, (), used_vars):
             continue
-        keep_mask[statement.start : statement.end] = [False] * (statement.end - statement.start)
+        print(f"Deleting:\n{statement.statement.splitlines()[0].strip()}")
+        keep_mask[statement.start : statement.end] = [False] * (
+            statement.end - statement.start
+        )
 
     for statement in parsing.iter_statements(content):
-        if any(start <= statement.start <= statement.end <= end for start, end in function_ranges):
+        if any(
+            start <= statement.start <= statement.end <= end
+            for start, end in function_ranges
+        ):
             continue
         if not statement.statement.strip():
             continue
@@ -618,7 +711,10 @@ def delete_pointless_statements(content: str, preserve: Collection[str] = frozen
             first_varname = varnames[0]
             if first_varname != "_" and first_varname not in PYTHON_KEYWORDS:
                 continue
-        keep_mask[statement.start : statement.end] = [False] * (statement.end - statement.start)
+        print(f"Deleting:\n{statement.statement.splitlines()[0].strip()}")
+        keep_mask[statement.start : statement.end] = [False] * (
+            statement.end - statement.start
+        )
 
     content = "".join(char for char, keep in zip(content, keep_mask) if keep)
 
@@ -639,21 +735,23 @@ def delete_unused_functions_and_classes(
     defined_functions = [
         statement
         for statement in parsing.iter_statements(content)
-        if statement.statement_type in {"def", "async def"}
+        if statement.ast_node.__class__ in (ast.FunctionDef, ast.AsyncFunctionDef)
     ]
-    referenced_names = {statement.statement for statement in parsing.iter_usages(content)}
+    referenced_names = {
+        statement.statement for statement in parsing.iter_usages(content)
+    }
 
     for statement in sorted(
         defined_functions, key=lambda stmt: (stmt.start, stmt.end), reverse=True
     ):
         name = statement.statement.splitlines()[0].lstrip()
         name = re.sub(" +", " ", name)
-        if statement.statement_type == "def":
+        if statement.ast_node.__class__ == ast.FunctionDef:
             _, name = name.split(" ", 1)
-        elif statement.statement_type == "async def":
+        elif statement.ast_node.__class__ == ast.AsyncFunctionDef:
             _, _, name = name.split(" ", 2)
         else:
-            raise RuntimeError(f"Cannot parse: {statement.statement_type}")
+            raise RuntimeError(f"Cannot parse: {statement.ast_node.__class__}")
 
         name, *_ = re.split(parsing.STATEMENT_DELIMITER_RE_PATTERN, name, 1)
 
