@@ -18,8 +18,8 @@ SCOPED_VAR_RE_PATTERN = r"(?<![a-zA-Z0-9_])([a-zA-Z_]+[a-zA-Z0-9_]*\.?)+"
 STATEMENT_DELIMITER_RE_PATTERN = (
     r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
 )
-_WHITESPACE_RE_PATTERN = re.compile("( |\n)+")
-_INDENT_RE_PATTERN = re.compile("(?<![^\n]) *")
+_WHITESPACE_RE_PATTERN = re.compile(r"( |\n)+")
+_INDENT_RE_PATTERN = re.compile(r"(?<![^\n]) *")
 
 from .constants import PYTHON_KEYWORDS
 
@@ -205,51 +205,7 @@ def get_indent(line: str) -> int:
     return len(next(re.finditer(r"^ *", line)).group())
 
 
-def iter_statements(content: str, ast_tree: ast.AST) -> Iterable[Statement]:
-    """Find all statements in content
-
-    Args:
-        content (str): Python source code
-
-    Returns:
-        Iterable[Tuple[str, str, int, int]]: type, name, start, stop
-    """
-    line_charnos = [len(line) for line in content.splitlines(keepends=True)]
-    line_indents = [match.end() - match.start() for match in _INDENT_RE_PATTERN.finditer(content)]
-    code_mask = get_is_code_mask(content)
-    paren_depths = get_paren_depths(content, code_mask)
-    for item in ast_tree.body:
-        start_charno = sum(line_charnos[: item.lineno - 1]) + item.col_offset
-        end_charno = sum(line_charnos[: item.end_lineno - 1]) + item.end_col_offset
-        yield Statement(
-            start=start_charno,
-            end=end_charno,
-            ast_node=item,
-            indent=line_indents[item.lineno - 1],
-            paranthesis_depth=paren_depths[start_charno],
-            statement=content[start_charno:end_charno],
-        )
-
-
-def _flatten_code(code: str) -> str:
-    code_mask = get_is_code_mask(code)
-    flattened_code = "".join(ch for ch, is_code in zip(code, code_mask) if is_code)
-    return _WHITESPACE_RE_PATTERN.sub(" ", flattened_code)
-
-
-def _iter_lvalues(code: str) -> Iterable[str]:
-    *lvalues, _ = _flatten_code(code).split(ASSIGN_OR_WALRUS_RE_PATTERN)
-    for values in lvalues:
-        for value in values.split(","):
-            yield value
-
-
-def _iter_rvalues(code: str) -> Iterable[str]:
-    *_, rvalues = _flatten_code(code).split(ASSIGN_OR_WALRUS_RE_PATTERN)
-    return re.findall(SCOPED_VAR_RE_PATTERN, rvalues)
-
-
-def _unpack_ast_target(target:ast.AST) -> Iterable[str]:
+def _unpack_ast_target(target: ast.AST) -> Iterable[str]:
     if isinstance(target, ast.Name):
         yield target.id
         return
@@ -301,31 +257,30 @@ def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
             yield node
 
 
-def iter_usages(content: str) -> Iterable[Statement]:
+def iter_usages(ast_tree: ast.Module) -> Iterable[str]:
     """Iterate over all names referenced in
 
     Args:
-        content (str): _description_
+        ast_tree (ast.Module): Module to search
 
     Yields:
-        Statement: _description_
+        str: A varible or object that is used somewhere.
     """
-    for statement in iter_statements(content):
-        if isinstance(statement.ast_node, ast.Assign):
-            rvalues = set(_iter_rvalues(statement.statement))
-            for re_match in re.finditer(SCOPED_VAR_RE_PATTERN, statement.statement):
-                value = re_match.group()
-                if value in rvalues:
-                    start = re_match.start()
-                    end = re_match.end()
-                    yield Statement(
-                        start=statement.start + start,
-                        end=statement.start + end,
-                        ast_node=statement.ast_node,
-                        indent=statement.indent,
-                        paranthesis_depth=statement.paranthesis_depth,
-                        statement=value,
-                    )
+    for node in ast_tree.body:
+        if hasattr(node, "body"):
+            yield from iter_usages(node)
+        if hasattr(node, "bases"):
+            for base in node.bases:
+                yield base.id
+        if hasattr(node, "keywords"):
+            for kwd in node.keywords:
+                if isinstance(kwd.value, ast.Name):
+                    yield kwd.value.id
+        if hasattr(node, "decorator_list"):
+            for decorator in node.decorator_list:
+                yield decorator.id
+        if hasattr(node, "value") and isinstance(node.value, ast.Name):
+            yield node.value.id
 
 
 def has_side_effect(
@@ -385,3 +340,24 @@ def has_side_effect(
             continue
 
     return False
+
+
+def get_code(node: ast.AST, content: str) -> str:
+    """Get python code from ast
+
+    Args:
+        node (ast.AST): ast to get code from
+        content (str): Python source code that ast was parsed from
+
+    Returns:
+        str: Python source code
+
+    """
+    lines = content.splitlines(keepends=True)
+    code_lines = lines[node.lineno - 1 : node.end_lineno]
+    print(code_lines)
+    if node.lineno == node.end_lineno:
+        return code_lines[0][node.col_offset : node.end_col_offset]
+    return "".join(
+        [lines[0][node.col_offset :]] + lines[1:-1] + lines[-1][: node.end_col_offset]
+    )

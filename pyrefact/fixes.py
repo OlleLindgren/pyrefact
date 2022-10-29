@@ -22,6 +22,8 @@ from pyrefact.constants import (
     PYTHON_KEYWORDS,
 )
 
+_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+:?= *(?![=])"
+
 
 def _deconstruct_pylint_warning(error_line: str) -> Tuple[Path, int, int, str, str]:
     filename, lineno, charno, error_code, error_msg = error_line.split(":")
@@ -180,10 +182,14 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Iterable[str]:
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
                 funcdefs.append(node)
-                substitute = _rename_variable(name, private=_is_private(name), static=False)
+                substitute = _rename_variable(
+                    name, private=_is_private(name), static=False
+                )
                 renamings[name].add(substitute)
             for name in parsing.iter_assignments(partial_tree):
-                substitute = _rename_variable(name, private=_is_private(name), static=False)
+                substitute = _rename_variable(
+                    name, private=_is_private(name), static=False
+                )
                 renamings[name].add(substitute)
         for partial_tree in funcdefs.copy():
             funcdefs.remove(partial_tree)
@@ -201,10 +207,10 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Iterable[str]:
                 substitute = _rename_variable(name, private=False, static=False)
                 renamings[name].add(substitute)
 
-    print(renamings)
-
     for name, substitutes in renamings.items():
-        assert len(substitutes) == 1, f"Multiple substitutes found for {name}: {substitutes}"
+        assert (
+            len(substitutes) == 1
+        ), f"Multiple substitutes found for {name}: {substitutes}"
         substitute = substitutes.pop()
         if name != substitute:
             yield name, substitute
@@ -218,7 +224,7 @@ def _fix_variable_names(content: str, renamings: Iterable[Tuple[str, str]]) -> s
     code_mask = parsing.get_is_code_mask(content)
     paranthesis_map = parsing.get_paren_depths(content, code_mask)
 
-    for variable, substiture in renamings:
+    for variable, substiture in renamings.items():
         replacements = []
         for match in re.finditer(_get_variable_re_pattern(variable), content):
             start = match.start()
@@ -448,320 +454,40 @@ def align_variable_names_with_convention(
 def undefine_unused_variables(
     content: str, preserve: Collection[str] = frozenset()
 ) -> str:
-    """Remove definitions of unused variables.
+    """Remove definitions of unused variables
 
     Args:
         content (str): Python source code
+        preserve (Collection[str], optional): Variable names to preserve
 
     Returns:
-        str: Source code, with no variables pointlessly being set.
+        str: Python source code, with no definitions of unused variables
     """
-    for statement in sorted(
-        parsing.iter_statements(content),
-        key=lambda stmt: stmt.end - stmt.start,
-        reverse=True,
-    ):
-        if statement.ast_node.__class__ not in {
-            ast.ClassDef,
-            ast.FunctionDef,
-            ast.AsyncFunctionDef,
-        }:
-            continue
+    ast_tree = ast.parse(content)
+    definitions = set(parsing.iter_assignments(ast_tree))
+    usages = set(parsing.iter_usages(ast_tree))
+    renamings = {name: "_" for name in definitions - usages - preserve if name != "_"}
+    if renamings:
+        content = _fix_variable_names(content, renamings)
+        ast_tree = ast.parse(content)
 
-        altered_statement = initial_statement = statement.statement
-        defined_variables = set()
-        for variable in parsing.iter_assignments(altered_statement):
-            defined_variables.add(variable)
+    redundant_assignments = []
+    left = list(ast_tree.body)
+    while left:
+        for node in left.copy():
+            left.remove(node)
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+                left.extend(node.body)
+            if isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+                if node.target.id == "_":
+                    redundant_assignments.append(node)
+            if isinstance(node, ast.Assign):
+                if all(target.id == "_" for target in node.targets):
+                    redundant_assignments.append(node)
 
-        used_variables = {
-            stmt.statement for stmt in parsing.iter_usages(statement.statement)
-        }
-
-        pointless_variables = defined_variables - used_variables - preserve
-        if not pointless_variables:
-            continue
-
-        keep_mask = [True] * len(altered_statement)
-        underscore_mask = [False] * len(altered_statement)
-        for variable in pointless_variables:
-            code_mask = parsing.get_is_code_mask(altered_statement)
-            paranthesis_depths = parsing.get_paren_depths(altered_statement, code_mask)
-            hits = [
-                hit
-                for hit in re.finditer(
-                    variable
-                    + r"[^=](=|(| |,|\/|\+|-|\*)+=|[^a-zA-Z0-9_][ a-zA-Z0-9_,\*]+=)[^=] *",
-                    altered_statement,
-                )
-            ]
-            variable_definitions = []
-            for hit in hits:
-                for true_hit in re.finditer(parsing.VARIABLE_RE_PATTERN, hit.group()):
-                    if true_hit.group() != variable:
-                        continue
-
-                    start = hit.start() + true_hit.start()
-                    end = hit.start() + true_hit.end()
-
-                    if set(paranthesis_depths[start:end]) == {0} and all(
-                        code_mask[start:end]
-                    ):
-                        variable_definitions.append((start, end))
-
-            variable_definitions = [
-                (start, end)
-                for (start, end) in variable_definitions
-                if set(paranthesis_depths[start:end]) == {0}
-                and all(code_mask[start:end])
-            ]
-            if not variable_definitions:
-                raise RuntimeError(f"Cannot find any definitions of {variable} in code")
-
-            for start, end in variable_definitions:
-                chars_before = re.split("\n", altered_statement[:start])[-1]
-                chars_after = re.split(r"[:\+-\/\*]?=(?![=])", altered_statement[end:])[
-                    0
-                ]
-                if "," in chars_before or "," in chars_after:
-                    if variable != "_":
-                        print(f"{variable} should be replaced with _")
-                        underscore_mask[start:end] = [True] * (end - start)
-                else:
-                    print(f"{variable} should be deleted")
-                    end += next(
-                        re.finditer(
-                            r"[:\+-\/\*]?=(?![=])" + " *", altered_statement[end:]
-                        )
-                    ).end()
-                    keep_mask[start:end] = [False] * (end - start)
-
-        altered_statement_chars = []
-        for char, keep, underscore in zip(
-            altered_statement, keep_mask, underscore_mask
-        ):
-            if underscore:
-                if altered_statement_chars and altered_statement_chars[-1] != "_":
-                    altered_statement_chars.append("_")
-            elif keep:
-                altered_statement_chars.append(char)
-
-        altered_statement = "".join(altered_statement_chars)
-
-        keep_mask = [True] * len(altered_statement)
-        for hit in re.finditer(r"(?<=[\n]) *[ ,_\*]+= *", altered_statement):
-            true_hit = next(re.finditer(r"[_\*][ ,_\*]*= *", hit.group()))
-            start = hit.start() + true_hit.start()
-            end = hit.start() + true_hit.end()
-            print("Removing:")
-            print(hit.group().strip().splitlines()[0])
-            keep_mask[start:end] = [False] * (end - start)
-
-        altered_statement = "".join(
-            char for char, keep in zip(altered_statement, keep_mask) if keep
-        )
-
-        if altered_statement != initial_statement:
-            print(f"Made replacements under scope: {initial_statement.splitlines()[0]}")
-            content = content.replace(initial_statement, altered_statement)
-
-    return content
-
-
-def _is_docstring(
-    content: str, paren_depths: Sequence[int], value: str, start: int
-) -> bool:
-    """Determine if a string is a docstring.
-
-    Args:
-        content (str): Python source code
-        paren_depths (Sequence[int]): Paranthesis depths of code
-        value (str): Matched string statement
-        start (int): Character number in code where the matched string starts
-
-    Returns:
-        bool: True if the matched string is a docstring
-    """
-    code_before_value = content[:start]
-    # Function docstrings
-    if re.findall(
-        r"(?<![a-zA-Z0-9_])(def|class|async def) .*\n?.*\n?.*$",
-        "".join(
-            char for char, indent in zip(code_before_value, paren_depths) if indent == 0
-        ),
-    ):
-        return True
-
-    # Module docstrings
-    if all(line.startswith("#") for line in code_before_value.splitlines()) and (
-        value.startswith("'''") or value.startswith('"""')
-    ):
-        return True
-
-    return False
-
-
-def delete_pointless_statements(
-    content: str, preserve: Collection[str] = frozenset()
-) -> str:
-    """Define pointless statements.
-
-    Args:
-        content (str): Python source code
-
-    Returns:
-        str: Source code, with no pointless statements.
-    """
-    code_mask = parsing.get_is_code_mask(content)
-    paren_depths = parsing.get_paren_depths(content, code_mask)
-
-    keep_mask = [True] * len(content)
-    for hit in itertools.chain(
-        re.finditer(r'(?<![="])[frb]?"{1} *[^"]*?"{1}(?!["])', content),
-        re.finditer(r"(?<![='])[frb]?'{1} *[^']*?'{1}(?!['])", content),
-        re.finditer(r'(?<![="])[frb]?"{3} *[^"]*?"{3}(?!["])', content),
-        re.finditer(r"(?<![='])[frb]?'{3} *[^']*?'{3}(?!['])", content),
-    ):
-        start = hit.start()
-        end = hit.end()
-        if any(code_mask[start:end]):
-            continue
-        if max(paren_depths[start:end]) > 0:
-            continue
-
-        # Assignment
-        if re.findall(r"=[ \(\n]*$", content[:start]):
-            continue
-
-        value = hit.group()
-        if _is_docstring(content, paren_depths, value, start):
-            continue
-
-        line = parsing.get_line(content, start)
-        if PYTHON_KEYWORDS & set(
-            re.findall(parsing.VARIABLE_RE_PATTERN, line.replace(value, ""))
-        ):
-            continue
-
-        keep_mask[start:end] = [False] * (end - start)
-        print("Removing:")
-        print(value)
-
-    usages = collections.defaultdict(list)
-    for statement in parsing.iter_usages(content):
-        if len(re.findall(statement.statement, content)) > 1:
-            usages[statement.statement].append((statement.start, statement.end))
-
-    function_ranges = []
-
-    for statement in parsing.iter_statements(content):
-        if statement.ast_node.__class__ not in (
-            ast.AsyncFunctionDef,
-            ast.FunctionDef,
-            ast.ClassDef,
-        ):
-            continue
-        used_vars = {
-            var
-            for var, var_usages in usages.items()
-            if any(start > statement.end for start, _ in var_usages)
-        }
-        function_ranges.append((statement.start, statement.end))
-        varnames = [
-            name
-            for name in re.findall(parsing.VARIABLE_RE_PATTERN, statement.statement)
-            if name not in PYTHON_KEYWORDS
-        ]
-        if not varnames or varnames[0] in preserve:
-            continue
-
-        if parsing.has_side_effect(statement, (), used_vars):
-            continue
-        print(f"Deleting:\n{statement.statement.splitlines()[0].strip()}")
-        keep_mask[statement.start : statement.end] = [False] * (
-            statement.end - statement.start
-        )
-
-    for statement in parsing.iter_statements(content):
-        if any(
-            start <= statement.start <= statement.end <= end
-            for start, end in function_ranges
-        ):
-            continue
-        if not statement.statement.strip():
-            continue
-        if all(depth > 0 for depth in paren_depths[statement.start : statement.end]):
-            continue
-        if not parsing.is_valid_python(statement.statement):
-            continue
-        used_vars = {
-            var
-            for var, var_usages in usages.items()
-            if any(start > statement.end for start, _ in var_usages)
-        }
-        if parsing.has_side_effect(statement, (), used_vars):
-            continue
-        if statement.statement.lstrip()[0] in {"#", "'", '"'}:
-            continue
-        varnames = [
-            name
-            for name in re.findall(parsing.VARIABLE_RE_PATTERN, statement.statement)
-            if name not in {"def", "async def", "class"}
-        ]
-        if varnames:
-            first_varname = varnames[0]
-            if first_varname != "_" and first_varname not in PYTHON_KEYWORDS:
-                continue
-        print(f"Deleting:\n{statement.statement.splitlines()[0].strip()}")
-        keep_mask[statement.start : statement.end] = [False] * (
-            statement.end - statement.start
-        )
-
-    content = "".join(char for char, keep in zip(content, keep_mask) if keep)
-
-    return content
-
-
-def delete_unused_functions_and_classes(
-    content: str, preserve: Collection[str] = frozenset()
-) -> str:
-    """Delete unused functions and classes.
-
-    Args:
-        content (str): Python source code
-
-    Returns:
-        str: Code, with unused functions deleted
-    """
-    defined_functions = [
-        statement
-        for statement in parsing.iter_statements(content)
-        if statement.ast_node.__class__ in (ast.FunctionDef, ast.AsyncFunctionDef)
-    ]
-    referenced_names = {
-        statement.statement for statement in parsing.iter_usages(content)
-    }
-
-    for statement in sorted(
-        defined_functions, key=lambda stmt: (stmt.start, stmt.end), reverse=True
-    ):
-        name = statement.statement.splitlines()[0].lstrip()
-        name = re.sub(" +", " ", name)
-        if statement.ast_node.__class__ == ast.FunctionDef:
-            _, name = name.split(" ", 1)
-        elif statement.ast_node.__class__ == ast.AsyncFunctionDef:
-            _, _, name = name.split(" ", 2)
-        else:
-            raise RuntimeError(f"Cannot parse: {statement.ast_node.__class__}")
-
-        name, *_ = re.split(parsing.STATEMENT_DELIMITER_RE_PATTERN, name, 1)
-
-        if name in preserve:
-            continue
-
-        if name in referenced_names:
-            continue
-
-        print(f"Deleting {name}")
-        content = content.replace(statement.statement, "")
+    for node in redundant_assignments:
+        code = parsing.get_code(node, content)
+        changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
+        content = content.replace(code, changed_code)
 
     return content

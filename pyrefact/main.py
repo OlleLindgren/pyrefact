@@ -35,7 +35,7 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
 
         content = fixes.fix_rmspace(content)
 
-        # content = fixes.undefine_unused_variables(content, preserve=preserve)
+        content = fixes.undefine_unused_variables(content, preserve=preserve)
         # content = fixes.delete_pointless_statements(content, preserve=preserve)
         # content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
@@ -96,9 +96,7 @@ def main(args: Sequence[str]) -> int:
     for filename in _iter_python_files(args.preserve):
         with open(filename, "r", encoding="utf-8") as stream:
             content = stream.read()
-        used_names[_namespace_name(filename)].update(
-            stmt.statement for stmt in parsing.iter_usages(content)
-        )
+        used_names[_namespace_name(filename)].update(parsing.iter_usages(content))
 
     for filename in _iter_python_files(args.paths):
         count += 1
