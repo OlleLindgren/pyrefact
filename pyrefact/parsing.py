@@ -185,7 +185,7 @@ def get_paren_depths(content: str, code_mask_subset: Sequence[bool]) -> Sequence
 
 def _unpack_ast_target(target: ast.AST) -> Iterable[str]:
     if isinstance(target, ast.Name):
-        yield target.id
+        yield target
         return
     if isinstance(target, ast.Tuple):
         for subtarget in target.elts:

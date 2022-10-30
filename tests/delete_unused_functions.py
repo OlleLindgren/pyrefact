@@ -41,7 +41,9 @@ if __name__ == "__main__":
 def main() -> int:
 
     got = delete_unused_functions_and_classes(CODE)
-    assert got.strip() == EXPECTED.strip(), "\n".join(("Wrong result: (got, expected)", got, EXPECTED))
+    assert got.strip() == EXPECTED.strip(), "\n".join(
+        ("Wrong result: (got, expected)", got, EXPECTED)
+    )
 
     return 0
 
