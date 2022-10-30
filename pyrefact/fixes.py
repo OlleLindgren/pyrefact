@@ -489,7 +489,7 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         for node in def_node.body:
             if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
                 target_nodes = _unique_assignment_targets(node)
-                target_names = {x.id for x in target_nodes}
+                target_names = {x.id if isinstance(x, ast.Name) else x.value.id for x in target_nodes}
                 referenced_names = set()
                 start, end = parsing.get_charnos(node, content)
                 for refnode in reference_nodes:
@@ -500,6 +500,8 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                 if def_node is ast_tree:
                     redundant_targets = redundant_targets - preserve
                 for target_node in target_nodes:
+                    if isinstance(target_node, ast.Attribute):
+                        target_node = target_node.value
                     if target_node.id in redundant_targets:
                         renamings[target_node].add("_")
 
@@ -509,7 +511,7 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
 
     for node in ast.walk(ast_tree):
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
-            target_names = {x.id for x in _unique_assignment_targets(node)}
+            target_names = {x.id if isinstance(x, ast.Name) else x.value.id for x in target_nodes}
             if target_names == {"_"}:
                 code = parsing.get_code(node, content)
                 changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
