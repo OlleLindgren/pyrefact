@@ -1,4 +1,5 @@
 import ast
+import builtins
 import collections
 import heapq
 import io
@@ -627,7 +628,7 @@ def delete_pointless_statements(content: str) -> str:
     ast_tree = ast.parse(content)
     delete = []
     defined_names = {node.id for node in ast.walk(ast_tree) if isinstance(node, ast.Name)}
-    builtin_names = set(dir(__builtins__))
+    builtin_names = set(dir(builtins))
     safe_callables = builtin_names - defined_names - {"print", "exit"}
     for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):
         for i, child in enumerate(node.body):
