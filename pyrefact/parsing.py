@@ -248,6 +248,9 @@ def has_side_effect(
     ):
         return True
 
+    if isinstance(node, ast.Module):
+        return any(has_side_effect(value, safe_callable_whitelist) for value in node.body)
+
     if isinstance(node, (ast.Constant, ast.Pass)):
         return False
 
