@@ -182,18 +182,6 @@ def get_paren_depths(content: str, code_mask_subset: Sequence[bool]) -> Sequence
     return depths
 
 
-def get_line(content: str, charno: int) -> str:
-    for hit in re.finditer(".*\n", content):
-        if hit.start() <= charno < hit.end():
-            return hit.group()
-
-    return content.splitlines()[-1]
-
-
-def get_indent(line: str) -> int:
-    return len(next(re.finditer(r"^ *", line)).group())
-
-
 def _unpack_ast_target(target: ast.AST) -> Iterable[str]:
     if isinstance(target, ast.Name):
         yield target.id

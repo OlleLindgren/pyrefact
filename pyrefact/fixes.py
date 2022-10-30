@@ -83,16 +83,6 @@ def _is_private(variable: str) -> bool:
     return variable.startswith("_")
 
 
-def _is_magic(variable: str) -> bool:
-    return (
-        variable.startswith("__")
-        and variable.endswith("__")
-        and not variable.startswith("___")
-        and not variable.endswith("___")
-        and re.match("^[a-z_]+$", variable)
-    )
-
-
 def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
 
     renamed_variable = variable.upper() if static else variable.lower()
@@ -524,6 +514,57 @@ def delete_pointless_statements(content: str) -> str:
                     isinstance(child.value, ast.Constant) and isinstance(child.value.value, str)
                 ):
                     delete.append(child)
+
+    content = remove_nodes(content, delete)
+
+    return content
+
+
+def delete_unused_functions_and_classes(
+    content: str, preserve: Collection[str] = frozenset()
+) -> str:
+    """Delete unused functions and classes from code.
+
+    Args:
+        content (str): Python source code
+        preserve (Collection[str], optional): Names to preserve
+
+    Returns:
+        str: Python source code, where unused functions and classes have been deleted.
+    """
+    root = ast.parse(content)
+
+    defs = []
+    names = []
+
+    for node in ast.walk(root):
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+            defs.append(node)
+        elif isinstance(node, ast.Name):
+            names.append(node)
+
+    delete = []
+    for def_node in defs:
+        if def_node.name in preserve:
+            continue
+        usages = [node for node in names if node.id == def_node.name]
+        if not usages:
+            print(f"{def_node.name} is never used")
+            delete.append(def_node)
+            continue
+
+        nonrecursive_usages = []
+        def_start, def_end = parsing.get_charnos(def_node, content)
+        for name in names:
+            start, end = parsing.get_charnos(name, content)
+            if def_start <= start <= end <= def_end:
+                # Recursion is not "real" use
+                continue
+            nonrecursive_usages.append(name)
+
+        if not nonrecursive_usages:
+            print(f"{def_node.name} is never used (recursive)")
+            delete.append(def_node)
 
     content = remove_nodes(content, delete)
 

@@ -2,6 +2,7 @@
 import argparse
 import ast
 import collections
+import os
 import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
@@ -45,7 +46,7 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
 
     content = fixes.undefine_unused_variables(content, preserve=preserve)
     content = fixes.delete_pointless_statements(content)
-    # content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
+    content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
     content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
@@ -78,7 +79,7 @@ def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:
 
 def _namespace_name(filename: Path) -> str:
     filename = Path(filename).absolute()
-    return ".".join([directory.name for directory in filename.parents] + [filename.name])
+    return str(filename).replace(os.path.sep, ".")
 
 
 def main(args: Sequence[str]) -> int:
@@ -100,8 +101,11 @@ def main(args: Sequence[str]) -> int:
         with open(filename, "r", encoding="utf-8") as stream:
             content = stream.read()
         ast_root = ast.parse(content)
-        for name in parsing.iter_usages(ast_root):
-            used_names[_namespace_name(filename)].add(name.id)
+        for node in ast.walk(ast_root):
+            if isinstance(node, ast.Name):
+                used_names[_namespace_name(filename)].add(node.id)
+            elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                used_names[_namespace_name(filename)].add(node.attr)
 
     for filename in _iter_python_files(args.paths):
         count += 1
