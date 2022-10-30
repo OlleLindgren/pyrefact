@@ -230,7 +230,7 @@ def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str], root: as
         else:
             raise RuntimeError(f"Cannot find {node.name} in code block:\n{codeblock}")
 
-        replacements.append((start, end, substitute))  # Name in function definition isn't an ast.Name
+        replacements.append((start, end, substitute))  # Name in function definition
         for name_node in name_nodes[node.id]:
             start, end = parsing.get_charnos(name_node, content)
             replacements.append((start, end, substitute))
@@ -497,7 +497,9 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         for node in def_node.body:
             if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
                 target_nodes = _unique_assignment_targets(node)
-                target_names = {x.id if isinstance(x, ast.Name) else x.value.id for x in target_nodes}
+                target_names = {
+                    x.id if isinstance(x, ast.Name) else x.value.id for x in target_nodes
+                }
                 referenced_names = set()
                 start, end = parsing.get_charnos(node, content)
                 for refnode in reference_nodes:
@@ -593,7 +595,7 @@ def delete_pointless_statements(content: str) -> str:
     delete = []
     defined_names = {node.id for node in ast.walk(ast_tree) if isinstance(node, ast.Name)}
     builtin_names = set(dir(__builtins__))
-    safe_callables = defined_names - builtin_names
+    safe_callables = defined_names - builtin_names - {"print", "exit"}
     for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):
         for i, child in enumerate(node.body):
             if isinstance(child, ast.Expr) and not parsing.has_side_effect(child, safe_callables):
