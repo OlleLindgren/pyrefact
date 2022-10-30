@@ -5,14 +5,12 @@ import itertools
 import re
 from typing import Collection, Iterable, Sequence, Tuple
 
-WALRUS_RE_PATTERN = r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <=, ==, !=
-ASSIGN_RE_PATTERN = r"(?<![<>=!:])=(?![=])"  #  match =,  do not match :=, >=, <=, ==, !=
-ASSIGN_OR_WALRUS_RE_PATTERN = r"(?<![<>=!:]):?=(?![=])"
-VARIABLE_RE_PATTERN = r"(?<![a-zA-Z0-9_])[a-zA-Z_]+[a-zA-Z0-9_]*"
-SCOPED_VAR_RE_PATTERN = r"(?<![a-zA-Z0-9_])([a-zA-Z_]+[a-zA-Z0-9_]*\.?)+"
-STATEMENT_DELIMITER_RE_PATTERN = r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
-_WHITESPACE_RE_PATTERN = re.compile(r"( |\n)+")
-_INDENT_RE_PATTERN = re.compile(r"(?<![^\n]) *")
+# match :=, do not match  =, >=, <=, ==, !=
+#  match =,  do not match :=, >=, <=, ==, !=
+
+
+re.compile(r"( |\n)+")
+re.compile(r"(?<![^\n]) *")
 
 
 @dataclasses.dataclass()
@@ -158,31 +156,6 @@ def get_is_code_mask(content: str) -> Sequence[bool]:
     return tuple(mask)
 
 
-@functools.lru_cache()
-def get_paren_depths(content: str, code_mask_subset: Sequence[bool]) -> Sequence[int]:
-    """Get paranthesis depths of every character in content.
-
-    Args:
-        content (str): Python source code
-
-    Returns:
-        Sequence[int]: A list of non-negative paranthesis depths, corresponding to every character.
-    """
-    depth = 0
-    depths = []
-    for is_code, character in zip(code_mask_subset, content):
-        if not is_code:
-            depths.append(depth)
-            continue
-        if character in ")]}":
-            depth -= 1
-        depths.append(depth)
-        if character in "([{":
-            depth += 1
-
-    return depths
-
-
 def _unpack_ast_target(target: ast.AST) -> Iterable[str]:
     if isinstance(target, ast.Name):
         yield target
@@ -234,20 +207,6 @@ def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
     """
     for node in ast_tree.body:
         if isinstance(node, (ast.ClassDef)):
-            yield node
-
-
-def iter_usages(ast_tree: ast.Module) -> Iterable[str]:
-    """Iterate over all names referenced in
-
-    Args:
-        ast_tree (ast.Module): Module to search
-
-    Yields:
-        str: A varible or object that is used somewhere.
-    """
-    for node in ast.walk(ast_tree):
-        if isinstance(node, ast.Name):
             yield node
 
 

@@ -6,7 +6,6 @@ import itertools
 import re
 import sys
 import tempfile
-import warnings
 from pathlib import Path
 from typing import Collection, Iterable, List, Mapping, Tuple, Union
 
@@ -169,15 +168,11 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Mapping[ast.AST, str]
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
                 funcdefs.append(node)
-                substitute = _rename_variable(
-                    name, private=_is_private(name), static=False
-                )
+                substitute = _rename_variable(name, private=_is_private(name), static=False)
                 renamings[node].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
-                substitute = _rename_variable(
-                    name, private=_is_private(name), static=False
-                )
+                substitute = _rename_variable(name, private=_is_private(name), static=False)
                 renamings[node].add(substitute)
         for partial_tree in funcdefs.copy():
             funcdefs.remove(partial_tree)
@@ -207,9 +202,7 @@ def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str]) -> str:
     replacements = []
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
-            raise RuntimeError(
-                f"Expected 1 substitute, got {len(substitutes)}: {substitutes}"
-            )
+            raise RuntimeError(f"Expected 1 substitute, got {len(substitutes)}: {substitutes}")
         substitute = substitutes.pop()
         start, end = parsing.get_charnos(node, content)
         if isinstance(node, ast.Name):
@@ -282,9 +275,7 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _fix_unused_imports(
-    content: str, problems: Collection[Tuple[int, str, str]]
-) -> bool:
+def _fix_unused_imports(content: str, problems: Collection[Tuple[int, str, str]]) -> bool:
 
     lineno_problems = collections.defaultdict(set)
     for lineno, package, variable in problems:
@@ -302,16 +293,10 @@ def _fix_unused_imports(
                 package = packages.pop()
                 bad_variables = {variable for _, variable in lineno_problems[i + 1]}
                 _, existing_variables = line.split(" import ")
-                existing_variables = set(
-                    x.strip() for x in existing_variables.split(",")
-                )
+                existing_variables = set(x.strip() for x in existing_variables.split(","))
                 keep_variables = existing_variables - bad_variables
                 if keep_variables:
-                    fix = (
-                        f"from {package} import "
-                        + ", ".join(sorted(keep_variables))
-                        + "\n"
-                    )
+                    fix = f"from {package} import " + ", ".join(sorted(keep_variables)) + "\n"
                     new_lines.append(fix)
                     print(f"Replacing {line.strip()} \nwith      {fix.strip()}")
                     change_count += 1
@@ -397,9 +382,7 @@ def fix_isort(content: str, *, line_length: int = 100) -> str:
     Returns:
         str: Source code, formatted with isort
     """
-    return isort.code(
-        content, config=isort.Config(profile="black", line_length=line_length)
-    )
+    return isort.code(content, config=isort.Config(profile="black", line_length=line_length))
 
 
 def align_variable_names_with_convention(
@@ -477,9 +460,7 @@ def _unique_assignment_targets(
     raise TypeError(f"Expected Assignment type, got {type(node)}")
 
 
-def undefine_unused_variables(
-    content: str, preserve: Collection[str] = frozenset()
-) -> str:
+def undefine_unused_variables(content: str, preserve: Collection[str] = frozenset()) -> str:
     """Remove definitions of unused variables
 
     Args:
@@ -531,9 +512,7 @@ def undefine_unused_variables(
             target_names = {x.id for x in _unique_assignment_targets(node)}
             if target_names == {"_"}:
                 code = parsing.get_code(node, content)
-                changed_code = re.sub(
-                    _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code
-                )
+                changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
                 print(f"Removing redundant assignments in {code}")
                 assert code != changed_code
                 content = content.replace(code, changed_code)
@@ -602,19 +581,14 @@ def delete_pointless_statements(content: str) -> str:
     """
     ast_tree = ast.parse(content)
     delete = []
-    defined_names = {
-        node.id for node in ast.walk(ast_tree) if isinstance(node, ast.Name)
-    }
+    defined_names = {node.id for node in ast.walk(ast_tree) if isinstance(node, ast.Name)}
     builtin_names = set(dir(__builtins__))
     safe_callables = defined_names - builtin_names
     for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):
         for i, child in enumerate(node.body):
-            if isinstance(child, ast.Expr) and not parsing.has_side_effect(
-                child, safe_callables
-            ):
+            if isinstance(child, ast.Expr) and not parsing.has_side_effect(child, safe_callables):
                 if i > 0 or not (
-                    isinstance(child.value, ast.Constant)
-                    and isinstance(child.value.value, str)
+                    isinstance(child.value, ast.Constant) and isinstance(child.value.value, str)
                 ):
                     delete.append(child)
 

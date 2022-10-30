@@ -30,45 +30,7 @@ ASSUMED_PACKAGES = frozenset(
     }
 )
 
-PYTHON_KEYWORDS = frozenset(
-    {
-        "False",
-        "None",
-        "True",
-        "and",
-        "as",
-        "assert",
-        "async",
-        "await",
-        "breakexcept",
-        "class",
-        "continue",
-        "def",
-        "del",
-        "elif",
-        "else",
-        "finally",
-        "for",
-        "from",
-        "global",
-        "if",
-        "import",
-        "in",
-        "is",
-        "lambda",
-        "match",
-        "nonlocal",
-        "not",
-        "or",
-        "pass",
-        "raise",
-        "return",
-        "try",
-        "while",
-        "with",
-        "yield",
-    }
-)
+
 PACKAGE_ALIASES = {"pd": "pandas", "np": "numpy", "plt": "matplotlib.pyplot"}
 ASSUMED_SOURCES = {
     "typing": frozenset(
