@@ -3,7 +3,7 @@ import setuptools
 
 setuptools.setup(
     name="pyrefact",
-    version="3",
+    version="4",
     description="Automatic python refactoring",
     author="Olle Lindgren",
     author_email="olle.ln@outlook.com",
