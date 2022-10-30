@@ -453,17 +453,17 @@ def _recursive_tuple_unpack(root: ast.Tuple) -> Iterable[ast.Name]:
 def _unique_assignment_targets(
     node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign]
 ) -> Collection[str]:
+    targets = set()
     if isinstance(node, (ast.AugAssign, ast.AnnAssign)):
-        return {node.target}
+        for subtarget in ast.walk(node.target):
+            if isinstance(subtarget, ast.Name) and isinstance(subtarget.ctx, ast.Store):
+                targets.add(subtarget)
+        return targets
     if isinstance(node, ast.Assign):
-        targets = set()
         for target in node.targets:
-            if isinstance(target, ast.Name):
-                targets.add(target)
-            elif isinstance(target, ast.Tuple):
-                targets.update(_recursive_tuple_unpack(target))
-            elif isinstance(target, ast.Subscript):
-                targets.add(target.value)
+            for subtarget in ast.walk(target):
+                if isinstance(subtarget, ast.Name) and isinstance(subtarget.ctx, ast.Store):
+                    targets.add(subtarget)
         return targets
     raise TypeError(f"Expected Assignment type, got {type(node)}")
 
@@ -497,9 +497,7 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         for node in def_node.body:
             if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
                 target_nodes = _unique_assignment_targets(node)
-                target_names = {
-                    x.id if isinstance(x, ast.Name) else x.value.id for x in target_nodes
-                }
+                target_names = {x.id for x in target_nodes}
                 referenced_names = set()
                 start, end = parsing.get_charnos(node, content)
                 for refnode in reference_nodes:
@@ -521,13 +519,14 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
 
     for node in ast.walk(ast_tree):
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
-            target_names = {x.id if isinstance(x, ast.Name) else x.value.id for x in target_nodes}
+            target_nodes = _unique_assignment_targets(node)
+            target_names = {x.id for x in target_nodes}
             if target_names == {"_"}:
                 code = parsing.get_code(node, content)
                 changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
-                print(f"Removing redundant assignments in {code}")
-                assert code != changed_code
-                content = content.replace(code, changed_code)
+                if code != changed_code:
+                    print(f"Removing redundant assignments in {code}")
+                    content = content.replace(code, changed_code)
 
     return content
 
@@ -595,10 +594,11 @@ def delete_pointless_statements(content: str) -> str:
     delete = []
     defined_names = {node.id for node in ast.walk(ast_tree) if isinstance(node, ast.Name)}
     builtin_names = set(dir(__builtins__))
-    safe_callables = defined_names - builtin_names - {"print", "exit"}
+    safe_callables = builtin_names - defined_names - {"print", "exit"}
     for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):
         for i, child in enumerate(node.body):
             if isinstance(child, ast.Expr) and not parsing.has_side_effect(child, safe_callables):
+                assert "mass_update" not in ast.dump(child)
                 if i > 0 or not (
                     isinstance(child.value, ast.Constant) and isinstance(child.value.value, str)
                 ):

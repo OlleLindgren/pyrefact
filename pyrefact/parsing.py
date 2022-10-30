@@ -255,7 +255,7 @@ def has_side_effect(
         return any(has_side_effect(value, safe_callable_whitelist) for value in node.values)
 
     if isinstance(node, ast.Name):
-        return isinstance(node.ctx, ast.Load)
+        return isinstance(node.ctx, ast.Store)
 
     if isinstance(node, ast.Subscript):
         return (
@@ -299,6 +299,11 @@ def has_side_effect(
         return any(
             has_side_effect(child, safe_callable_whitelist)
             for child in (node.test, node.body, node.orelse)
+        )
+
+    if isinstance(node, ast.Subscript):
+        return isinstance(node.ctx, ast.Load) and not any(
+            has_side_effect(child, safe_callable_whitelist) for child in (node.value, node.slice)
         )
 
     return True
