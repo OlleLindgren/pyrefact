@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import ast
 import collections
 import sys
 from pathlib import Path
@@ -12,7 +13,11 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("paths", help="Paths to refactor", type=Path, nargs="+", default=())
     parser.add_argument(
-        "--preserve", help="Paths to preserve names in", type=Path, nargs="+", default=()
+        "--preserve",
+        help="Paths to preserve names in",
+        type=Path,
+        nargs="+",
+        default=(),
     )
     return parser.parse_args(args)
 
@@ -29,36 +34,34 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
     with open(filename, "r", encoding="utf-8") as stream:
         initial_content = content = stream.read()
 
-    try:
-        if not parsing.is_valid_python(content):
-            content = completion.autocomplete(content)
+    if not parsing.is_valid_python(content):
+        content = completion.autocomplete(content)
 
-        content = fixes.fix_rmspace(content)
+    content = fixes.fix_rmspace(content)
 
-        content = fixes.undefine_unused_variables(content, preserve=preserve)
-        # content = fixes.delete_pointless_statements(content, preserve=preserve)
-        # content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
+    if not parsing.is_valid_python(content):
+        print("Result is not valid python.")
+        return 0
 
-        content = fixes.align_variable_names_with_convention(content, preserve=preserve)
+    content = fixes.undefine_unused_variables(content, preserve=preserve)
+    content = fixes.delete_pointless_statements(content)
+    # content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
-        if parsing.is_valid_python(content):
-            content = fixes.fix_black(content)
-            content = fixes.fix_isort(content, line_length=10_000)
-            content = fixes.define_undefined_variables(content)
-            content = fixes.remove_unused_imports(content)
-            content = fixes.fix_isort(content)
-            content = fixes.fix_black(content)
-        else:
-            print("Result is not valid python.")
+    content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
-        content = fixes.fix_rmspace(content)
+    content = fixes.fix_black(content)
+    content = fixes.fix_isort(content, line_length=10_000)
+    content = fixes.define_undefined_variables(content)
+    content = fixes.remove_unused_imports(content)
+    content = fixes.fix_isort(content)
+    content = fixes.fix_black(content)
+    content = fixes.fix_rmspace(content)
 
-    finally:
-        if content != initial_content and (
-            parsing.is_valid_python(content) or not parsing.is_valid_python(initial_content)
-        ):
-            with open(filename, "w", encoding="utf-8") as stream:
-                stream.write(content)
+    if content != initial_content and (
+        parsing.is_valid_python(content) or not parsing.is_valid_python(initial_content)
+    ):
+        with open(filename, "w", encoding="utf-8") as stream:
+            stream.write(content)
 
     return 0
 
@@ -96,7 +99,9 @@ def main(args: Sequence[str]) -> int:
     for filename in _iter_python_files(args.preserve):
         with open(filename, "r", encoding="utf-8") as stream:
             content = stream.read()
-        used_names[_namespace_name(filename)].update(parsing.iter_usages(content))
+        ast_root = ast.parse(content)
+        for name in parsing.iter_usages(ast_root):
+            used_names[_namespace_name(filename)].add(name.id)
 
     for filename in _iter_python_files(args.paths):
         count += 1

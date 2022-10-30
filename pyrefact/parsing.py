@@ -1,27 +1,17 @@
 import ast
 import dataclasses
-import enum
 import functools
 import re
 from typing import Collection, Iterable, Sequence, Tuple
-from unicodedata import name
 
-WALRUS_RE_PATTERN = (
-    r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <=, ==, !=
-)
-ASSIGN_RE_PATTERN = (
-    r"(?<![<>=!:])=(?![=])"  #  match =,  do not match :=, >=, <=, ==, !=
-)
+WALRUS_RE_PATTERN = r"(?<![<>=!:]):=(?![=])"  # match :=, do not match  =, >=, <=, ==, !=
+ASSIGN_RE_PATTERN = r"(?<![<>=!:])=(?![=])"  #  match =,  do not match :=, >=, <=, ==, !=
 ASSIGN_OR_WALRUS_RE_PATTERN = r"(?<![<>=!:]):?=(?![=])"
 VARIABLE_RE_PATTERN = r"(?<![a-zA-Z0-9_])[a-zA-Z_]+[a-zA-Z0-9_]*"
 SCOPED_VAR_RE_PATTERN = r"(?<![a-zA-Z0-9_])([a-zA-Z_]+[a-zA-Z0-9_]*\.?)+"
-STATEMENT_DELIMITER_RE_PATTERN = (
-    r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
-)
+STATEMENT_DELIMITER_RE_PATTERN = r"[\(\)\[\]\{\}\n]|(?<![a-zA-Z_])class|async def|def(?![a-zA-Z_])"
 _WHITESPACE_RE_PATTERN = re.compile(r"( |\n)+")
 _INDENT_RE_PATTERN = re.compile(r"(?<![^\n]) *")
-
-from .constants import PYTHON_KEYWORDS
 
 
 @dataclasses.dataclass()
@@ -86,8 +76,7 @@ def get_is_code_mask(content: str) -> Sequence[bool]:
             triple_matches = [
                 candidate
                 for candidate in statement_breaks
-                if candidate[2] == hit[2] * 3
-                and candidate[0] <= hit[0] <= hit[1] <= candidate[1]
+                if candidate[2] == hit[2] * 3 and candidate[0] <= hit[0] <= hit[1] <= candidate[1]
             ]
             if triple_matches:
                 triple_overlapping_singles.add(hit)
@@ -224,7 +213,9 @@ def iter_assignments(ast_tree: ast.Module) -> Iterable[str]:
         Tuple[Statement, str]: Statement, and lvalue assigned in statement
     """
     for node in ast_tree.body:
-        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+        if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            yield from _unpack_ast_target(node.target)
+        if isinstance(node, ast.Assign):
             for target in node.targets:
                 yield from _unpack_ast_target(target)
 
@@ -266,27 +257,14 @@ def iter_usages(ast_tree: ast.Module) -> Iterable[str]:
     Yields:
         str: A varible or object that is used somewhere.
     """
-    for node in ast_tree.body:
-        if hasattr(node, "body"):
-            yield from iter_usages(node)
-        if hasattr(node, "bases"):
-            for base in node.bases:
-                yield base.id
-        if hasattr(node, "keywords"):
-            for kwd in node.keywords:
-                if isinstance(kwd.value, ast.Name):
-                    yield kwd.value.id
-        if hasattr(node, "decorator_list"):
-            for decorator in node.decorator_list:
-                yield decorator.id
-        if hasattr(node, "value") and isinstance(node.value, ast.Name):
-            yield node.value.id
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.Name):
+            yield node
 
 
 def has_side_effect(
-    statement: Statement,
+    node: ast.AST,
     safe_callable_whitelist: Collection[str] = frozenset(),
-    used_variables: Collection[str] = frozenset(),
 ) -> bool:
     """Determine if a statement has a side effect.
 
@@ -299,47 +277,100 @@ def has_side_effect(
         bool: True if it may have a side effect.
 
     """
-    nonempty_lines = [line for line in statement.statement.splitlines() if line.strip()]
-    if not nonempty_lines:
+    if isinstance(node, (ast.Constant, ast.Pass)):
         return False
-    indent = min(get_indent(line) for line in nonempty_lines)
-    deindented_code = "".join(
-        line[indent:] if len(line) > indent else line
-        for line in statement.statement.splitlines(keepends=True)
-    )
-    code_mask = get_is_code_mask(deindented_code)
-    if not any(code_mask):
-        return False
-    try:
-        ast.literal_eval(deindented_code)
-    except (SyntaxError, ValueError):
-        pass
 
-    builtins = set(dir(__builtins__))
+    if isinstance(node, (ast.List, ast.Set, ast.Tuple)):
+        return any(has_side_effect(value, safe_callable_whitelist) for value in node.elts)
 
-    for hit in re.finditer(VARIABLE_RE_PATTERN, deindented_code):
-        start = hit.start()
-        end = hit.end()
-        value = hit.group()
-        is_code_states = set(code_mask[start:end])
-        assert (
-            len(is_code_states) == 1
-        ), f"Got ambiguous regex hit for VARIABLE_RE_PATTERN:\n{value}"
-        is_code = is_code_states.pop()
-        if not is_code:
-            continue
-        if value in {"raise", "assert"}:
-            return True
-        if value in PYTHON_KEYWORDS:
-            continue
-        if value in builtins:
-            continue
-        if value in used_variables:
-            return True
-        if value in safe_callable_whitelist:
-            continue
+    if isinstance(node, ast.Expr):
+        return has_side_effect(node.value, safe_callable_whitelist)
 
-    return False
+    if isinstance(node, ast.Expression):
+        return has_side_effect(node.body, safe_callable_whitelist)
+
+    if isinstance(node, ast.UnaryOp):
+        return has_side_effect(node.operand, safe_callable_whitelist)
+
+    if isinstance(node, ast.BinOp):
+        return any(
+            has_side_effect(child, safe_callable_whitelist) for child in (node.left, node.right)
+        )
+
+    if isinstance(node, ast.BoolOp):
+        return any(has_side_effect(value, safe_callable_whitelist) for value in node.values)
+
+    if isinstance(node, ast.Name):
+        return isinstance(node.ctx, ast.Load)
+
+    if isinstance(node, ast.Subscript):
+        return (
+            has_side_effect(node.value, safe_callable_whitelist)
+            or has_side_effect(node.slice, safe_callable_whitelist)
+            or not isinstance(node.ctx, ast.Load)
+        )
+
+    if isinstance(node, ast.Slice):
+        return any(
+            has_side_effect(child, safe_callable_whitelist) for child in (node.lower, node.upper)
+        )
+
+    if isinstance(node, (ast.DictComp)) and has_side_effect(node.value, safe_callable_whitelist):
+        return True
+
+    if isinstance(node, (ast.SetComp, ast.ListComp, ast.GeneratorExp, ast.DictComp)):
+        return any(has_side_effect(item, safe_callable_whitelist) for item in node.generators)
+
+    if isinstance(node, ast.comprehension):
+        if (
+            isinstance(node.target, ast.Name)
+            and isinstance(node.iter, ast.Name)
+            and not any(has_side_effect(value, safe_callable_whitelist) for value in node.ifs)
+        ):
+            return False
+        return True
+
+    if isinstance(node, ast.Call):
+        return (
+            not isinstance(node.func, ast.Name)
+            or node.func.id not in safe_callable_whitelist
+            or any(has_side_effect(item, safe_callable_whitelist) for item in node.args)
+            or any(has_side_effect(item.value, safe_callable_whitelist) for item in node.keywords)
+        )
+
+    if isinstance(node, ast.Starred):
+        return has_side_effect(node.value, safe_callable_whitelist)
+
+    if isinstance(node, ast.IfExp):
+        return any(
+            has_side_effect(child, safe_callable_whitelist)
+            for child in (node.test, node.body, node.orelse)
+        )
+
+    return True
+
+
+@functools.lru_cache(maxsize=1)
+def _get_line_lengths(content: str) -> Sequence[int]:
+    return tuple([len(line) for line in content.splitlines(keepends=True)])
+
+
+def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
+    """Get start and end character numbers in source code from ast node.
+
+    Args:
+        node (ast.AST): Node to fetch character numbers for
+        content (str): Python source code
+
+    Returns:
+        Tuple[int, int]: start, end
+    """
+    line_lengths = _get_line_lengths(content)
+
+    start_charno = sum(line_lengths[: node.lineno - 1]) + node.col_offset
+    end_charno = sum(line_lengths[: node.end_lineno - 1]) + node.end_col_offset
+
+    return start_charno, end_charno
 
 
 def get_code(node: ast.AST, content: str) -> str:
@@ -353,11 +384,5 @@ def get_code(node: ast.AST, content: str) -> str:
         str: Python source code
 
     """
-    lines = content.splitlines(keepends=True)
-    code_lines = lines[node.lineno - 1 : node.end_lineno]
-    print(code_lines)
-    if node.lineno == node.end_lineno:
-        return code_lines[0][node.col_offset : node.end_col_offset]
-    return "".join(
-        [lines[0][node.col_offset :]] + lines[1:-1] + lines[-1][: node.end_col_offset]
-    )
+    start_charno, end_charno = get_charnos(node, content)
+    return content[start_charno:end_charno]

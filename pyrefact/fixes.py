@@ -7,7 +7,7 @@ import sys
 import tempfile
 import warnings
 from pathlib import Path
-from typing import Collection, Iterable, List, Sequence, Tuple
+from typing import Collection, Iterable, List, Tuple, Union
 
 import black
 import isort
@@ -15,12 +15,7 @@ import rmspace
 from pylint.lint import Run
 
 from pyrefact import parsing
-from pyrefact.constants import (
-    ASSUMED_PACKAGES,
-    ASSUMED_SOURCES,
-    PACKAGE_ALIASES,
-    PYTHON_KEYWORDS,
-)
+from pyrefact.constants import ASSUMED_PACKAGES, ASSUMED_SOURCES, PACKAGE_ALIASES
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+:?= *(?![=])"
 
@@ -167,7 +162,6 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Iterable[str]:
         renamings[name].add(substitute)
 
     for name in parsing.iter_assignments(ast_tree):
-        print(name)
         substitute = _rename_variable(name, private=_is_private(name), static=True)
         renamings[name].add(substitute)
 
@@ -182,14 +176,10 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Iterable[str]:
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
                 funcdefs.append(node)
-                substitute = _rename_variable(
-                    name, private=_is_private(name), static=False
-                )
+                substitute = _rename_variable(name, private=_is_private(name), static=False)
                 renamings[name].add(substitute)
             for name in parsing.iter_assignments(partial_tree):
-                substitute = _rename_variable(
-                    name, private=_is_private(name), static=False
-                )
+                substitute = _rename_variable(name, private=_is_private(name), static=False)
                 renamings[name].add(substitute)
         for partial_tree in funcdefs.copy():
             funcdefs.remove(partial_tree)
@@ -208,9 +198,7 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Iterable[str]:
                 renamings[name].add(substitute)
 
     for name, substitutes in renamings.items():
-        assert (
-            len(substitutes) == 1
-        ), f"Multiple substitutes found for {name}: {substitutes}"
+        assert len(substitutes) == 1, f"Multiple substitutes found for {name}: {substitutes}"
         substitute = substitutes.pop()
         if name != substitute:
             yield name, substitute
@@ -244,9 +232,7 @@ def _fix_variable_names(content: str, renamings: Iterable[Tuple[str, str]]) -> s
             # which should be ignored.
             # The only valid assignment syntax is with the walrus operator :=
             substring = content[end : min(len(content) - 1, end + 3)]
-            is_assigned_by_equals = (
-                re.match(parsing.ASSIGN_RE_PATTERN, substring) is not None
-            )
+            is_assigned_by_equals = re.match(parsing.ASSIGN_RE_PATTERN, substring) is not None
 
             if not is_assigned_by_equals:
                 replacements.append((start, end))
@@ -301,9 +287,7 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _fix_unused_imports(
-    content: str, problems: Collection[Tuple[int, str, str]]
-) -> bool:
+def _fix_unused_imports(content: str, problems: Collection[Tuple[int, str, str]]) -> bool:
 
     lineno_problems = collections.defaultdict(set)
     for lineno, package, variable in problems:
@@ -321,16 +305,10 @@ def _fix_unused_imports(
                 package = packages.pop()
                 bad_variables = {variable for _, variable in lineno_problems[i + 1]}
                 _, existing_variables = line.split(" import ")
-                existing_variables = set(
-                    x.strip() for x in existing_variables.split(",")
-                )
+                existing_variables = set(x.strip() for x in existing_variables.split(","))
                 keep_variables = existing_variables - bad_variables
                 if keep_variables:
-                    fix = (
-                        f"from {package} import "
-                        + ", ".join(sorted(keep_variables))
-                        + "\n"
-                    )
+                    fix = f"from {package} import " + ", ".join(sorted(keep_variables)) + "\n"
                     new_lines.append(fix)
                     print(f"Replacing {line.strip()} \nwith      {fix.strip()}")
                     change_count += 1
@@ -416,9 +394,7 @@ def fix_isort(content: str, *, line_length: int = 100) -> str:
     Returns:
         str: Source code, formatted with isort
     """
-    return isort.code(
-        content, config=isort.Config(profile="black", line_length=line_length)
-    )
+    return isort.code(content, config=isort.Config(profile="black", line_length=line_length))
 
 
 def align_variable_names_with_convention(
@@ -442,18 +418,36 @@ def align_variable_names_with_convention(
     """
     ast_tree = ast.parse(content)
     renamings = set(_get_variable_name_substitutions(ast_tree))
-    renamings = {
-        (name, substitute) for name, substitute in renamings if name not in preserve
-    }
+    renamings = {(name, substitute) for name, substitute in renamings if name not in preserve}
     if renamings:
         content = _fix_variable_names(content, renamings)
 
     return content
 
 
-def undefine_unused_variables(
-    content: str, preserve: Collection[str] = frozenset()
-) -> str:
+def _iter_defs_recursive(
+    ast_root: ast.Module,
+) -> Iterable[Union[ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef]]:
+    left = list(ast_root.body)
+    while left:
+        for node in left.copy():
+            left.remove(node)
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+                left.extend(node.body)
+                yield node
+
+
+def _recursive_tuple_unpack(root: ast.Tuple) -> Iterable[str]:
+    for child in root.elts:
+        if isinstance(child, ast.Tuple):
+            yield from _recursive_tuple_unpack(child)
+        elif isinstance(child, ast.Name):
+            yield child
+        else:
+            raise ValueError(f"Cannot parse node: {ast.dump(root)}")
+
+
+def undefine_unused_variables(content: str, preserve: Collection[str] = frozenset()) -> str:
     """Remove definitions of unused variables
 
     Args:
@@ -465,29 +459,72 @@ def undefine_unused_variables(
     """
     ast_tree = ast.parse(content)
     definitions = set(parsing.iter_assignments(ast_tree))
-    usages = set(parsing.iter_usages(ast_tree))
+    usages = {x.id for x in parsing.iter_usages(ast_tree)}
     renamings = {name: "_" for name in definitions - usages - preserve if name != "_"}
     if renamings:
         content = _fix_variable_names(content, renamings)
         ast_tree = ast.parse(content)
 
     redundant_assignments = []
-    left = list(ast_tree.body)
-    while left:
-        for node in left.copy():
-            left.remove(node)
-            if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
-                left.extend(node.body)
-            if isinstance(node, (ast.AugAssign, ast.AnnAssign)):
-                if node.target.id == "_":
-                    redundant_assignments.append(node)
-            if isinstance(node, ast.Assign):
-                if all(target.id == "_" for target in node.targets):
-                    redundant_assignments.append(node)
+    for node in _iter_defs_recursive(ast_tree):
+        for subnode in node.body:
+            if isinstance(subnode, (ast.AugAssign, ast.AnnAssign)):
+                if subnode.target.id == "_":
+                    redundant_assignments.append(subnode)
+            if isinstance(subnode, ast.Assign):
+                for target in subnode.targets:
+                    if isinstance(target, ast.Name) and target.id == "_":
+                        redundant_assignments.append(subnode)
+                    elif isinstance(target, ast.Tuple) and all(
+                        subtarget.id == "_" for subtarget in _recursive_tuple_unpack(target)
+                    ):
+                        redundant_assignments.append(subnode)
 
     for node in redundant_assignments:
         code = parsing.get_code(node, content)
         changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
         content = content.replace(code, changed_code)
+
+    return content
+
+
+def remove_nodes(content: str, nodes: Iterable[ast.AST]) -> str:
+    """Remove ast nodes from code
+
+    Args:
+        content (str): Python source code
+        nodes (Iterable[ast.AST]): Nodes to delete from code
+
+    Returns:
+        str: Code after deleting nodes
+    """
+    keep_mask = [True] * len(content)
+    for node in nodes:
+        start, end = parsing.get_charnos(node, content)
+        print(f"Removing:\n{content[start:end]}")
+        keep_mask[start:end] = [False] * (end - start)
+    return "".join(char for char, keep in zip(content, keep_mask) if keep)
+
+
+def delete_pointless_statements(content: str) -> str:
+    """Delete pointless statements with no side effects from code
+
+    Args:
+        content (str): Python source code.
+
+    Returns:
+        str: _description_
+    """
+    ast_tree = ast.parse(content)
+    delete = []
+    for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):
+        for i, child in enumerate(node.body):
+            if isinstance(child, ast.Expr) and not parsing.has_side_effect(child):
+                if i > 0 or not (
+                    isinstance(child.value, ast.Constant) and isinstance(child.value.value, str)
+                ):
+                    delete.append(child)
+
+    content = remove_nodes(content, delete)
 
     return content
