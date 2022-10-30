@@ -137,6 +137,24 @@ def _iter_ast_nodes(root: ast.AST) -> Iterable[ast.AST]:
         yield root
 
 
+def _get_uses_of(node: ast.AST, scope: ast.AST) -> Iterable[ast.Name]:
+    name = node.id if isinstance(node, ast.Name) else node.name
+    reference_nodes = {
+        refnode
+        for refnode in ast.walk(scope)
+        if isinstance(refnode, ast.Name)
+        and isinstance(refnode.ctx, ast.Load)
+        and refnode.id == name
+    }
+    start = (node.lineno, node.col_offset)
+    end = (node.end_lineno, node.end_col_offset)
+    for refnode in reference_nodes:
+        n_start = (refnode.lineno, refnode.col_offset)
+        n_end = (refnode.end_lineno, refnode.end_col_offset)
+        if end < n_start or (isinstance(node, (ast.Module, ast.ClassDef)) and n_end < start):
+            yield refnode
+
+
 def _get_variable_name_substitutions(ast_tree: ast.AST) -> Mapping[ast.AST, str]:
     renamings = collections.defaultdict(set)
     classdefs: List[parsing.Statement] = []
@@ -146,16 +164,22 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Mapping[ast.AST, str]
         substitute = _rename_class(name, private=_is_private(name))
         classdefs.append(node)
         renamings[node].add(substitute)
+        for refnode in _get_uses_of(node, ast_tree):
+            renamings[refnode].add(substitute)
 
     for node in parsing.iter_funcdefs(ast_tree):
         name = node.name
         substitute = _rename_variable(name, private=_is_private(name), static=False)
         funcdefs.append(node)
         renamings[node].add(substitute)
+        for refnode in _get_uses_of(node, ast_tree):
+            renamings[refnode].add(substitute)
 
     for node in parsing.iter_assignments(ast_tree):
         substitute = _rename_variable(node.id, private=_is_private(node.id), static=True)
         renamings[node].add(substitute)
+        for refnode in _get_uses_of(node, ast_tree):
+            renamings[refnode].add(substitute)
 
     while funcdefs or classdefs:
         for partial_tree in classdefs.copy():
@@ -165,15 +189,21 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Mapping[ast.AST, str]
                 classdefs.append(node)
                 substitute = _rename_class(name, private=_is_private(name))
                 renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree):
+                    renamings[refnode].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
                 funcdefs.append(node)
                 substitute = _rename_variable(name, private=_is_private(name), static=False)
                 renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree):
+                    renamings[refnode].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
                 substitute = _rename_variable(name, private=_is_private(name), static=False)
                 renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree):
+                    renamings[refnode].add(substitute)
         for partial_tree in funcdefs.copy():
             funcdefs.remove(partial_tree)
             for node in parsing.iter_classdefs(partial_tree):
@@ -181,15 +211,21 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Mapping[ast.AST, str]
                 classdefs.append(node)
                 substitute = _rename_class(name, private=False)
                 renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree):
+                    renamings[refnode].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
                 funcdefs.append(node)
                 substitute = _rename_variable(name, private=False, static=False)
                 renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree):
+                    renamings[refnode].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
                 substitute = _rename_variable(name, private=False, static=False)
                 renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree):
+                    renamings[refnode].add(substitute)
 
     return renamings
 
@@ -200,19 +236,16 @@ def _get_variable_re_pattern(variable) -> str:
 
 def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str], root: ast.AST) -> str:
     replacements = []
-    name_nodes = collections.defaultdict(list)
-    for node in ast.walk(root):
-        if isinstance(node, ast.Name):
-            name_nodes[node.id].append(node)
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
-            raise RuntimeError(f"Expected 1 substitute, got {len(substitutes)}: {substitutes}")
+            raise RuntimeError(
+                f"Expected 1 substitute, got {len(substitutes)}: {substitutes}\nCode:\n{ast.dump(node, indent=2)}"
+            )
         substitute = substitutes.pop()
         if isinstance(node, ast.Name):
             if node.id != substitute:
-                for name_node in name_nodes[node.id]:
-                    start, end = parsing.get_charnos(name_node, content)
-                    replacements.append((start, end, substitute))
+                start, end = parsing.get_charnos(node, content)
+                replacements.append((start, end, substitute))
             continue
 
         if node.name == substitute:
@@ -230,10 +263,7 @@ def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str], root: as
         else:
             raise RuntimeError(f"Cannot find {node.name} in code block:\n{codeblock}")
 
-        replacements.append((start, end, substitute))  # Name in function definition
-        for name_node in name_nodes[node.id]:
-            start, end = parsing.get_charnos(name_node, content)
-            replacements.append((start, end, substitute))
+        replacements.append((start, end, substitute))
 
     for start, end, substitute in sorted(set(replacements), reverse=True):
         print(f"Replacing {content[start:end]} with {substitute}")
@@ -500,10 +530,12 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                 target_names = {x.id for x in target_nodes}
                 referenced_names = set()
                 start, end = parsing.get_charnos(node, content)
+                affected_refnodes = []
                 for refnode in reference_nodes:
                     n_start, n_end = parsing.get_charnos(refnode, content)
                     if end < n_start or (def_node is ast_tree and n_end < start):
                         referenced_names.add(refnode.id)
+                        affected_refnodes.append(refnode)
                 redundant_targets = target_names - referenced_names - imports
                 if def_node is ast_tree:
                     redundant_targets = redundant_targets - preserve
@@ -512,6 +544,8 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                         target_node = target_node.value
                     if target_node.id in redundant_targets:
                         renamings[target_node].add("_")
+                        for refnode in affected_refnodes:
+                            renamings[refnode].add("_")
 
     if renamings:
         content = _fix_variable_names(content, renamings, ast_tree)
@@ -597,8 +631,7 @@ def delete_pointless_statements(content: str) -> str:
     safe_callables = builtin_names - defined_names - {"print", "exit"}
     for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):
         for i, child in enumerate(node.body):
-            if isinstance(child, ast.Expr) and not parsing.has_side_effect(child, safe_callables):
-                assert "mass_update" not in ast.dump(child)
+            if not parsing.has_side_effect(child, safe_callables):
                 if i > 0 or not (
                     isinstance(child.value, ast.Constant) and isinstance(child.value.value, str)
                 ):

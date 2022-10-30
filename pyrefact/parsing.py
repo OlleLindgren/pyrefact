@@ -3,7 +3,7 @@ import dataclasses
 import functools
 import itertools
 import re
-from typing import Collection, Iterable, Sequence, Tuple
+from typing import Collection, Iterable, Sequence, Tuple, Union
 
 # match :=, do not match  =, >=, <=, ==, !=
 #  match =,  do not match :=, >=, <=, ==, !=
@@ -210,6 +210,24 @@ def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
             yield node
 
 
+def unique_assignment_targets(
+    node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign]
+) -> Collection[ast.Name]:
+    targets = set()
+    if isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+        for subtarget in ast.walk(node.target):
+            if isinstance(subtarget, ast.Name) and isinstance(subtarget.ctx, ast.Store):
+                targets.add(subtarget)
+        return targets
+    if isinstance(node, ast.Assign):
+        for target in node.targets:
+            for subtarget in ast.walk(target):
+                if isinstance(subtarget, ast.Name) and isinstance(subtarget.ctx, ast.Store):
+                    targets.add(subtarget)
+        return targets
+    raise TypeError(f"Expected Assignment type, got {type(node)}")
+
+
 def has_side_effect(
     node: ast.AST,
     safe_callable_whitelist: Collection[str] = frozenset(),
@@ -225,8 +243,16 @@ def has_side_effect(
         bool: True if it may have a side effect.
 
     """
+    if isinstance(
+        node, (ast.Yield, ast.YieldFrom, ast.Return, ast.Raise, ast.Continue, ast.Break, ast.Assert)
+    ):
+        return True
+
     if isinstance(node, (ast.Constant, ast.Pass)):
         return False
+
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        return True
 
     if isinstance(node, (ast.List, ast.Set, ast.Tuple)):
         return any(has_side_effect(value, safe_callable_whitelist) for value in node.elts)
@@ -251,17 +277,23 @@ def has_side_effect(
             has_side_effect(child, safe_callable_whitelist) for child in (node.left, node.right)
         )
 
+    if isinstance(node, ast.Compare):
+        return any(
+            has_side_effect(child, safe_callable_whitelist)
+            for child in [node.left] + node.comparators
+        )
+
     if isinstance(node, ast.BoolOp):
         return any(has_side_effect(value, safe_callable_whitelist) for value in node.values)
 
     if isinstance(node, ast.Name):
-        return isinstance(node.ctx, ast.Store)
+        return isinstance(node.ctx, ast.Store) and node.id != "_"
 
     if isinstance(node, ast.Subscript):
         return (
             has_side_effect(node.value, safe_callable_whitelist)
             or has_side_effect(node.slice, safe_callable_whitelist)
-            or not isinstance(node.ctx, ast.Load)
+            or (isinstance(node.ctx, ast.Store) and node.value.id != "_")
         )
 
     if isinstance(node, ast.Slice):
@@ -295,6 +327,12 @@ def has_side_effect(
     if isinstance(node, ast.Starred):
         return has_side_effect(node.value, safe_callable_whitelist)
 
+    if isinstance(node, ast.If):
+        return any(
+            has_side_effect(item, safe_callable_whitelist)
+            for item in itertools.chain(node.body, [node.test], node.orelse)
+        )
+
     if isinstance(node, ast.IfExp):
         return any(
             has_side_effect(child, safe_callable_whitelist)
@@ -302,9 +340,19 @@ def has_side_effect(
         )
 
     if isinstance(node, ast.Subscript):
-        return isinstance(node.ctx, ast.Load) and not any(
+        return isinstance(node.ctx, ast.Store) or any(
             has_side_effect(child, safe_callable_whitelist) for child in (node.value, node.slice)
         )
+
+    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+        for target in unique_assignment_targets(node):
+            if target.id != "_" and isinstance(target.ctx, ast.Store):
+                return True
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        else:
+            targets = [node.target]
+        return has_side_effect(node.value) or any(has_side_effect(target) for target in targets)
 
     return True
 
