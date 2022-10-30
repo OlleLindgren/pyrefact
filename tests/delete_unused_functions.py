@@ -25,9 +25,6 @@ if __name__ == "__main__":
 
 EXPECTED = """
 
-def function() -> int:
-    return 0
-
 def _used_function() -> str:
     '''Docstring mentioning _private_function()'''
     return "this function is used"
@@ -44,7 +41,7 @@ if __name__ == "__main__":
 def main() -> int:
 
     got = delete_unused_functions_and_classes(CODE)
-    assert got == EXPECTED, "\n".join(("Wrong result: (got, expected)", got, EXPECTED))
+    assert got.strip() == EXPECTED.strip(), "\n".join(("Wrong result: (got, expected)", got, EXPECTED))
 
     return 0
 

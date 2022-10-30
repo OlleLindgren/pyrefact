@@ -40,7 +40,7 @@ def some_python_code() -> None:
 
     return 0
 
-FUBAR = 420
+420
 69
 
 """

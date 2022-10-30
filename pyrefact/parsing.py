@@ -1,6 +1,7 @@
 import ast
 import dataclasses
 import functools
+import itertools
 import re
 from typing import Collection, Iterable, Sequence, Tuple
 
@@ -270,6 +271,12 @@ def has_side_effect(
 
     if isinstance(node, (ast.List, ast.Set, ast.Tuple)):
         return any(has_side_effect(value, safe_callable_whitelist) for value in node.elts)
+
+    if isinstance(node, ast.Dict):
+        return any(
+            has_side_effect(value, safe_callable_whitelist)
+            for value in itertools.chain(node.keys, node.values)
+        )
 
     if isinstance(node, ast.Expr):
         return has_side_effect(node.value, safe_callable_whitelist)

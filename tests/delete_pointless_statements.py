@@ -7,49 +7,18 @@ CODE = """12
 def pointless_function() -> None:
     555
 
-variable = "asdf"
 
-var2 = 'asdfasdf'
+1234
+{1: sum((2, 3, 6, 0)), "asdf": 13-12}
 
-var3 = '''
-this should not be deleted'''
-
-def h():
-    '''
-    This is a docstring and should be left alone
-    '''
-    99
-
-    111
-
-def f():
-    '''
-    This is a docstring and should be left alone
-    '''
-    _QFQWERF += 99
-
-if __name__ == "__main__":
-    f()
-    sys.exit(0)
 """
 
 
-EXPECTED = """variable = "asdf"
+EXPECTED = """
 
-var2 = 'asdfasdf'
+def pointless_function() -> None:
+    pass
 
-var3 = '''
-this should not be deleted'''
-
-def f():
-    '''
-    This is a docstring and should be left alone
-    '''
-    _QFQWERF += 99
-
-if __name__ == "__main__":
-    f()
-    sys.exit(0)
 """
 
 
@@ -72,7 +41,7 @@ if __name__ == "__main__":
 
 def main() -> int:
     got = delete_pointless_statements(CODE)
-    assert got == EXPECTED, "\n".join(("Wrong result: (got, expected)", got, EXPECTED))
+    assert got.strip() == EXPECTED.strip(), "\n".join(("Wrong result: (got, expected)", got, EXPECTED))
     assert SHEBANG == delete_pointless_statements(SHEBANG)
     assert REGULAR_MODULE_DOCSTRING == delete_pointless_statements(REGULAR_MODULE_DOCSTRING)
 

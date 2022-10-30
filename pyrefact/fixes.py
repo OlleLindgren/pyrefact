@@ -1,5 +1,6 @@
 import ast
 import collections
+import heapq
 import io
 import itertools
 import re
@@ -7,7 +8,7 @@ import sys
 import tempfile
 import warnings
 from pathlib import Path
-from typing import Collection, Iterable, List, Tuple, Union
+from typing import Collection, Iterable, List, Mapping, Tuple, Union
 
 import black
 import isort
@@ -135,7 +136,7 @@ def _iter_ast_nodes(root: ast.AST) -> Iterable[ast.AST]:
         yield root
 
 
-def _get_variable_name_substitutions(ast_tree: ast.AST) -> Iterable[str]:
+def _get_variable_name_substitutions(ast_tree: ast.AST) -> Mapping[ast.AST, str]:
     renamings = collections.defaultdict(set)
     classdefs: List[parsing.Statement] = []
     funcdefs: List[parsing.Statement] = []
@@ -143,17 +144,17 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Iterable[str]:
         name = node.name
         substitute = _rename_class(name, private=_is_private(name))
         classdefs.append(node)
-        renamings[name].add(substitute)
+        renamings[node].add(substitute)
 
     for node in parsing.iter_funcdefs(ast_tree):
         name = node.name
         substitute = _rename_variable(name, private=_is_private(name), static=False)
         funcdefs.append(node)
-        renamings[name].add(substitute)
+        renamings[node].add(substitute)
 
     for name in parsing.iter_assignments(ast_tree):
         substitute = _rename_variable(name, private=_is_private(name), static=True)
-        renamings[name].add(substitute)
+        renamings[node].add(substitute)
 
     while funcdefs or classdefs:
         for partial_tree in classdefs.copy():
@@ -162,76 +163,54 @@ def _get_variable_name_substitutions(ast_tree: ast.AST) -> Iterable[str]:
                 name = node.name
                 classdefs.append(node)
                 substitute = _rename_class(name, private=_is_private(name))
-                renamings[name].add(substitute)
+                renamings[node].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
                 funcdefs.append(node)
-                substitute = _rename_variable(name, private=_is_private(name), static=False)
-                renamings[name].add(substitute)
+                substitute = _rename_variable(
+                    name, private=_is_private(name), static=False
+                )
+                renamings[node].add(substitute)
             for name in parsing.iter_assignments(partial_tree):
-                substitute = _rename_variable(name, private=_is_private(name), static=False)
-                renamings[name].add(substitute)
+                substitute = _rename_variable(
+                    name, private=_is_private(name), static=False
+                )
+                renamings[node].add(substitute)
         for partial_tree in funcdefs.copy():
             funcdefs.remove(partial_tree)
             for node in parsing.iter_classdefs(partial_tree):
                 name = node.name
                 classdefs.append(node)
                 substitute = _rename_class(name, private=False)
-                renamings[name].add(substitute)
+                renamings[node].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
                 funcdefs.append(node)
                 substitute = _rename_variable(name, private=False, static=False)
-                renamings[name].add(substitute)
+                renamings[node].add(substitute)
             for name in parsing.iter_assignments(partial_tree):
                 substitute = _rename_variable(name, private=False, static=False)
-                renamings[name].add(substitute)
+                renamings[node].add(substitute)
 
-    for name, substitutes in renamings.items():
-        assert len(substitutes) == 1, f"Multiple substitutes found for {name}: {substitutes}"
-        substitute = substitutes.pop()
-        if name != substitute:
-            yield name, substitute
+    return renamings
 
 
 def _get_variable_re_pattern(variable) -> str:
     return r"(?<![A-Za-z_\.])" + variable + r"(?![A-Za-z_])"
 
 
-def _fix_variable_names(content: str, renamings: Iterable[Tuple[str, str]]) -> str:
-    code_mask = parsing.get_is_code_mask(content)
-    paranthesis_map = parsing.get_paren_depths(content, code_mask)
+def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str]) -> str:
+    replacements = []
+    for node, substitutes in renamings.items():
+        if len(substitutes) != 1:
+            raise ValueError(f"Expected 1 substitute, got {len(substitutes)}")
+        substitute = substitutes.pop()
+        start, end = parsing.get_charnos(node, content)
+        replacements.append((start, end, substitute))
 
-    for variable, substiture in renamings.items():
-        replacements = []
-        for match in re.finditer(_get_variable_re_pattern(variable), content):
-            start = match.start()
-            end = match.end()
-
-            # Ignore string contents or comments
-            if not all(code_mask[start:end]):
-                continue
-
-            is_in_paranthesis = max(paranthesis_map[start:end]) > 0
-
-            if not is_in_paranthesis:
-                replacements.append((start, end))
-                continue
-
-            # If inside paranthesis, a = means a keyword argument is being assigned,
-            # which should be ignored.
-            # The only valid assignment syntax is with the walrus operator :=
-            substring = content[end : min(len(content) - 1, end + 3)]
-            is_assigned_by_equals = re.match(parsing.ASSIGN_RE_PATTERN, substring) is not None
-
-            if not is_assigned_by_equals:
-                replacements.append((start, end))
-
-        if not replacements:
-            warnings.warn(f"Unable to find '{variable}' in content")
-
-        for start, end in sorted(replacements, reverse=True):
-            content = content[:start] + substiture + content[end:]
+    for start, end, substitute in sorted(replacements, reverse=True):
+        print(f"Replacing {content[start:end]} with {substitute}")
+        content = content[:start] + substitute + content[end:]
 
     return content
 
@@ -277,7 +256,9 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _fix_unused_imports(content: str, problems: Collection[Tuple[int, str, str]]) -> bool:
+def _fix_unused_imports(
+    content: str, problems: Collection[Tuple[int, str, str]]
+) -> bool:
 
     lineno_problems = collections.defaultdict(set)
     for lineno, package, variable in problems:
@@ -295,10 +276,16 @@ def _fix_unused_imports(content: str, problems: Collection[Tuple[int, str, str]]
                 package = packages.pop()
                 bad_variables = {variable for _, variable in lineno_problems[i + 1]}
                 _, existing_variables = line.split(" import ")
-                existing_variables = set(x.strip() for x in existing_variables.split(","))
+                existing_variables = set(
+                    x.strip() for x in existing_variables.split(",")
+                )
                 keep_variables = existing_variables - bad_variables
                 if keep_variables:
-                    fix = f"from {package} import " + ", ".join(sorted(keep_variables)) + "\n"
+                    fix = (
+                        f"from {package} import "
+                        + ", ".join(sorted(keep_variables))
+                        + "\n"
+                    )
                     new_lines.append(fix)
                     print(f"Replacing {line.strip()} \nwith      {fix.strip()}")
                     change_count += 1
@@ -384,7 +371,9 @@ def fix_isort(content: str, *, line_length: int = 100) -> str:
     Returns:
         str: Source code, formatted with isort
     """
-    return isort.code(content, config=isort.Config(profile="black", line_length=line_length))
+    return isort.code(
+        content, config=isort.Config(profile="black", line_length=line_length)
+    )
 
 
 def align_variable_names_with_convention(
@@ -407,8 +396,7 @@ def align_variable_names_with_convention(
         str: Source code, where all variable names comply with normal convention
     """
     ast_tree = ast.parse(content)
-    renamings = set(_get_variable_name_substitutions(ast_tree))
-    renamings = {(name, substitute) for name, substitute in renamings if name not in preserve}
+    renamings = _get_variable_name_substitutions(ast_tree)
     if renamings:
         content = _fix_variable_names(content, renamings)
 
@@ -427,17 +415,42 @@ def _iter_defs_recursive(
                 yield node
 
 
-def _recursive_tuple_unpack(root: ast.Tuple) -> Iterable[str]:
+def _recursive_tuple_unpack(root: ast.Tuple) -> Iterable[ast.Name]:
     for child in root.elts:
         if isinstance(child, ast.Tuple):
             yield from _recursive_tuple_unpack(child)
         elif isinstance(child, ast.Name):
             yield child
+        elif isinstance(child, ast.Starred):
+            while isinstance(child, ast.Starred):
+                child = child.value
+            if isinstance(child, ast.Name):
+                yield child
+            if isinstance(child, ast.Tuple):
+                yield from _recursive_tuple_unpack(child)
         else:
             raise ValueError(f"Cannot parse node: {ast.dump(root)}")
 
 
-def undefine_unused_variables(content: str, preserve: Collection[str] = frozenset()) -> str:
+def _unique_assignment_targets(
+    node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign]
+) -> Collection[str]:
+    if isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+        return {node.target}
+    if isinstance(node, ast.Assign):
+        targets = set()
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                targets.add(target)
+            elif isinstance(target, ast.Tuple):
+                targets.update(_recursive_tuple_unpack(target))
+        return targets
+    raise TypeError(f"Expected Assignment type, got {type(node)}")
+
+
+def undefine_unused_variables(
+    content: str, preserve: Collection[str] = frozenset()
+) -> str:
     """Remove definitions of unused variables
 
     Args:
@@ -448,52 +461,93 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         str: Python source code, with no definitions of unused variables
     """
     ast_tree = ast.parse(content)
-    definitions = set(parsing.iter_assignments(ast_tree))
-    usages = {x.id for x in parsing.iter_usages(ast_tree)}
-    renamings = {name: "_" for name in definitions - usages - preserve if name != "_"}
+    renamings = collections.defaultdict(set)
+    for def_node in itertools.chain(
+        [ast_tree],
+        parsing.iter_funcdefs(ast_tree),
+    ):
+        reference_nodes = {
+            node
+            for node in ast.walk(def_node)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+        }
+        for node in def_node.body:
+            if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                target_nodes = _unique_assignment_targets(node)
+                target_names = {x.id for x in target_nodes}
+                referenced_names = set()
+                start, end = parsing.get_charnos(node, content)
+                for refnode in reference_nodes:
+                    n_start, n_end = parsing.get_charnos(refnode, content)
+                    if end < n_start or (def_node is ast_tree and n_end < start):
+                        referenced_names.add(refnode.id)
+                redundant_targets = target_names - referenced_names
+                if def_node is ast_tree:
+                    redundant_targets = redundant_targets - preserve
+                for target_node in target_nodes:
+                    if target_node.id in redundant_targets:
+                        renamings[target_node].add("_")
+
     if renamings:
         content = _fix_variable_names(content, renamings)
         ast_tree = ast.parse(content)
 
-    redundant_assignments = []
-    for node in _iter_defs_recursive(ast_tree):
-        for subnode in node.body:
-            if isinstance(subnode, (ast.AugAssign, ast.AnnAssign)):
-                if subnode.target.id == "_":
-                    redundant_assignments.append(subnode)
-            if isinstance(subnode, ast.Assign):
-                for target in subnode.targets:
-                    if isinstance(target, ast.Name) and target.id == "_":
-                        redundant_assignments.append(subnode)
-                    elif isinstance(target, ast.Tuple) and all(
-                        subtarget.id == "_" for subtarget in _recursive_tuple_unpack(target)
-                    ):
-                        redundant_assignments.append(subnode)
-
-    for node in redundant_assignments:
-        code = parsing.get_code(node, content)
-        changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
-        content = content.replace(code, changed_code)
+    for node in ast.walk(ast_tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) and all(
+            x.id == "_" for x in _unique_assignment_targets(node)
+        ):
+            code = parsing.get_code(node, content)
+            changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
+            print(f"Removing redundant assignments in {code}")
+            assert code != changed_code
+            content = content.replace(code, changed_code)
 
     return content
 
 
-def remove_nodes(content: str, nodes: Iterable[ast.AST]) -> str:
+def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> str:
     """Remove ast nodes from code
 
     Args:
         content (str): Python source code
         nodes (Iterable[ast.AST]): Nodes to delete from code
+        root (ast.Module): Complete corresponding module
 
     Returns:
         str: Code after deleting nodes
     """
     keep_mask = [True] * len(content)
+    nodes = list(nodes)
     for node in nodes:
         start, end = parsing.get_charnos(node, content)
         print(f"Removing:\n{content[start:end]}")
         keep_mask[start:end] = [False] * (end - start)
-    return "".join(char for char, keep in zip(content, keep_mask) if keep)
+
+    passes = [len(content) + 1]
+
+    for node in ast.walk(root):
+        for bodytype in "body", "finalbody", "orelse":
+            if body := getattr(node, bodytype, []):
+                if isinstance(body, list) and all(child in nodes for child in body):
+                    start_charno, _ = parsing.get_charnos(body[0], content)
+                    passes.append(start_charno)
+
+    heapq.heapify(passes)
+
+    next_pass = heapq.heappop(passes)
+    chars = []
+    for i, char, keep in zip(range(len(content)), content, keep_mask):
+        if i == next_pass:
+            chars.extend("pass")
+        elif next_pass < i < next_pass + 3:
+            continue
+        else:
+            if i > next_pass:
+                next_pass = heapq.heappop(passes)
+            if keep:
+                chars.append(char)
+
+    return "".join(chars)
 
 
 def delete_pointless_statements(content: str) -> str:
@@ -503,19 +557,27 @@ def delete_pointless_statements(content: str) -> str:
         content (str): Python source code.
 
     Returns:
-        str: _description_
+        str: Modified code
     """
     ast_tree = ast.parse(content)
     delete = []
+    defined_names = {
+        node.id for node in ast.walk(ast_tree) if isinstance(node, ast.Name)
+    }
+    builtin_names = set(dir(__builtins__))
+    safe_callables = defined_names - builtin_names
     for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):
         for i, child in enumerate(node.body):
-            if isinstance(child, ast.Expr) and not parsing.has_side_effect(child):
+            if isinstance(child, ast.Expr) and not parsing.has_side_effect(
+                child, safe_callables
+            ):
                 if i > 0 or not (
-                    isinstance(child.value, ast.Constant) and isinstance(child.value.value, str)
+                    isinstance(child.value, ast.Constant)
+                    and isinstance(child.value.value, str)
                 ):
                     delete.append(child)
 
-    content = remove_nodes(content, delete)
+    content = remove_nodes(content, delete, ast_tree)
 
     return content
 
@@ -566,6 +628,6 @@ def delete_unused_functions_and_classes(
             print(f"{def_node.name} is never used (recursive)")
             delete.append(def_node)
 
-    content = remove_nodes(content, delete)
+    content = remove_nodes(content, delete, root)
 
     return content
