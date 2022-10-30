@@ -528,7 +528,7 @@ def undefine_unused_variables(
 
     for node in ast.walk(ast_tree):
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
-            target_namess = {x.id for x in _unique_assignment_targets(node)}
+            target_names = {x.id for x in _unique_assignment_targets(node)}
             if target_names == {"_"}:
                 code = parsing.get_code(node, content)
                 changed_code = re.sub(
