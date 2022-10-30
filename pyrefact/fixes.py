@@ -198,16 +198,21 @@ def _get_variable_re_pattern(variable) -> str:
     return r"(?<![A-Za-z_\.])" + variable + r"(?![A-Za-z_])"
 
 
-def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str]) -> str:
+def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str], root: ast.AST) -> str:
     replacements = []
+    name_nodes = collections.defaultdict(list)
+    for node in ast.walk(root):
+        if isinstance(node, ast.Name):
+            name_nodes[node.id].append(node)
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
             raise RuntimeError(f"Expected 1 substitute, got {len(substitutes)}: {substitutes}")
         substitute = substitutes.pop()
-        start, end = parsing.get_charnos(node, content)
         if isinstance(node, ast.Name):
             if node.id != substitute:
-                replacements.append((start, end, substitute))
+                for name_node in name_nodes[node.id]:
+                    start, end = parsing.get_charnos(name_node, content)
+                    replacements.append((start, end, substitute))
             continue
 
         if node.name == substitute:
@@ -225,9 +230,12 @@ def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str]) -> str:
         else:
             raise RuntimeError(f"Cannot find {node.name} in code block:\n{codeblock}")
 
-        replacements.append((start, end, substitute))
+        replacements.append((start, end, substitute))  # Name in function definition isn't an ast.Name
+        for name_node in name_nodes[node.id]:
+            start, end = parsing.get_charnos(name_node, content)
+            replacements.append((start, end, substitute))
 
-    for start, end, substitute in sorted(replacements, reverse=True):
+    for start, end, substitute in sorted(set(replacements), reverse=True):
         print(f"Replacing {content[start:end]} with {substitute}")
         content = content[:start] + substitute + content[end:]
 
@@ -408,7 +416,7 @@ def align_variable_names_with_convention(
     renamings = _get_variable_name_substitutions(ast_tree)
 
     if renamings:
-        content = _fix_variable_names(content, renamings)
+        content = _fix_variable_names(content, renamings, ast_tree)
 
     return content
 
@@ -506,7 +514,7 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                         renamings[target_node].add("_")
 
     if renamings:
-        content = _fix_variable_names(content, renamings)
+        content = _fix_variable_names(content, renamings, ast_tree)
         ast_tree = ast.parse(content)
 
     for node in ast.walk(ast_tree):
