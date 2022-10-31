@@ -45,6 +45,8 @@ def main() -> int:
         "{1: 2}[1]",
         "{1: sum}[1]((3, 3, 3))",
         '{1: sum((2, 3, 6, 0)), "asdf": 13-12}',
+        "_=2",
+        "(_:=3)",
     ):
         node = ast.parse(source).body[0]
         if has_side_effect(node, whitelist):
@@ -63,6 +65,8 @@ def main() -> int:
         """def f() -> None:
     return 1
         """,
+        "g=2",
+        "(h:=3)",
     ):
         node = ast.parse(source).body[0]
         if not has_side_effect(node, whitelist):

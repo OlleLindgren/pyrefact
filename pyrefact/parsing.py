@@ -369,7 +369,8 @@ def has_side_effect(
             has_side_effect(child, safe_callable_whitelist) for child in (node.value, node.slice)
         )
 
-    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+    # NamedExpr is :=
+    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
         if isinstance(node, ast.Assign):
             targets = node.targets
         else:
