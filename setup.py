@@ -1,9 +1,15 @@
 """Installer for pyrefact"""
+import sys
+import warnings
+
 import setuptools
+
+if tuple(sys.version_info) < (3, 9):
+    warnings.warn("Pyrefact is not tested with python < 3.9, and may not work.")
 
 setuptools.setup(
     name="pyrefact",
-    version="5",
+    version="6",
     description="Automatic python refactoring",
     author="Olle Lindgren",
     author_email="olle.ln@outlook.com",
