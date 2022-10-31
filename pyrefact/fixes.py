@@ -545,8 +545,6 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                         target_node = target_node.value
                     if target_node.id in redundant_targets:
                         renamings[target_node].add("_")
-                        for refnode in affected_refnodes:
-                            renamings[refnode].add("_")
 
     if renamings:
         content = _fix_variable_names(content, renamings, ast_tree)
@@ -627,7 +625,11 @@ def delete_pointless_statements(content: str) -> str:
     """
     ast_tree = ast.parse(content)
     delete = []
-    defined_names = {node.id for node in ast.walk(ast_tree) if isinstance(node, ast.Name)}
+    defined_names = {
+        node.id
+        for node in ast.walk(ast_tree)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+    }
     builtin_names = set(dir(builtins))
     safe_callables = builtin_names - defined_names - {"print", "exit"}
     for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):

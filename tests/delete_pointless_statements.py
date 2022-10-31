@@ -42,7 +42,7 @@ if __name__ == "__main__":
 def main() -> int:
     got = delete_pointless_statements(CODE)
     assert got.strip() == EXPECTED.strip(), "\n".join(
-        ("Wrong result: (got, expected)", got, EXPECTED)
+        ("Wrong result: (got, expected)", got, "\n***\n", EXPECTED)
     )
     assert SHEBANG == delete_pointless_statements(SHEBANG)
     assert REGULAR_MODULE_DOCSTRING == delete_pointless_statements(REGULAR_MODULE_DOCSTRING)

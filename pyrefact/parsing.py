@@ -3,7 +3,7 @@ import dataclasses
 import functools
 import itertools
 import re
-from typing import Collection, Iterable, Sequence, Tuple, Union
+from typing import Collection, Iterable, Sequence, Tuple
 
 # match :=, do not match  =, >=, <=, ==, !=
 #  match =,  do not match :=, >=, <=, ==, !=
@@ -210,29 +210,15 @@ def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
             yield node
 
 
-def unique_assignment_targets(
-    node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign]
-) -> Collection[ast.Name]:
-    targets = set()
-    if isinstance(node, (ast.AugAssign, ast.AnnAssign)):
-        for subtarget in ast.walk(node.target):
-            if isinstance(subtarget, ast.Name) and isinstance(subtarget.ctx, ast.Store):
-                targets.add(subtarget)
-        return targets
-    if isinstance(node, ast.Assign):
-        for target in node.targets:
-            for subtarget in ast.walk(target):
-                if isinstance(subtarget, ast.Name) and isinstance(subtarget.ctx, ast.Store):
-                    targets.add(subtarget)
-        return targets
-    raise TypeError(f"Expected Assignment type, got {type(node)}")
-
-
 def has_side_effect(
     node: ast.AST,
     safe_callable_whitelist: Collection[str] = frozenset(),
 ) -> bool:
     """Determine if a statement has a side effect.
+
+    A statement has a side effect if it can influence the outcome of a subsequent statement.
+    A slight exception to this rule exists: Anything named "_" is assumed to be unused and
+    meaningless. So a statement like "_ = 100" is assumed to have no side effect.
 
     Args:
         statement (Statement): Statement to check
@@ -244,9 +230,41 @@ def has_side_effect(
 
     """
     if isinstance(
-        node, (ast.Yield, ast.YieldFrom, ast.Return, ast.Raise, ast.Continue, ast.Break, ast.Assert)
+        node,
+        (
+            ast.Yield,
+            ast.YieldFrom,
+            ast.Return,
+            ast.Raise,
+            ast.Continue,
+            ast.Break,
+            ast.Assert,
+        ),
     ):
         return True
+
+    if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+        return node.name != "_"
+
+    if isinstance(node, ast.Lambda):
+        return has_side_effect(node.args, safe_callable_whitelist) or has_side_effect(
+            node.body, safe_callable_whitelist
+        )
+
+    if isinstance(node, ast.arguments):
+        return any(
+            has_side_effect(item, safe_callable_whitelist)
+            for item in itertools.chain(
+                node.posonlyargs,
+                node.args,
+                node.kwonlyargs,
+                node.kw_defaults,
+                node.defaults,
+            )
+        )
+
+    if node is None:
+        return False
 
     if isinstance(node, ast.Module):
         return any(has_side_effect(value, safe_callable_whitelist) for value in node.body)
@@ -313,7 +331,7 @@ def has_side_effect(
     if isinstance(node, ast.comprehension):
         if (
             isinstance(node.target, ast.Name)
-            and isinstance(node.iter, ast.Name)
+            and not has_side_effect(node.iter, safe_callable_whitelist)
             and not any(has_side_effect(value, safe_callable_whitelist) for value in node.ifs)
         ):
             return False
@@ -321,8 +339,12 @@ def has_side_effect(
 
     if isinstance(node, ast.Call):
         return (
-            not isinstance(node.func, ast.Name)
-            or node.func.id not in safe_callable_whitelist
+            has_side_effect(node.func, safe_callable_whitelist)
+            or not all(
+                child.id in safe_callable_whitelist or child.id == "_"
+                for child in ast.walk(node.func)
+                if isinstance(child, ast.Name)
+            )
             or any(has_side_effect(item, safe_callable_whitelist) for item in node.args)
             or any(has_side_effect(item.value, safe_callable_whitelist) for item in node.keywords)
         )
@@ -348,9 +370,6 @@ def has_side_effect(
         )
 
     if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
-        for target in unique_assignment_targets(node):
-            if target.id != "_" and isinstance(target.ctx, ast.Store):
-                return True
         if isinstance(node, ast.Assign):
             targets = node.targets
         else:
