@@ -338,6 +338,8 @@ def _get_unused_imports(ast_tree: ast.Module) -> str:
         elif isinstance(node, ast.Attribute):
             attributes.add(node)
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+                continue
             for alias in node.names:
                 imports.add(alias.name if alias.asname is None else alias.asname)
 
