@@ -182,6 +182,8 @@ def _get_variable_name_substitutions(ast_tree: ast.AST, content: str) -> Mapping
                     renamings[refnode].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
+                if name.startswith("__") and name.endswith("__"):
+                    continue
                 funcdefs.append(node)
                 substitute = _rename_variable(name, private=_is_private(name), static=False)
                 renamings[node].add(substitute)
@@ -526,15 +528,22 @@ def align_variable_names_with_convention(
     return content
 
 
-def _iter_defs_recursive(
+def _iter_bodies_recursive(
     ast_root: ast.Module,
 ) -> Iterable[Union[ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef]]:
     left = list(ast_root.body)
     while left:
         for node in left.copy():
             left.remove(node)
-            if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+            if isinstance(
+                node,
+                (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef, ast.For, ast.While, ast.With),
+            ):
                 left.extend(node.body)
+                yield node
+            if isinstance(node, ast.If):
+                left.extend(node.body)
+                left.extend(node.orelse)
                 yield node
 
 
@@ -584,12 +593,17 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         }
         body = queue.PriorityQueue()
         for node in def_node.body:
-            body.put((node.lineno, node))
+            body.put((node.lineno, node, None))
         while not body.empty():
-            _, node = body.get()
-            if isinstance(node, ast.For):
+            _, node, containing_loop_node = body.get()
+            if isinstance(node, (ast.For, ast.While)):
                 for subnode in reversed(node.body):
-                    body.put((subnode.lineno, subnode))
+                    body.put((subnode.lineno, subnode, containing_loop_node or node))
+            elif isinstance(node, ast.If):
+                for subnode in node.body:
+                    body.put((subnode.lineno, subnode, containing_loop_node))
+                for subnode in node.orelse:
+                    body.put((subnode.lineno, subnode, containing_loop_node))
             if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For)):
                 target_nodes = _unique_assignment_targets(node)
                 if not target_nodes:
@@ -598,6 +612,10 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                 referenced_names = set()
                 starts = []
                 ends = []
+                if containing_loop_node is not None:
+                    loop_start, loop_end = parsing.get_charnos(containing_loop_node, content)
+                else:
+                    loop_start = loop_end = -1
                 for target_node in target_nodes:
                     s, e = parsing.get_charnos(target_node, content)
                     starts.append(s)
@@ -610,6 +628,7 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                         end < n_start
                         or (isinstance(def_node, (ast.ClassDef, ast.Module)) and n_end < start)
                         or isinstance(def_node, ast.For)
+                        or loop_start <= n_start <= n_end <= loop_end
                     ):
                         referenced_names.add(refnode.id)
                 redundant_targets = target_names - referenced_names - imports
@@ -712,6 +731,7 @@ def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
     }
     builtin_names = set(dir(builtins))
     safe_callables = builtin_names - {"print", "exit"}
+    safe_callable_nodes = set()
     changes = True
     while changes:
         changes = False
@@ -729,9 +749,22 @@ def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
             if not any(
                 parsing.has_side_effect(child, safe_callables) for child in nonreturn_children
             ):
+                safe_callable_nodes.add(node)
                 safe_callables.add(node.name)
                 changes = True
         function_defs = {node for node in function_defs if node.name not in safe_callables}
+
+    for node in ast.walk(root):
+        if isinstance(node, ast.ClassDef):
+            constructors = {
+                child
+                for child in node.body
+                if isinstance(child, ast.FunctionDef)
+                and child.name in ("__init__", "__post_init__", "__new__")
+            }
+            if not constructors - safe_callable_nodes:
+                safe_callables.add(node.name)
+
     return safe_callables
 
 
@@ -747,7 +780,7 @@ def delete_pointless_statements(content: str) -> str:
     ast_tree = ast.parse(content)
     delete = []
     safe_callables = _compute_safe_funcdef_calls(ast_tree)
-    for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):
+    for node in itertools.chain([ast_tree], _iter_bodies_recursive(ast_tree)):
         for i, child in enumerate(node.body):
             if not parsing.has_side_effect(child, safe_callables):
                 if i > 0 or not (
@@ -760,6 +793,65 @@ def delete_pointless_statements(content: str) -> str:
     content = remove_nodes(content, delete, ast_tree)
 
     return content
+
+
+def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> Iterable[ast.AST]:
+    funcdefs = []
+    classdefs = []
+    names = []
+
+    for node in ast.walk(root):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            funcdefs.append(node)
+        elif isinstance(node, ast.ClassDef):
+            classdefs.append(node)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            names.append(node)
+
+    class_magics = collections.defaultdict(set)
+    for node in classdefs:
+        for child in node.body:
+            if (
+                isinstance(child, ast.FunctionDef)
+                and child.name.startswith("__")
+                and child.name.endswith("__")
+            ):
+                class_magics[node].add(child)
+
+    magic_source_classes = {}
+    for classdef, magics in class_magics.items():
+        for magic in magics:
+            magic_source_classes[magic] = classdef
+
+    for def_node in funcdefs:
+        if def_node.name in preserve:
+            continue
+        usages = {node for node in names if node.id == def_node.name}
+        if parent_class := magic_source_classes.get(def_node):
+            usages.update(node for node in names if node.id == parent_class.name)
+        recursive_usages = {
+            node
+            for node in ast.walk(def_node)
+            if isinstance(node, ast.Name) and node.id == def_node.name
+        }
+        if not usages - recursive_usages:
+            print(f"{def_node.name} is never used")
+            yield def_node
+
+    for def_node in classdefs:
+        if def_node.name in preserve:
+            continue
+        usages = {node for node in names if node.id == def_node.name}
+        internal_usages = {
+            node
+            for node in ast.walk(def_node)
+            if isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id in (def_node.name, "self", "cls")
+        }
+        if not usages - internal_usages:
+            print(f"{def_node.name} is never used")
+            yield def_node
 
 
 def delete_unused_functions_and_classes(
@@ -776,29 +868,7 @@ def delete_unused_functions_and_classes(
     """
     root = ast.parse(content)
 
-    defs = []
-    names = []
-
-    for node in ast.walk(root):
-        if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
-            defs.append(node)
-        elif isinstance(node, ast.Name):
-            names.append(node)
-
-    delete = []
-    for def_node in defs:
-        if def_node.name in preserve:
-            continue
-        usages = {node for node in names if node.id == def_node.name}
-        recursive_usages = {
-            node
-            for node in ast.walk(def_node)
-            if isinstance(node, ast.Name) and node.id == def_node.name
-        }
-        if not usages - recursive_usages:
-            print(f"{def_node.name} is never used")
-            delete.append(def_node)
-            continue
+    delete = set(_get_unused_functions_classes(root, preserve))
 
     content = remove_nodes(content, delete, root)
 
