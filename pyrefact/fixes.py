@@ -255,10 +255,11 @@ def _fix_variable_names(
         if node.name == substitute or node.name in preserve:
             continue
 
-        codeblock = content[start:end]
         if not isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
             raise TypeError(f"Unknown type: {type(node)}")
 
+        start, end = parsing.get_charnos(node, content)
+        codeblock = content[start:end]
         for match in re.finditer(_get_variable_re_pattern(node.name), codeblock):
             assert match.group() == node.name
             end = start + match.end()
