@@ -709,6 +709,46 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     return "".join(chars)
 
 
+def _deterministic_value(node: ast.AST) -> bool:
+    if parsing.has_side_effect(node):
+        raise ValueError("Cannot find a deterministic value for a node with a side effect")
+
+    return ast.literal_eval(node)  # Requires >= 3.9
+
+
+def _is_exception(node: ast.AST) -> bool:
+    """Check if a node is an exception.
+
+    Args:
+        node (ast.AST): Node to check
+
+    Returns:
+        bool: True if it will always raise an exception
+    """
+    if isinstance(node, ast.Raise):
+        return True
+
+    if isinstance(node, ast.Assert):
+        try:
+            return not _deterministic_value(node)
+        except (ValueError, AttributeError):
+            return False
+
+    return False
+
+
+def _is_blocking(node: ast.AST) -> bool:
+    """Check if a node is impossible to get past.
+
+    Args:
+        node (ast.AST): Node to check
+
+    Returns:
+        bool: True if no code after this node can ever be executed.
+    """
+    return isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom, ast.Continue, ast.Break)) or _is_exception(node)
+
+
 def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
     """Compute what functions can safely be called without having a side effect.
 
@@ -738,14 +778,12 @@ def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
         for node in function_defs:
             if node.name in defined_names:
                 continue
-            nonreturn_children = [
-                child
-                for child in node.body
-                if not isinstance(
-                    child,
-                    (ast.Return, ast.Yield, ast.YieldFrom, ast.Continue, ast.Break),
-                )
-            ]
+            nonreturn_children = []
+            for child in node.body:
+                if not _is_blocking(child):
+                    nonreturn_children.append(child)
+                else:
+                    break
             if not any(
                 parsing.has_side_effect(child, safe_callables) for child in nonreturn_children
             ):
@@ -854,6 +892,16 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
             yield def_node
 
 
+def _iter_unreachable_nodes(body: Iterable[ast.AST]) -> Iterable[ast.AST]:
+    after_block = False
+    for node in body:
+        if after_block:
+            yield node
+            continue
+        if _is_blocking(node):
+            after_block = True
+
+
 def delete_unused_functions_and_classes(
     content: str, preserve: Collection[str] = frozenset()
 ) -> str:
@@ -869,6 +917,28 @@ def delete_unused_functions_and_classes(
     root = ast.parse(content)
 
     delete = set(_get_unused_functions_classes(root, preserve))
+
+    content = remove_nodes(content, delete, root)
+
+    return content
+
+
+def delete_unreachable_code(content: str) -> str:
+    """Find and delete dead code.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Source code with dead code deleted
+    """
+    root = ast.parse(content)
+
+    delete = set()
+    for node in _iter_bodies_recursive(root):
+        delete.update(_iter_unreachable_nodes(node.body))
+        if isinstance(node, ast.If):
+            delete.update(_iter_unreachable_nodes(node.orelse))
 
     content = remove_nodes(content, delete, root)
 
