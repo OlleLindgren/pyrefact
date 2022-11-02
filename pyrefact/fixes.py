@@ -668,6 +668,50 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     return "".join(chars)
 
 
+def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
+    """Compute what functions can safely be called without having a side effect.
+
+    This is also to compute the inverse, i.e. what function calls may be removed
+    without breaking something.
+
+    Args:
+        root (ast.Module): Module to find function definitions in
+
+    Returns:
+        Collection[str]: Names of all functions that have no side effect when called.
+    """
+    defined_names = {
+        node.id
+        for node in ast.walk(root)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+    }
+    function_defs = {
+        node for node in ast.walk(root) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    builtin_names = set(dir(builtins))
+    safe_callables = builtin_names - {"print", "exit"}
+    changes = True
+    while changes:
+        changes = False
+        for node in function_defs:
+            if node.name in defined_names:
+                continue
+            nonreturn_children = [
+                child
+                for child in node.body
+                if not isinstance(
+                    child, (ast.Return, ast.Yield, ast.YieldFrom, ast.Continue, ast.Break)
+                )
+            ]
+            if not any(
+                parsing.has_side_effect(child, safe_callables) for child in nonreturn_children
+            ):
+                safe_callables.add(node.name)
+                changes = True
+        function_defs = {node for node in function_defs if node.name not in safe_callables}
+    return safe_callables
+
+
 def delete_pointless_statements(content: str) -> str:
     """Delete pointless statements with no side effects from code
 
@@ -679,13 +723,7 @@ def delete_pointless_statements(content: str) -> str:
     """
     ast_tree = ast.parse(content)
     delete = []
-    defined_names = {
-        node.id
-        for node in ast.walk(ast_tree)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
-    }
-    builtin_names = set(dir(builtins))
-    safe_callables = builtin_names - defined_names - {"print", "exit"}
+    safe_callables = _compute_safe_funcdef_calls(ast_tree)
     for node in itertools.chain([ast_tree], _iter_defs_recursive(ast_tree)):
         for i, child in enumerate(node.body):
             if not parsing.has_side_effect(child, safe_callables):
