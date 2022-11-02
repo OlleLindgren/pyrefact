@@ -67,20 +67,6 @@ def _get_undefined_variables(content: str) -> Collection[str]:
     return variables
 
 
-def _get_unused_imports(content: str) -> Iterable[Tuple[int, str, str]]:
-    for line in _find_pylint_errors(content, "unused-import"):
-        try:
-            _, lineno, *_, message = _deconstruct_pylint_warning(line)
-            if " from " not in message:
-                *_, package = message.strip().split(" ")
-                yield lineno, package, None
-            else:
-                _, variable, *_, package, _ = message.strip().split(" ")
-                yield lineno, package, variable
-        except ValueError:
-            pass
-
-
 def _is_private(variable: str) -> bool:
     return variable.startswith("_")
 
@@ -325,47 +311,6 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _fix_unused_imports(content: str, problems: Collection[Tuple[int, str, str]]) -> bool:
-
-    lineno_problems = collections.defaultdict(set)
-    for lineno, package, variable in problems:
-        lineno_problems[int(lineno)].add((package, variable))
-
-    change_count = 0
-
-    new_lines = []
-    for i, line in enumerate(content.splitlines(keepends=True)):
-        if i + 1 in lineno_problems:
-            if re.match(r"from .*? import .*", line):
-                packages = {package for package, _ in lineno_problems[i + 1]}
-                if len(packages) != 1:
-                    raise RuntimeError("Unable to parse unique package")
-                package = packages.pop()
-                bad_variables = {variable for _, variable in lineno_problems[i + 1]}
-                _, existing_variables = line.split(" import ")
-                existing_variables = set(x.strip() for x in existing_variables.split(","))
-                keep_variables = existing_variables - bad_variables
-                if keep_variables:
-                    fix = f"from {package} import " + ", ".join(sorted(keep_variables)) + "\n"
-                    new_lines.append(fix)
-                    print(f"Replacing {line.strip()} \nwith      {fix.strip()}")
-                    change_count += 1
-                    continue
-
-            print(f"Removing '{line.strip()}'")
-            change_count += 1
-            continue
-
-        new_lines.append(line)
-
-    assert change_count >= 0
-
-    if change_count == 0:
-        return content
-
-    return "".join(new_lines)
-
-
 def define_undefined_variables(content: str) -> str:
     """Attempt to find imports matching all undefined variables.
 
@@ -382,6 +327,101 @@ def define_undefined_variables(content: str) -> str:
     return content
 
 
+def _get_unused_imports(ast_tree: ast.Module) -> str:
+
+    names = set()
+    attributes = set()
+    imports = set()
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            names.add(node)
+        elif isinstance(node, ast.Attribute):
+            attributes.add(node)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                imports.add(alias.name if alias.asname is None else alias.asname)
+
+    used_names = {name.id for name in names} | {attribute.value for attribute in attributes}
+    return imports - used_names
+
+
+def _get_unused_imports_split(
+    ast_tree: ast.Module, unused_imports: Collection[str]
+) -> Tuple[
+    Collection[Union[ast.Import, ast.ImportFrom]], Collection[Union[ast.Import, ast.ImportFrom]]
+]:
+    import_unused_aliases = collections.defaultdict(set)
+    for node in ast.walk(ast_tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                used_name = alias.name if alias.asname is None else alias.asname
+                if used_name in unused_imports:
+                    import_unused_aliases[node].add(alias)
+
+    partially_unused_imports = set()
+    completely_unused_imports = set()
+
+    for node, unused_aliases in import_unused_aliases.items():
+        if set(node.names) - unused_aliases:
+            partially_unused_imports.add(node)
+        else:
+            completely_unused_imports.add(node)
+
+    return completely_unused_imports, partially_unused_imports
+
+
+def _construct_import_statement(
+    node: Union[ast.Import, ast.ImportFrom], unused_imports: Collection[str]
+) -> str:
+    statement = "import " + ", ".join(
+        sorted(
+            alias.name if alias.asname is None else f"{alias.name} as {alias.asname}"
+            for alias in node.names
+            if (alias.name if alias.asname is None else alias.asname) not in unused_imports
+        )
+    )
+    if isinstance(node, ast.Import):
+        return statement
+
+    return f"from {node.module} {statement}"
+
+
+def _remove_unused_imports(
+    ast_tree: ast.Module, content: str, unused_imports: Collection[str]
+) -> str:
+    completely_unused_imports, partially_unused_imports = _get_unused_imports_split(
+        ast_tree, unused_imports
+    )
+    if completely_unused_imports:
+        content = remove_nodes(content, completely_unused_imports, ast_tree)
+        if not partially_unused_imports:
+            return content
+        ast_tree = ast.parse(content)
+        completely_unused_imports, partially_unused_imports = _get_unused_imports_split(
+            ast_tree, unused_imports
+        )
+
+    if completely_unused_imports:
+        raise RuntimeError("Failed to remove unused imports")
+
+    # For every import, construct what we would like it to look like with redundant stuff removed, find the old
+    # version of it, and replace it.
+
+    # Iterate from bottom to top of file, so we don't have to re-calculate the linenos etc.
+    for node in sorted(
+        partially_unused_imports,
+        key=lambda n: (n.lineno, n.col_offset, n.end_lineno, n.end_col_offset),
+        reverse=True,
+    ):
+        start, end = parsing.get_charnos(node, content)
+        code = content[start:end]
+        replacement = _construct_import_statement(node, unused_imports)
+        print(f"Replacing:\n{code}\nWith:\n{replacement}")
+        content = content[:start] + replacement + content[end:]
+
+    return content
+
+
 def remove_unused_imports(content: str) -> str:
     """Remove unused imports from source code.
 
@@ -391,9 +431,10 @@ def remove_unused_imports(content: str) -> str:
     Returns:
         str: Source code, with added imports removed
     """
-    unused_import_linenos = set(_get_unused_imports(content))
-    if unused_import_linenos:
-        return _fix_unused_imports(content, unused_import_linenos)
+    ast_tree = ast.parse(content)
+    unused_imports = _get_unused_imports(ast_tree)
+    if unused_imports:
+        content = _remove_unused_imports(ast_tree, content, unused_imports)
 
     return content
 
@@ -605,6 +646,7 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
         for bodytype in "body", "finalbody", "orelse":
             if body := getattr(node, bodytype, []):
                 if isinstance(body, list) and all(child in nodes for child in body):
+                    print(f"Found empty {bodytype}")
                     start_charno, _ = parsing.get_charnos(body[0], content)
                     passes.append(start_charno)
 
