@@ -47,6 +47,11 @@ def main() -> int:
         '{1: sum((2, 3, 6, 0)), "asdf": 13-12}',
         "_=2",
         "(_:=3)",
+        "_+=11",
+        "_: int = 'q'",
+        """for _ in range(10):
+    1
+""",
     ):
         node = ast.parse(source).body[0]
         if has_side_effect(node, whitelist):
@@ -67,6 +72,9 @@ def main() -> int:
         """,
         "g=2",
         "(h:=3)",
+        """for i in range(10):
+    1
+""",
     ):
         node = ast.parse(source).body[0]
         if not has_side_effect(node, whitelist):

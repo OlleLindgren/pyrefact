@@ -18,7 +18,7 @@ from pylint.lint import Run
 from pyrefact import parsing
 from pyrefact.constants import ASSUMED_PACKAGES, ASSUMED_SOURCES, PACKAGE_ALIASES
 
-_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+:?= *(?![=])"
+_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
 
 def _deconstruct_pylint_warning(error_line: str) -> Tuple[Path, int, int, str, str]:
@@ -235,7 +235,9 @@ def _get_variable_re_pattern(variable) -> str:
     return r"(?<![A-Za-z_\.])" + variable + r"(?![A-Za-z_])"
 
 
-def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str], root: ast.AST) -> str:
+def _fix_variable_names(
+    content: str, renamings: Mapping[ast.AST, str], preserve: Collection[str] = frozenset()
+) -> str:
     replacements = []
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
@@ -244,12 +246,12 @@ def _fix_variable_names(content: str, renamings: Mapping[ast.AST, str], root: as
             )
         substitute = substitutes.pop()
         if isinstance(node, ast.Name):
-            if node.id != substitute:
+            if node.id != substitute and node.id not in preserve:
                 start, end = parsing.get_charnos(node, content)
                 replacements.append((start, end, substitute))
             continue
 
-        if node.name == substitute:
+        if node.name == substitute or node.name in preserve:
             continue
 
         codeblock = content[start:end]
@@ -447,7 +449,7 @@ def align_variable_names_with_convention(
     renamings = _get_variable_name_substitutions(ast_tree)
 
     if renamings:
-        content = _fix_variable_names(content, renamings, ast_tree)
+        content = _fix_variable_names(content, renamings, preserve)
 
     return content
 
@@ -482,10 +484,10 @@ def _recursive_tuple_unpack(root: ast.Tuple) -> Iterable[ast.Name]:
 
 
 def _unique_assignment_targets(
-    node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign]
-) -> Collection[str]:
+    node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For]
+) -> Collection[ast.Name]:
     targets = set()
-    if isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+    if isinstance(node, (ast.AugAssign, ast.AnnAssign, ast.For)):
         for subtarget in ast.walk(node.target):
             if isinstance(subtarget, ast.Name) and isinstance(subtarget.ctx, ast.Store):
                 targets.add(subtarget)
@@ -547,7 +549,7 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                         renamings[target_node].add("_")
 
     if renamings:
-        content = _fix_variable_names(content, renamings, ast_tree)
+        content = _fix_variable_names(content, renamings, preserve)
         ast_tree = ast.parse(content)
 
     for node in ast.walk(ast_tree):

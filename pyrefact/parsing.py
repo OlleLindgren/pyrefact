@@ -246,6 +246,16 @@ def has_side_effect(
     if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
         return node.name != "_"
 
+    if isinstance(node, ast.For):
+        return any(
+            has_side_effect(item, safe_callable_whitelist)
+            for item in itertools.chain(
+                [node.target],
+                [node.iter],
+                node.body,
+            )
+        )
+
     if isinstance(node, ast.Lambda):
         return has_side_effect(node.args, safe_callable_whitelist) or has_side_effect(
             node.body, safe_callable_whitelist
