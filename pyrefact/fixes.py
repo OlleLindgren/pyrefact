@@ -4,6 +4,7 @@ import collections
 import heapq
 import io
 import itertools
+import queue
 import re
 import sys
 import tempfile
@@ -527,18 +528,36 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
             for node in ast.walk(def_node)
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
         }
+        body = queue.PriorityQueue()
         for node in def_node.body:
-            if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            body.put((node.lineno, node))
+        while not body.empty():
+            _, node = body.get()
+            if isinstance(node, ast.For):
+                for subnode in reversed(node.body):
+                    body.put((subnode.lineno, subnode))
+            if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For)):
                 target_nodes = _unique_assignment_targets(node)
+                if not target_nodes:
+                    continue
                 target_names = {x.id for x in target_nodes}
                 referenced_names = set()
-                start, end = parsing.get_charnos(node, content)
-                affected_refnodes = []
+                starts = []
+                ends = []
+                for target_node in target_nodes:
+                    s, e = parsing.get_charnos(target_node, content)
+                    starts.append(s)
+                    ends.append(e)
+                start = min(starts)
+                end = max(ends)
                 for refnode in reference_nodes:
                     n_start, n_end = parsing.get_charnos(refnode, content)
-                    if end < n_start or (def_node is ast_tree and n_end < start):
+                    if (
+                        end < n_start
+                        or (isinstance(def_node, (ast.ClassDef, ast.Module)) and n_end < start)
+                        or isinstance(def_node, ast.For)
+                    ):
                         referenced_names.add(refnode.id)
-                        affected_refnodes.append(refnode)
                 redundant_targets = target_names - referenced_names - imports
                 if def_node is ast_tree:
                     redundant_targets = redundant_targets - preserve
