@@ -238,7 +238,9 @@ def _get_func_name_start_end(
 
 
 def _fix_variable_names(
-    content: str, renamings: Mapping[ast.AST, str], preserve: Collection[str] = frozenset()
+    content: str,
+    renamings: Mapping[ast.AST, str],
+    preserve: Collection[str] = frozenset(),
 ) -> str:
     replacements = []
     for node, substitutes in renamings.items():
@@ -327,6 +329,12 @@ def define_undefined_variables(content: str) -> str:
     return content
 
 
+def _recursive_attribute_name(attribute: ast.Attribute) -> str:
+    if isinstance(attribute.value, ast.Attribute):
+        return f"{_recursive_attribute_name(attribute.value)}.{attribute.attr}"
+    return f"{attribute.value.id}.{attribute.attr}"
+
+
 def _get_unused_imports(ast_tree: ast.Module) -> str:
 
     names = set()
@@ -343,14 +351,26 @@ def _get_unused_imports(ast_tree: ast.Module) -> str:
             for alias in node.names:
                 imports.add(alias.name if alias.asname is None else alias.asname)
 
-    used_names = {name.id for name in names} | {attribute.value for attribute in attributes}
+    used_names = {name.id for name in names}
+    for attribute in attributes:
+        try:
+            full_name = _recursive_attribute_name(attribute)
+        except AttributeError:
+            continue
+
+        used_names.add(full_name)
+        while "." in full_name:
+            full_name = re.sub(r"\.[^\.]*$", "", full_name)
+            used_names.add(full_name)
+
     return imports - used_names
 
 
 def _get_unused_imports_split(
     ast_tree: ast.Module, unused_imports: Collection[str]
 ) -> Tuple[
-    Collection[Union[ast.Import, ast.ImportFrom]], Collection[Union[ast.Import, ast.ImportFrom]]
+    Collection[Union[ast.Import, ast.ImportFrom]],
+    Collection[Union[ast.Import, ast.ImportFrom]],
 ]:
     import_unused_aliases = collections.defaultdict(set)
     for node in ast.walk(ast_tree):
@@ -702,7 +722,8 @@ def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
                 child
                 for child in node.body
                 if not isinstance(
-                    child, (ast.Return, ast.Yield, ast.YieldFrom, ast.Continue, ast.Break)
+                    child,
+                    (ast.Return, ast.Yield, ast.YieldFrom, ast.Continue, ast.Break),
                 )
             ]
             if not any(
