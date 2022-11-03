@@ -17,8 +17,6 @@ Automatic python refactoring, with the goal of simplifying complicated code, and
 * Delete variables named `_`, unless where that would cause a syntax error.
 * More to come!
 
-The interactions between these features can be very powerful, since making one change may reveal that other changes can also be made. For big repos with lots of redundancy this can lead to big quantities of code being removed. Since pyrefact sometimes catches things that pylint would have missed, this can be the case even in professionally managed repos with a well-functioning CI system.
-
 ## Usage
 
 ```bash
