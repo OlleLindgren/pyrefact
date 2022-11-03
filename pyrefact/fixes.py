@@ -699,6 +699,19 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     return "".join(chars)
 
 
+def replace_nodes(content: str, replacements: Mapping[ast.AST, ast.AST]) -> str:
+    for node, replacement in sorted(
+        replacements.items(), key=lambda tup: (tup[0].lineno, tup[0].end_lineno), reverse=True
+    ):
+        start, end = parsing.get_charnos(node, content)
+        code = content[start:end]
+        new_code = ast.unparse(replacement)
+        print(f"Replacing {code}\nWith      {new_code}")
+        content = content[:start] + new_code + content[end:]
+
+    return content
+
+
 def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
     """Compute what functions can safely be called without having a side effect.
 
@@ -748,7 +761,7 @@ def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
                 child
                 for child in node.body
                 if isinstance(child, ast.FunctionDef)
-                and child.name in ("__init__", "__post_init__", "__new__")
+                and child.name in {"__init__", "__post_init__", "__new__"}
             }
             if not constructors - safe_callable_nodes:
                 safe_callables.add(node.name)
@@ -905,5 +918,73 @@ def delete_unreachable_code(content: str) -> str:
             delete.update(_iter_unreachable_nodes(node.body))
 
     content = remove_nodes(content, delete, root)
+
+    return content
+
+
+def _can_be_evaluated(node: ast.AST, safe_callables: Collection[str]) -> bool:
+    """Determine if a node can be evaluated.
+
+    Args:
+        node (ast.AST): Node to check
+
+    Raises:
+        ValueError: If the node has a side effect
+
+    Returns:
+        bool: True if the node can be evaluated
+    """
+    safe_callables = _compute_safe_funcdef_calls(node)
+    if parsing.has_side_effect(node, safe_callables):
+        raise ValueError("Cannot evaluate node with side effects.")
+    try:
+        eval(ast.unparse(node))  # pylint: disable=eval-used
+    except Exception:  # pylint: disable=broad-except
+        return False
+
+    return True
+
+
+def replace_with_sets(content: str) -> str:
+    """Replace inlined lists with sets.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Modified python source code
+    """
+    root = ast.parse(content)
+    safe_callables = _compute_safe_funcdef_calls(root)
+
+    replacements = {}
+
+    for node in ast.walk(root):
+        if not isinstance(node, ast.Compare):
+            continue
+        if len(node.ops) != 1:
+            continue
+        if not isinstance(node.ops[0], ast.In):
+            continue
+
+        for comp in node.comparators:
+            if isinstance(comp, (ast.ListComp, ast.GeneratorExp)):
+                replacement = ast.SetComp(elt=comp.elt, generators=comp.generators)
+            elif isinstance(comp, ast.DictComp):
+                replacement = ast.SetComp(elt=comp.key, generators=comp.generators)
+            elif isinstance(comp, (ast.List, ast.Tuple)):
+                replacement = ast.Set(elts=comp.elts)
+            else:
+                continue
+
+            if (
+                not parsing.has_side_effect(comp, safe_callables)
+                and not parsing.has_side_effect(replacement, safe_callables)
+                and _can_be_evaluated(replacement, safe_callables)
+            ):
+                replacements[comp] = replacement
+
+    if replacements:
+        content = replace_nodes(content, replacements)
 
     return content

@@ -49,6 +49,9 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
     content = fixes.delete_pointless_statements(content)
     content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
+    if tuple(sys.version_info) >= (3, 9):
+        content = fixes.replace_with_sets(content)
+
     content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
     content = fixes.fix_black(content)
