@@ -102,11 +102,17 @@ def main(args: Sequence[str]) -> int:
         with open(filename, "r", encoding="utf-8") as stream:
             content = stream.read()
         ast_root = ast.parse(content)
+        imported_names = parsing.get_imported_names(ast_root)
         for node in ast.walk(ast_root):
-            if isinstance(node, ast.Name):
+            if isinstance(node, ast.Name) and node.id in imported_names:
                 used_names[_namespace_name(filename)].add(node.id)
-            elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            elif (
+                isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id in imported_names
+            ):
                 used_names[_namespace_name(filename)].add(node.attr)
+                used_names[_namespace_name(filename)].add(node.value.id)
 
     for filename in _iter_python_files(args.paths):
         count += 1
