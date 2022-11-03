@@ -3,7 +3,7 @@ import dataclasses
 import functools
 import itertools
 import re
-from typing import Collection, Iterable, Sequence, Tuple
+from typing import Collection, Iterable, Sequence, Tuple, Union
 
 # match :=, do not match  =, >=, <=, ==, !=
 #  match =,  do not match :=, >=, <=, ==, !=
@@ -311,11 +311,11 @@ def get_code(node: ast.AST, content: str) -> str:
     return content[start_charno:end_charno]
 
 
-def _deterministic_value(node: ast.AST) -> bool:
+def literal_value(node: ast.AST) -> bool:
     if has_side_effect(node):
         raise ValueError("Cannot find a deterministic value for a node with a side effect")
 
-    return ast.literal_eval(node)  # Requires >= 3.9
+    return ast.literal_eval(node)
 
 
 def _is_exception(node: ast.AST) -> bool:
@@ -332,14 +332,14 @@ def _is_exception(node: ast.AST) -> bool:
 
     if isinstance(node, ast.Assert):
         try:
-            return not _deterministic_value(node)
+            return not literal_value(node.test)
         except (ValueError, AttributeError):
             return False
 
     return False
 
 
-def is_blocking(node: ast.AST) -> bool:
+def is_blocking(node: ast.AST, parent_type: ast.AST = None) -> bool:
     """Check if a node is impossible to get past.
 
     Args:
@@ -348,4 +348,76 @@ def is_blocking(node: ast.AST) -> bool:
     Returns:
         bool: True if no code after this node can ever be executed.
     """
-    return isinstance(node, (ast.Return, ast.Continue, ast.Break)) or _is_exception(node)
+    if _is_exception(node):
+        return True
+
+    if parent_type is None:
+        blocking_types = (ast.Return, ast.Continue, ast.Break)
+    elif parent_type in (ast.For, ast.While):
+        blocking_types = (ast.Return,)
+
+    if isinstance(node, blocking_types):
+        return True
+
+    if isinstance(node, ast.If):
+        try:
+            branch = node.body if literal_value(node.test) else node.orelse
+        except ValueError:
+            branches = [node.body, node.orelse]
+            return all(
+                any(is_blocking(child, parent_type) for child in branch) for branch in branches
+            )
+        else:
+            return any(is_blocking(child, parent_type) for child in branch)
+
+    if isinstance(node, ast.While):
+        try:
+            test_value = literal_value(node.test)
+        except ValueError:
+            pass
+        else:
+            if not test_value:
+                return False
+
+            for child in node.body:
+                if isinstance(child, ast.Break):
+                    return False
+                if is_blocking(child, type(node)):
+                    return True
+
+    if isinstance(node, (ast.For, ast.While)):
+        for child in node.body:
+            if is_blocking(child, type(node)):
+                return True
+            if is_blocking(child, parent_type):
+                return False
+        if isinstance(node, ast.For):
+            return False
+        try:
+            return literal_value(node.test)
+        except ValueError:
+            return False
+
+    if isinstance(node, ast.With):
+        return any(is_blocking(child, parent_type) for child in node.body)
+
+    return False
+
+
+def iter_bodies_recursive(
+    ast_root: ast.Module,
+) -> Iterable[Union[ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef]]:
+    left = list(ast_root.body)
+    while left:
+        for node in left.copy():
+            left.remove(node)
+            if isinstance(
+                node,
+                (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef, ast.For, ast.While, ast.With),
+            ):
+                left.extend(node.body)
+                yield node
+            if isinstance(node, ast.If):
+                left.extend(node.body)
+                left.extend(node.orelse)
+                yield node

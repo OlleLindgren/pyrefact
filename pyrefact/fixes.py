@@ -528,25 +528,6 @@ def align_variable_names_with_convention(
     return content
 
 
-def _iter_bodies_recursive(
-    ast_root: ast.Module,
-) -> Iterable[Union[ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef]]:
-    left = list(ast_root.body)
-    while left:
-        for node in left.copy():
-            left.remove(node)
-            if isinstance(
-                node,
-                (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef, ast.For, ast.While, ast.With),
-            ):
-                left.extend(node.body)
-                yield node
-            if isinstance(node, ast.If):
-                left.extend(node.body)
-                left.extend(node.orelse)
-                yield node
-
-
 def _unique_assignment_targets(
     node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For]
 ) -> Collection[ast.Name]:
@@ -778,7 +759,7 @@ def delete_pointless_statements(content: str) -> str:
     ast_tree = ast.parse(content)
     delete = []
     safe_callables = _compute_safe_funcdef_calls(ast_tree)
-    for node in itertools.chain([ast_tree], _iter_bodies_recursive(ast_tree)):
+    for node in itertools.chain([ast_tree], parsing.iter_bodies_recursive(ast_tree)):
         for i, child in enumerate(node.body):
             if not parsing.has_side_effect(child, safe_callables):
                 if i > 0 or not (
@@ -895,10 +876,24 @@ def delete_unreachable_code(content: str) -> str:
     root = ast.parse(content)
 
     delete = set()
-    for node in _iter_bodies_recursive(root):
-        delete.update(_iter_unreachable_nodes(node.body))
-        if isinstance(node, ast.If):
-            delete.update(_iter_unreachable_nodes(node.orelse))
+    for node in parsing.iter_bodies_recursive(root):
+        if isinstance(node, (ast.If, ast.While)):
+            try:
+                test_value = parsing.literal_value(node.test)
+            except ValueError:
+                pass
+            else:
+                if isinstance(node, ast.If):
+                    if test_value and node.body:
+                        delete.update(node.orelse)
+                    elif not test_value and node.orelse:
+                        delete.update(node.body)
+                    else:
+                        delete.add(node)
+                elif not test_value:
+                    delete.add(node)
+        else:
+            delete.update(_iter_unreachable_nodes(node.body))
 
     content = remove_nodes(content, delete, root)
 

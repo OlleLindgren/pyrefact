@@ -11,6 +11,7 @@ Automatic python refactoring, with the goal of simplifying complicated code, and
 * Delete unused functions, classes and variables.
 * Remove most pointless simple statements.
 * Remove branches of code that obviously do nothing useful.
+* Remove unreachable code.
 * Rename unused variables to `_`
 * Delete variables named `_`, unless where that would cause a syntax error.
 * More to come!
