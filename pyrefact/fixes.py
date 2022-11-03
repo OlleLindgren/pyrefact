@@ -331,41 +331,66 @@ def define_undefined_variables(content: str) -> str:
     return content
 
 
+def get_imports(ast_tree: ast.Module) -> Iterable[Union[ast.Import, ast.ImportFrom]]:
+    """Iterate over all import nodes in ast tree. __future__ imports are skipped.
+
+    Args:
+        ast_tree (ast.Module): Ast tree to search for imports
+
+    Yields:
+        str: An import node
+    """
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.Import):
+            yield node
+        elif isinstance(node, ast.ImportFrom) and node.module != "__future__":
+            yield node
+
+
+def get_imported_names(ast_tree: ast.Module) -> Collection[ast.Import]:
+    imports = set()
+    for node in get_imports(ast_tree):
+        for alias in node.names:
+            imports.add(alias.name if alias.asname is None else alias.asname)
+
+    return imports
+
+
 def _recursive_attribute_name(attribute: ast.Attribute) -> str:
     if isinstance(attribute.value, ast.Attribute):
         return f"{_recursive_attribute_name(attribute.value)}.{attribute.attr}"
     return f"{attribute.value.id}.{attribute.attr}"
 
 
-def _get_unused_imports(ast_tree: ast.Module) -> str:
+def _get_unused_imports(ast_tree: ast.Module) -> Collection[str]:
+    """Get names that are imported in ast tree but never used.
 
-    names = set()
-    attributes = set()
-    imports = set()
+    Args:
+        ast_tree (ast.Module): Ast tree to search
+
+    Returns:
+        Collection[str]: A collection of names that are imported but never used.
+    """
+    imports = get_imported_names(ast_tree)
+
+    names = {
+        node.id
+        for node in ast.walk(ast_tree)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+    }
     for node in ast.walk(ast_tree):
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-            names.add(node)
-        elif isinstance(node, ast.Attribute):
-            attributes.add(node)
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+        if isinstance(node, ast.Attribute):
+            try:
+                full_name = _recursive_attribute_name(node)
+            except AttributeError:
                 continue
-            for alias in node.names:
-                imports.add(alias.name if alias.asname is None else alias.asname)
 
-    used_names = {name.id for name in names}
-    for attribute in attributes:
-        try:
-            full_name = _recursive_attribute_name(attribute)
-        except AttributeError:
-            continue
+            names.add(full_name)
+            while "." in full_name:
+                full_name = re.sub(r"\.[^\.]*$", "", full_name)
+                names.add(full_name)
 
-        used_names.add(full_name)
-        while "." in full_name:
-            full_name = re.sub(r"\.[^\.]*$", "", full_name)
-            used_names.add(full_name)
-
-    return imports - used_names
+    return imports - names
 
 
 def _get_unused_imports_split(
@@ -374,6 +399,15 @@ def _get_unused_imports_split(
     Collection[Union[ast.Import, ast.ImportFrom]],
     Collection[Union[ast.Import, ast.ImportFrom]],
 ]:
+    """Split unused imports into completely and partially unused imports.
+
+    Args:
+        ast_tree (ast.Module): Ast tree to search
+        unused_imports (Collection[str]): Names that are imported but never used.
+
+    Returns:
+        Tuple: completely_unused_imports, partially_unused_imports
+    """
     import_unused_aliases = collections.defaultdict(set)
     for node in ast.walk(ast_tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -397,7 +431,7 @@ def _get_unused_imports_split(
 def _construct_import_statement(
     node: Union[ast.Import, ast.ImportFrom], unused_imports: Collection[str]
 ) -> str:
-    statement = "import " + ", ".join(
+    names = ", ".join(
         sorted(
             alias.name if alias.asname is None else f"{alias.name} as {alias.asname}"
             for alias in node.names
@@ -405,9 +439,9 @@ def _construct_import_statement(
         )
     )
     if isinstance(node, ast.Import):
-        return statement
+        return f"import {names}"
 
-    return f"from {node.module} {statement}"
+    return f"from {node.module} import {names}"
 
 
 def _remove_unused_imports(
