@@ -401,3 +401,36 @@ def iter_bodies_recursive(
                 left.extend(node.body)
                 left.extend(node.orelse)
                 yield node
+
+
+def get_imports(ast_tree: ast.Module) -> Iterable[Union[ast.Import, ast.ImportFrom]]:
+    """Iterate over all import nodes in ast tree. __future__ imports are skipped.
+
+    Args:
+        ast_tree (ast.Module): Ast tree to search for imports
+
+    Yields:
+        str: An import node
+    """
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.Import):
+            yield node
+        elif isinstance(node, ast.ImportFrom) and node.module != "__future__":
+            yield node
+
+
+def get_imported_names(ast_tree: ast.Module) -> Collection[str]:
+    """Get all names that are imported in module.
+
+    Args:
+        ast_tree (ast.Module): Module to search
+
+    Returns:
+        Collection[str]: All imported names.
+    """
+    imports = set()
+    for node in get_imports(ast_tree):
+        for alias in node.names:
+            imports.add(alias.name if alias.asname is None else alias.asname)
+
+    return imports
