@@ -55,7 +55,7 @@ def main() -> int:
     ):
         node = ast.parse(source).body[0]
         if has_side_effect(node, whitelist):
-            print("Statement has side effect, but should not:")
+            print("Ast has side effect, but should not:")
             print(source)
             print("Ast structure:")
             print(ast.dump(node, indent=2))
@@ -78,7 +78,7 @@ def main() -> int:
     ):
         node = ast.parse(source).body[0]
         if not has_side_effect(node, whitelist):
-            print("Statement has no side effect, but should:")
+            print("Ast has no side effect, but should:")
             print(source)
             print("Ast structure:")
             print(ast.dump(node, indent=2))

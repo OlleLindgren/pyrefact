@@ -146,8 +146,8 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
 
 def _get_variable_name_substitutions(ast_tree: ast.AST, content: str) -> Mapping[ast.AST, str]:
     renamings = collections.defaultdict(set)
-    classdefs: List[parsing.Statement] = []
-    funcdefs: List[parsing.Statement] = []
+    classdefs: List[ast.ClassDef] = []
+    funcdefs: List[ast.FunctionDef] = []
     for node in parsing.iter_classdefs(ast_tree):
         name = node.name
         substitute = _rename_class(name, private=_is_private(name))

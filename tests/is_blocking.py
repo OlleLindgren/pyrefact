@@ -73,7 +73,7 @@ else:
     ):
         node = ast.parse(source).body[0]
         if is_blocking(node):
-            print("Statement is blocking, but should not be:")
+            print("Ast is blocking, but should not be:")
             print(source)
             print("Ast structure:")
             print(ast.dump(node, indent=2))
@@ -146,7 +146,7 @@ else:
     ):
         node = ast.parse(source).body[0]
         if not is_blocking(node):
-            print("Statement is not blocking, but should be:")
+            print("Ast is not blocking, but should be:")
             print(source)
             print("Ast structure:")
             print(ast.dump(node, indent=2))

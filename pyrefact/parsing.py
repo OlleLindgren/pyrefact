@@ -1,26 +1,7 @@
 import ast
-import dataclasses
 import functools
 import itertools
-import re
 from typing import Collection, Iterable, Sequence, Tuple, Union
-
-# match :=, do not match  =, >=, <=, ==, !=
-#  match =,  do not match :=, >=, <=, ==, !=
-
-
-re.compile(r"( |\n)+")
-re.compile(r"(?<![^\n]) *")
-
-
-@dataclasses.dataclass()
-class Statement:
-    start: int
-    end: int
-    ast_node: ast.AST
-    indent: int
-    paranthesis_depth: int
-    statement: str
 
 
 def is_valid_python(content: str) -> bool:
@@ -39,7 +20,7 @@ def is_valid_python(content: str) -> bool:
         return False
 
 
-def _unpack_ast_target(target: ast.AST) -> Iterable[str]:
+def _unpack_ast_target(target: ast.AST) -> Iterable[ast.Name]:
     if isinstance(target, ast.Name):
         yield target
         return
@@ -48,14 +29,14 @@ def _unpack_ast_target(target: ast.AST) -> Iterable[str]:
             yield from _unpack_ast_target(subtarget)
 
 
-def iter_assignments(ast_tree: ast.Module) -> Iterable[str]:
+def iter_assignments(ast_tree: ast.Module) -> Iterable[ast.Name]:
     """Iterate over defined variables in code
 
     Args:
         content (str): Python source code
 
     Yields:
-        Tuple[Statement, str]: Statement, and lvalue assigned in statement
+        ast.Name: A name that is being assigned.
     """
     for node in ast_tree.body:
         if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
@@ -72,7 +53,7 @@ def iter_funcdefs(ast_tree: ast.Module) -> Iterable[ast.FunctionDef]:
         content (str): Python source code
 
     Yields:
-        Tuple[Statement, str]: Statement, and lvalue assigned in statement
+        ast.FunctionDef: A function definition node
     """
     for node in ast_tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -86,7 +67,7 @@ def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
         content (str): Python source code
 
     Yields:
-        Tuple[Statement, str]: Statement, and lvalue assigned in statement
+        ast.ClassDef: A class definition node
     """
     for node in ast_tree.body:
         if isinstance(node, (ast.ClassDef)):
@@ -104,9 +85,8 @@ def has_side_effect(
     meaningless. So a statement like "_ = 100" is assumed to have no side effect.
 
     Args:
-        statement (Statement): Statement to check
+        node (ast.AST): Node to check
         safe_callable_whitelist (Collection[str]): Items known to not have a side effect
-        used_variables (Collection[str]): Used variables and names
 
     Returns:
         bool: True if it may have a side effect.
