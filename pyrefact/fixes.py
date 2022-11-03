@@ -709,46 +709,6 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     return "".join(chars)
 
 
-def _deterministic_value(node: ast.AST) -> bool:
-    if parsing.has_side_effect(node):
-        raise ValueError("Cannot find a deterministic value for a node with a side effect")
-
-    return ast.literal_eval(node)  # Requires >= 3.9
-
-
-def _is_exception(node: ast.AST) -> bool:
-    """Check if a node is an exception.
-
-    Args:
-        node (ast.AST): Node to check
-
-    Returns:
-        bool: True if it will always raise an exception
-    """
-    if isinstance(node, ast.Raise):
-        return True
-
-    if isinstance(node, ast.Assert):
-        try:
-            return not _deterministic_value(node)
-        except (ValueError, AttributeError):
-            return False
-
-    return False
-
-
-def _is_blocking(node: ast.AST) -> bool:
-    """Check if a node is impossible to get past.
-
-    Args:
-        node (ast.AST): Node to check
-
-    Returns:
-        bool: True if no code after this node can ever be executed.
-    """
-    return isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom, ast.Continue, ast.Break)) or _is_exception(node)
-
-
 def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
     """Compute what functions can safely be called without having a side effect.
 
@@ -780,7 +740,7 @@ def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
                 continue
             nonreturn_children = []
             for child in node.body:
-                if not _is_blocking(child):
+                if not parsing.is_blocking(child):
                     nonreturn_children.append(child)
                 else:
                     break
@@ -898,7 +858,7 @@ def _iter_unreachable_nodes(body: Iterable[ast.AST]) -> Iterable[ast.AST]:
         if after_block:
             yield node
             continue
-        if _is_blocking(node):
+        if parsing.is_blocking(node):
             after_block = True
 
 

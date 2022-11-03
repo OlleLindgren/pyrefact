@@ -39,123 +39,6 @@ def is_valid_python(content: str) -> bool:
         return False
 
 
-@functools.lru_cache()
-def get_is_code_mask(content: str) -> Sequence[bool]:
-    """Get boolean mask of whether content is code or not.
-
-    Args:
-        content (str): Python source code
-
-    Returns:
-        Sequence[bool]: True if source code, False if comment or string, for every character.
-    """
-    regexes = {
-        '"""': '"""',
-        '"': '"',
-        "'''": "'''",
-        "'": "'",
-        "#": "#",
-        "{": r"(?<![{]){(?![{])",
-        "}": r"(?<![}])}(?![}])",
-        "\n": "\n",
-    }
-
-    statement_breaks = set()
-
-    for key, regex in regexes.items():
-        statement_breaks.update(
-            (hit.start(), hit.end(), key, content[hit.start() - 1] == "f")
-            for hit in re.finditer(regex, content)
-        )
-
-    triple_overlapping_singles = set()
-
-    for hit in statement_breaks:
-        if hit[2] in ("'", '"'):
-            triple_matches = [
-                candidate
-                for candidate in statement_breaks
-                if candidate[2] == hit[2] * 3 and candidate[0] <= hit[0] <= hit[1] <= candidate[1]
-            ]
-            if triple_matches:
-                triple_overlapping_singles.add(hit)
-
-    for hit in triple_overlapping_singles:
-        statement_breaks.discard(hit)
-
-    string_types = {
-        '"""',
-        '"',
-        "'''",
-        "'",
-    }
-    inline_comment = "#"
-    newline_character = "\n"
-    f_escape_start = "{"
-    f_escape_end = "}"
-
-    comment_super_ranges = []
-
-    context = []
-
-    while statement_breaks:
-        start_item = min(statement_breaks)
-        statement_breaks.remove(start_item)
-        start, s_end, key, is_f = start_item
-        if key in string_types:
-            end_key = key
-        elif key == inline_comment:
-            end_key = newline_character
-        elif key == f_escape_start:
-            end_key = None
-            comment_super_ranges.append([start, None, key, False])
-            continue
-        elif key == f_escape_end:
-            for rng in reversed(comment_super_ranges):
-                if rng[2] == f_escape_start and rng[1] is None:
-                    rng[1] = s_end
-                    break
-            else:
-                raise ValueError(f"Cannot find corresponding start for {key}")
-            continue
-        elif key == newline_character:
-            continue
-        else:
-            raise ValueError(f"Unknown delimiter: {key}")
-
-        if not statement_breaks:
-            break
-
-        end_item = min(item for item in statement_breaks if item[2] == end_key)
-        statement_breaks.remove(end_item)
-        _, end, _, _ = end_item
-        if is_f:
-            context.append(key)
-        else:
-            statement_breaks = {item for item in statement_breaks if item[0] >= end}
-
-        comment_super_ranges.append([start, end, key, is_f])
-
-    mask = [True] * len(content)
-    for start, end, key, is_f in sorted(comment_super_ranges):
-        if key in string_types or key == inline_comment:
-            value = False
-        elif key == f_escape_start:
-            value = True
-        else:
-            raise ValueError(f"Invalid range start delimiter: {key}")
-
-        if value is False:
-            if is_f:
-                mask[start - 1 : end] = [value] * (end + 1 - start)
-            else:
-                mask[start:end] = [value] * (end - start)
-        else:
-            mask[start + 1 : end - 1] = [value] * (end - start - 2)
-
-    return tuple(mask)
-
-
 def _unpack_ast_target(target: ast.AST) -> Iterable[str]:
     if isinstance(target, ast.Name):
         yield target
@@ -426,3 +309,43 @@ def get_code(node: ast.AST, content: str) -> str:
     """
     start_charno, end_charno = get_charnos(node, content)
     return content[start_charno:end_charno]
+
+
+def _deterministic_value(node: ast.AST) -> bool:
+    if has_side_effect(node):
+        raise ValueError("Cannot find a deterministic value for a node with a side effect")
+
+    return ast.literal_eval(node)  # Requires >= 3.9
+
+
+def _is_exception(node: ast.AST) -> bool:
+    """Check if a node is an exception.
+
+    Args:
+        node (ast.AST): Node to check
+
+    Returns:
+        bool: True if it will always raise an exception
+    """
+    if isinstance(node, ast.Raise):
+        return True
+
+    if isinstance(node, ast.Assert):
+        try:
+            return not _deterministic_value(node)
+        except (ValueError, AttributeError):
+            return False
+
+    return False
+
+
+def is_blocking(node: ast.AST) -> bool:
+    """Check if a node is impossible to get past.
+
+    Args:
+        node (ast.AST): Node to check
+
+    Returns:
+        bool: True if no code after this node can ever be executed.
+    """
+    return isinstance(node, (ast.Return, ast.Continue, ast.Break)) or _is_exception(node)
