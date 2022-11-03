@@ -974,6 +974,15 @@ def replace_with_sets(content: str) -> str:
                 replacement = ast.SetComp(elt=comp.key, generators=comp.generators)
             elif isinstance(comp, (ast.List, ast.Tuple)):
                 replacement = ast.Set(elts=comp.elts)
+            elif (
+                isinstance(comp, ast.Call)
+                and isinstance(comp.func, ast.Name)
+                and isinstance(comp.func.ctx, ast.Load)
+                and comp.func.id in {"sorted", "list", "tuple"}
+            ):
+                replacement = ast.Call(
+                    func=ast.Name(id="set", ctx=ast.Load()), args=comp.args, keywords=comp.keywords
+                )
             else:
                 continue
 
