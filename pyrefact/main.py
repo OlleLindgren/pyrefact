@@ -51,6 +51,7 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
 
     if tuple(sys.version_info) >= (3, 9):
         content = fixes.replace_with_sets(content)
+        content = fixes.remove_redundant_chained_calls(content)
 
     content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 

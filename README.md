@@ -13,6 +13,7 @@ Automatic python refactoring, with the goal of simplifying complicated code, and
 * Remove branches of code that obviously do nothing useful.
 * Remove unreachable code.
 * Replace hardcoded lists and list comprehensions with set equivalents in places where that would improve performance.
+* Remove redundant chained calls involving sorted(), set(), tuple() and list().
 * Rename unused variables to `_`
 * Delete variables named `_`, unless where that would cause a syntax error.
 * More to come!
