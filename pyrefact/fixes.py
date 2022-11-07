@@ -1,6 +1,7 @@
 import ast
 import collections
 import io
+import builtins
 import itertools
 import queue
 import re
@@ -243,12 +244,16 @@ def _fix_variable_names(
     preserve: Collection[str] = frozenset(),
 ) -> str:
     replacements = []
+    ast_tree = ast.parse(content)
+    blacklisted_names = parsing.get_imported_names(ast_tree) | set(dir(builtins))
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
             raise RuntimeError(
                 f"Expected 1 substitute, got {len(substitutes)}: {substitutes}\nCode:\n{ast.dump(node, indent=2)}"
             )
         substitute = substitutes.pop()
+        if substitute in blacklisted_names:
+            continue
         if isinstance(node, ast.Name):
             if node.id != substitute and node.id not in preserve:
                 start, end = parsing.get_charnos(node, content)
