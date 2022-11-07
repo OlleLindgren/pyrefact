@@ -5,6 +5,7 @@ Automatic python refactoring, with the goal of simplifying complicated code, and
 
 * Run black and isort with --line-length=100.
 * Delete unused imports
+* Move safe imports to toplevel
 * Add missing imports by guessing what you probably wanted.
   * For example, if pylint reports an undefined variable for `Sequence`, it will insert `from typing import Sequence` at the top of the file.
 * Rename variables, functions and classes with conventions.
