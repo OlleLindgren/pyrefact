@@ -331,9 +331,9 @@ def create_abstractions(content: str) -> str:
 
     for node in ast.walk(root):
         if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
-            function_def_linenos.append(node)
+            function_def_linenos.append(node.lineno)
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            import_linenos.append(node)
+            import_linenos.append(node.lineno)
 
     for node in parsing.iter_bodies_recursive(root):
         if _code_complexity_length(node) < 100:
