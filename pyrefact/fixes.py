@@ -1,7 +1,5 @@
 import ast
-import builtins
 import collections
-import heapq
 import io
 import itertools
 import queue
@@ -16,7 +14,7 @@ import isort
 import rmspace
 from pylint.lint import Run
 
-from pyrefact import parsing
+from pyrefact import parsing, processing
 from pyrefact.constants import ASSUMED_PACKAGES, ASSUMED_SOURCES, PACKAGE_ALIASES
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
@@ -426,7 +424,7 @@ def _remove_unused_imports(
         ast_tree, unused_imports
     )
     if completely_unused_imports:
-        content = remove_nodes(content, completely_unused_imports, ast_tree)
+        content = processing.remove_nodes(content, completely_unused_imports, ast_tree)
         if not partially_unused_imports:
             return content
         ast_tree = ast.parse(content)
@@ -648,127 +646,6 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
     return content
 
 
-def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> str:
-    """Remove ast nodes from code
-
-    Args:
-        content (str): Python source code
-        nodes (Iterable[ast.AST]): Nodes to delete from code
-        root (ast.Module): Complete corresponding module
-
-    Returns:
-        str: Code after deleting nodes
-    """
-    keep_mask = [True] * len(content)
-    nodes = list(nodes)
-    for node in nodes:
-        start, end = parsing.get_charnos(node, content)
-        print(f"Removing:\n{content[start:end]}")
-        keep_mask[start:end] = [False] * (end - start)
-        for decorator_node in getattr(node, "decorator_list", []):
-            start, end = parsing.get_charnos(decorator_node, content)
-            start -= 1  # The @ is missed otherwise
-            print(f"Removing:\n{content[start:end]}")
-            keep_mask[start:end] = [False] * (end - start)
-
-    passes = [len(content) + 1]
-
-    for node in ast.walk(root):
-        for bodytype in "body", "finalbody", "orelse":
-            if body := getattr(node, bodytype, []):
-                if isinstance(body, list) and all(child in nodes for child in body):
-                    print(f"Found empty {bodytype}")
-                    start_charno, _ = parsing.get_charnos(body[0], content)
-                    passes.append(start_charno)
-
-    heapq.heapify(passes)
-
-    next_pass = heapq.heappop(passes)
-    chars = []
-    for i, char, keep in zip(range(len(content)), content, keep_mask):
-        if i == next_pass:
-            chars.extend("pass")
-        elif next_pass < i < next_pass + 3:
-            continue
-        else:
-            if i > next_pass:
-                next_pass = heapq.heappop(passes)
-            if keep:
-                chars.append(char)
-
-    return "".join(chars)
-
-
-def replace_nodes(content: str, replacements: Mapping[ast.AST, ast.AST]) -> str:
-    for node, replacement in sorted(
-        replacements.items(), key=lambda tup: (tup[0].lineno, tup[0].end_lineno), reverse=True
-    ):
-        start, end = parsing.get_charnos(node, content)
-        code = content[start:end]
-        new_code = ast.unparse(replacement)
-        print(f"Replacing {code}\nWith      {new_code}")
-        content = content[:start] + new_code + content[end:]
-
-    return content
-
-
-def _compute_safe_funcdef_calls(root: ast.Module) -> Collection[str]:
-    """Compute what functions can safely be called without having a side effect.
-
-    This is also to compute the inverse, i.e. what function calls may be removed
-    without breaking something.
-
-    Args:
-        root (ast.Module): Module to find function definitions in
-
-    Returns:
-        Collection[str]: Names of all functions that have no side effect when called.
-    """
-    defined_names = {
-        node.id
-        for node in ast.walk(root)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
-    }
-    function_defs = {
-        node for node in ast.walk(root) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
-    builtin_names = set(dir(builtins))
-    safe_callables = builtin_names - {"print", "exit"}
-    safe_callable_nodes = set()
-    changes = True
-    while changes:
-        changes = False
-        for node in function_defs:
-            if node.name in defined_names:
-                continue
-            nonreturn_children = []
-            for child in node.body:
-                if not parsing.is_blocking(child):
-                    nonreturn_children.append(child)
-                else:
-                    break
-            if not any(
-                parsing.has_side_effect(child, safe_callables) for child in nonreturn_children
-            ):
-                safe_callable_nodes.add(node)
-                safe_callables.add(node.name)
-                changes = True
-        function_defs = {node for node in function_defs if node.name not in safe_callables}
-
-    for node in ast.walk(root):
-        if isinstance(node, ast.ClassDef):
-            constructors = {
-                child
-                for child in node.body
-                if isinstance(child, ast.FunctionDef)
-                and child.name in {"__init__", "__post_init__", "__new__"}
-            }
-            if not constructors - safe_callable_nodes:
-                safe_callables.add(node.name)
-
-    return safe_callables
-
-
 def delete_pointless_statements(content: str) -> str:
     """Delete pointless statements with no side effects from code
 
@@ -780,7 +657,7 @@ def delete_pointless_statements(content: str) -> str:
     """
     ast_tree = ast.parse(content)
     delete = []
-    safe_callables = _compute_safe_funcdef_calls(ast_tree)
+    safe_callables = parsing.safe_callable_names(ast_tree)
     for node in itertools.chain([ast_tree], parsing.iter_bodies_recursive(ast_tree)):
         for i, child in enumerate(node.body):
             if not parsing.has_side_effect(child, safe_callables):
@@ -791,7 +668,7 @@ def delete_pointless_statements(content: str) -> str:
                 ):
                     delete.append(child)
 
-    content = remove_nodes(content, delete, ast_tree)
+    content = processing.remove_nodes(content, delete, ast_tree)
 
     return content
 
@@ -881,7 +758,7 @@ def delete_unused_functions_and_classes(
 
     delete = set(_get_unused_functions_classes(root, preserve))
 
-    content = remove_nodes(content, delete, root)
+    content = processing.remove_nodes(content, delete, root)
 
     return content
 
@@ -917,7 +794,7 @@ def delete_unreachable_code(content: str) -> str:
         else:
             delete.update(_iter_unreachable_nodes(node.body))
 
-    content = remove_nodes(content, delete, root)
+    content = processing.remove_nodes(content, delete, root)
 
     return content
 
@@ -934,7 +811,7 @@ def _can_be_evaluated(node: ast.AST, safe_callables: Collection[str]) -> bool:
     Returns:
         bool: True if the node can be evaluated
     """
-    safe_callables = _compute_safe_funcdef_calls(node)
+    safe_callables = parsing.safe_callable_names(node)
     if parsing.has_side_effect(node, safe_callables):
         raise ValueError("Cannot evaluate node with side effects.")
     try:
@@ -943,6 +820,16 @@ def _can_be_evaluated(node: ast.AST, safe_callables: Collection[str]) -> bool:
         return False
 
     return True
+
+
+def _is_contains_comparison(node) -> bool:
+    if not isinstance(node, ast.Compare):
+        return True
+    if len(node.ops) != 1:
+        return True
+    if not isinstance(node.ops[0], ast.In):
+        return True
+    return False
 
 
 def replace_with_sets(content: str) -> str:
@@ -955,16 +842,12 @@ def replace_with_sets(content: str) -> str:
         str: Modified python source code
     """
     root = ast.parse(content)
-    safe_callables = _compute_safe_funcdef_calls(root)
+    safe_callables = parsing.safe_callable_names(root)
 
     replacements = {}
 
     for node in ast.walk(root):
-        if not isinstance(node, ast.Compare):
-            continue
-        if len(node.ops) != 1:
-            continue
-        if not isinstance(node.ops[0], ast.In):
+        if _is_contains_comparison(node):
             continue
 
         for comp in node.comparators:
@@ -994,7 +877,7 @@ def replace_with_sets(content: str) -> str:
                 replacements[comp] = replacement
 
     if replacements:
-        content = replace_nodes(content, replacements)
+        content = processing.replace_nodes(content, replacements)
 
     return content
 
@@ -1031,6 +914,6 @@ def remove_redundant_chained_calls(content: str) -> str:
                 touched_linenos.update(node_lineno_range)
 
     if replacements:
-        content = replace_nodes(content, replacements)
+        content = processing.replace_nodes(content, replacements)
 
     return content

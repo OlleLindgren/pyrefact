@@ -16,6 +16,7 @@ Automatic python refactoring, with the goal of simplifying complicated code, and
 * Remove redundant chained calls involving sorted(), set(), tuple() and list().
 * Rename unused variables to `_`
 * Delete variables named `_`, unless where that would cause a syntax error.
+* Move code into primitive functions.
 * More to come!
 
 ## Usage

@@ -1,4 +1,5 @@
 import ast
+import builtins
 import functools
 import itertools
 from typing import Collection, Iterable, Sequence, Tuple, Union
@@ -20,13 +21,13 @@ def is_valid_python(content: str) -> bool:
         return False
 
 
-def _unpack_ast_target(target: ast.AST) -> Iterable[ast.Name]:
+def unpack_ast_target(target: ast.AST) -> Iterable[ast.Name]:
     if isinstance(target, ast.Name):
         yield target
         return
     if isinstance(target, ast.Tuple):
         for subtarget in target.elts:
-            yield from _unpack_ast_target(subtarget)
+            yield from unpack_ast_target(subtarget)
 
 
 def iter_assignments(ast_tree: ast.Module) -> Iterable[ast.Name]:
@@ -40,10 +41,10 @@ def iter_assignments(ast_tree: ast.Module) -> Iterable[ast.Name]:
     """
     for node in ast_tree.body:
         if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
-            yield from _unpack_ast_target(node.target)
+            yield from unpack_ast_target(node.target)
         if isinstance(node, ast.Assign):
             for target in node.targets:
-                yield from _unpack_ast_target(target)
+                yield from unpack_ast_target(target)
 
 
 def iter_funcdefs(ast_tree: ast.Module) -> Iterable[ast.FunctionDef]:
@@ -387,7 +388,10 @@ def is_blocking(node: ast.AST, parent_type: ast.AST = None) -> bool:
 def iter_bodies_recursive(
     ast_root: ast.Module,
 ) -> Iterable[Union[ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef]]:
-    left = list(ast_root.body)
+    try:
+        left = list(ast_root.body)
+    except AttributeError:
+        return
     while left:
         for node in left.copy():
             left.remove(node)
@@ -434,3 +438,58 @@ def get_imported_names(ast_tree: ast.Module) -> Collection[str]:
             imports.add(alias.name if alias.asname is None else alias.asname)
 
     return imports
+
+
+def safe_callable_names(root: ast.Module) -> Collection[str]:
+    """Compute what functions can safely be called without having a side effect.
+
+    This is also to compute the inverse, i.e. what function calls may be removed
+    without breaking something.
+
+    Args:
+        root (ast.Module): Module to find function definitions in
+
+    Returns:
+        Collection[str]: Names of all functions that have no side effect when called.
+    """
+    defined_names = {
+        node.id
+        for node in ast.walk(root)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+    }
+    function_defs = {
+        node for node in ast.walk(root) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    builtin_names = set(dir(builtins))
+    safe_callables = builtin_names - {"print", "exit"}
+    safe_callable_nodes = set()
+    changes = True
+    while changes:
+        changes = False
+        for node in function_defs:
+            if node.name in defined_names:
+                continue
+            nonreturn_children = []
+            for child in node.body:
+                if not is_blocking(child):
+                    nonreturn_children.append(child)
+                else:
+                    break
+            if not any(has_side_effect(child, safe_callables) for child in nonreturn_children):
+                safe_callable_nodes.add(node)
+                safe_callables.add(node.name)
+                changes = True
+        function_defs = {node for node in function_defs if node.name not in safe_callables}
+
+    for node in ast.walk(root):
+        if isinstance(node, ast.ClassDef):
+            constructors = {
+                child
+                for child in node.body
+                if isinstance(child, ast.FunctionDef)
+                and child.name in {"__init__", "__post_init__", "__new__"}
+            }
+            if not constructors - safe_callable_nodes:
+                safe_callables.add(node.name)
+
+    return safe_callables

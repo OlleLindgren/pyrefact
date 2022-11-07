@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
 
-from . import completion, fixes, parsing
+from . import abstractions, completion, fixes, parsing
 
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
@@ -52,6 +52,7 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
     if tuple(sys.version_info) >= (3, 9):
         content = fixes.replace_with_sets(content)
         content = fixes.remove_redundant_chained_calls(content)
+        content = abstractions.create_abstractions(content)
 
     content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
