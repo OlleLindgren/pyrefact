@@ -1,7 +1,7 @@
 import ast
+import builtins
 import collections
 import io
-import builtins
 import itertools
 import queue
 import re
@@ -920,5 +920,89 @@ def remove_redundant_chained_calls(content: str) -> str:
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
+
+    return content
+
+
+def _get_package_names(node: Union[ast.Import, ast.ImportFrom]):
+    if isinstance(node, ast.ImportFrom):
+        return [node.module]
+
+    return [alias.name for alias in node.names]
+
+
+def move_imports_to_toplevel(content: str) -> str:
+    root = ast.parse(content)
+    toplevel_imports = {
+        node for node in root.body if isinstance(node, (ast.Import, ast.ImportFrom))
+    }
+    all_imports = {
+        node for node in ast.walk(root) if isinstance(node, (ast.Import, ast.ImportFrom))
+    }
+    toplevel_packages = set()
+    for node in toplevel_imports:
+        toplevel_packages.update(_get_package_names(node))
+
+    builtin_packages = {name.lstrip("_") for name in sys.builtin_module_names}
+    builtin_packages |= {
+        "typing",
+        "math",
+        "pathlib",
+        "datetime",
+        "enum",
+        "dataclasses",
+        "heapq",
+        "queue",
+        "re",
+    }
+    # TODO implement a better way to get the builtin packages, there are many missing
+
+    safe_toplevel_packages = builtin_packages | toplevel_packages
+
+    imports_movable_to_toplevel = {
+        node
+        for node in all_imports - toplevel_imports
+        if all(name in safe_toplevel_packages for name in _get_package_names(node))
+    }
+
+    defs = {
+        node
+        for node in root.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    }
+
+    if defs:
+        first_def_lineno = min(node.lineno for node in defs)
+        imports_movable_to_toplevel.update(
+            node for node in toplevel_imports if node.lineno > first_def_lineno
+        )
+
+    if defs:
+        lineno = min(node.lineno for node in defs) - 1
+    elif toplevel_imports:
+        lineno = max(node.lineno for node in toplevel_imports) + 1
+    elif root.body:
+        lineno = max(node.end_lineno for node in root.body) + 1
+    else:
+        lineno = 1
+
+    additions = []
+    removals = []
+    for node in imports_movable_to_toplevel:
+        removals.append(node)
+        if isinstance(node, ast.Import):
+            new_node = ast.Import(names=node.names, lineno=lineno)
+        else:
+            new_node = ast.ImportFrom(
+                module=node.module, names=node.names, level=node.level, lineno=lineno
+            )
+        additions.append(new_node)
+
+    if removals:
+        content = processing.remove_nodes(content, removals, root)
+    if additions:
+        content = processing.insert_nodes(content, additions)
+
+    # Isort will remove redundant imports
 
     return content
