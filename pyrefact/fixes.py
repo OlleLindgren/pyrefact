@@ -977,14 +977,26 @@ def move_imports_to_toplevel(content: str) -> str:
             node for node in toplevel_imports if node.lineno > first_def_lineno
         )
 
-    if defs:
-        lineno = min(node.lineno for node in defs) - 1
-    elif toplevel_imports:
-        lineno = max(node.lineno for node in toplevel_imports) + 1
-    elif root.body:
-        lineno = max(node.end_lineno for node in root.body) + 1
+    for i, node in enumerate(root.body):
+        if i > 0 and not isinstance(node, (ast.Import, ast.ImportFrom)):
+            lineno = node.lineno - 1
+            break
+        elif (
+            i == 0
+            and not isinstance(node, (ast.Import, ast.ImportFrom))
+            and not (
+                isinstance(node, ast.Expr)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+            )
+        ):
+            lineno = node.lineno - 1
+            break
     else:
-        lineno = 1
+        if root.body:
+            lineno = root.body[-1].end_lineno + 1
+        else:
+            lineno = 1
 
     additions = []
     removals = []
