@@ -824,12 +824,12 @@ def _can_be_evaluated(node: ast.AST, safe_callables: Collection[str]) -> bool:
 
 def _is_contains_comparison(node) -> bool:
     if not isinstance(node, ast.Compare):
-        return True
+        return False
     if len(node.ops) != 1:
-        return True
+        return False
     if not isinstance(node.ops[0], ast.In):
-        return True
-    return False
+        return False
+    return True
 
 
 def replace_with_sets(content: str) -> str:
@@ -847,7 +847,7 @@ def replace_with_sets(content: str) -> str:
     replacements = {}
 
     for node in ast.walk(root):
-        if _is_contains_comparison(node):
+        if not _is_contains_comparison(node):
             continue
 
         for comp in node.comparators:

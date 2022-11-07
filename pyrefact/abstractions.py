@@ -1,5 +1,6 @@
 import ast
 import builtins
+import re
 from typing import Collection, Iterable, Sequence, Tuple
 
 from . import parsing, processing
@@ -261,15 +262,16 @@ def _code_dependencies_outputs(
                     for n in ast.walk(child):
                         if isinstance(n, ast.Name):
                             node_needed.add(n.id)
-                if isinstance(node, ast.Name) and node.id not in node_needed:
-                    if isinstance(node.ctx, ast.Load):
-                        node_needed.add(node.id)
-                    elif isinstance(node.ctx, ast.Store):
-                        node_created.add(node.id)
+
+                if isinstance(child, ast.Name) and child.id not in node_needed:
+                    if isinstance(child.ctx, ast.Load):
+                        node_needed.add(child.id)
+                    elif isinstance(child.ctx, ast.Store):
+                        node_created.add(child.id)
                     else:
                         # Del
-                        node_created.discard(node.id)
-                        created_names.discard(node.id)
+                        node_created.discard(child.id)
+                        created_names.discard(child.id)
 
             created_names.update(node_created)
             required_names.update(node_needed)
@@ -295,6 +297,22 @@ def _code_dependencies_outputs(
     return created_names, required_names
 
 
+def _code_complexity_length(node: ast.AST) -> int:
+    node_unparse_length = len(re.sub(" *", "", ast.unparse(node)))
+    node_string_length = len(
+        re.sub(
+            " *",
+            "",
+            "".join(
+                node.value
+                for node in ast.walk(node)
+                if isinstance(node, ast.Constant) and isinstance(node.value, str)
+            ),
+        )
+    )
+    return node_unparse_length - node_string_length
+
+
 def create_abstractions(content: str) -> str:
     root = ast.parse(content)
     global_names = (
@@ -308,26 +326,22 @@ def create_abstractions(content: str) -> str:
     additions = []
     abstraction_count = 0
 
-    function_def_linenos = [
-        node.lineno
-        for node in root.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    ]
-    import_linenos = [
-        node.lineno for node in root.body if isinstance(node, (ast.Import, ast.ImportFrom))
-    ]
+    function_def_linenos = []
+    import_linenos = []
+
+    for node in ast.walk(root):
+        if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
+            function_def_linenos.append(node)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            import_linenos.append(node)
 
     for node in parsing.iter_bodies_recursive(root):
-        if not isinstance(
-            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module, ast.For, ast.While)
-        ):
-            continue
+        if _code_complexity_length(node) < 100:
 
-        if len(node.body) < 3:
             continue
 
         for nodes in group_nodes_by_purpose(node.body):
-            if len(nodes) < 3:
+            if sum(_code_complexity_length(node) for node in nodes) < 100:
                 continue
 
             purposes = {_hashable_node_purpose_type(child) for child in nodes}
@@ -380,7 +394,9 @@ def create_abstractions(content: str) -> str:
                 if len(assign_targets) > 1:
                     assign_targets = [ast.Tuple(elts=assign_targets)]
                     return_targets = [ast.Tuple(elts=return_targets)]
-                function_call = ast.Assign(targets=assign_targets, value=call)
+                function_call = ast.Assign(
+                    targets=assign_targets, value=call, lineno=nodes[0].lineno
+                )
                 function_body = nodes + [ast.Return(value=return_targets)]
                 returns = None
 
@@ -388,7 +404,7 @@ def create_abstractions(content: str) -> str:
                 continue
 
             if node.lineno in function_def_linenos:
-                insertion_lineno = child.lineno - 1
+                insertion_lineno = node.lineno - 1
             elif function_def_linenos:
                 if all(lineno > node.lineno for lineno in function_def_linenos):
                     insertion_lineno = max(import_linenos) if import_linenos else node.lineno - 1
@@ -413,6 +429,12 @@ def create_abstractions(content: str) -> str:
                 col_offset=0,  # May be inaccurate
                 end_col_offset=0,  # Definitely inaccurate
             )
+
+            if isinstance(function_call, ast.Assign) and not return_args:
+                raise RuntimeError("Found assignment without return")
+
+            if isinstance(function_call, (ast.Continue, ast.Break)) and len(return_args) != 1:
+                raise RuntimeError("Found bool abstraction without return")
 
             replacements[nodes[0]] = function_call
             for child in nodes[1:]:
