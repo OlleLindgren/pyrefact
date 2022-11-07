@@ -1,5 +1,7 @@
 # pyrefact
-Automatic python refactoring, with the goal of simplifying complicated code, and deleting dead code.
+Automatic python refactoring, with the goal of simplifying complicated code, deleting dead code, and to some extent improve performance. 
+
+It is strongly recommended that you version control or otherwise backup any code you run pyrefact on.
 
 ## Features
 
@@ -26,3 +28,7 @@ Automatic python refactoring, with the goal of simplifying complicated code, and
 pip install pyrefact
 python -m pyrefact /path/to/filename.py --preserve /path/to/module/where/filename/is/used
 ```
+
+## Prerequisites
+
+Many features require `python>=3.9` to work, and pyrefact is not tested with earlier python versions. Some effort is made for it not to crash on 3.8, but most of the cool stuff is disabled.
