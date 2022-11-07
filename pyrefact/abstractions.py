@@ -337,7 +337,6 @@ def create_abstractions(content: str) -> str:
 
     for node in parsing.iter_bodies_recursive(root):
         if _code_complexity_length(node) < 100:
-
             continue
 
         for nodes in group_nodes_by_purpose(node.body):
@@ -347,6 +346,10 @@ def create_abstractions(content: str) -> str:
             purposes = {_hashable_node_purpose_type(child) for child in nodes}
             assert len(purposes) == 1
             purpose = purposes.pop()
+
+            if len(nodes) == 1 and isinstance(nodes[0], purpose):
+                continue
+
             created_names, required_names = _code_dependencies_outputs(nodes)
             if len(created_names) > 1:
                 continue
