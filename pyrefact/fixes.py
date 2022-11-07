@@ -15,8 +15,7 @@ import isort
 import rmspace
 from pylint.lint import Run
 
-from pyrefact import parsing, processing
-from pyrefact.constants import ASSUMED_PACKAGES, ASSUMED_SOURCES, PACKAGE_ALIASES
+from pyrefact import constants, parsing, processing
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
@@ -290,20 +289,20 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
         and not line.startswith('"""')
         and not line.startswith("from __future__ import")
     )
-    for package, package_variables in ASSUMED_SOURCES.items():
+    for package, package_variables in constants.ASSUMED_SOURCES.items():
         overlap = variables.intersection(package_variables)
         if overlap:
             fix = f"from {package} import " + ", ".join(sorted(overlap))
             print(f"Inserting '{fix}' at line {lineno}")
             lines.insert(lineno, fix)
 
-    for package in ASSUMED_PACKAGES & variables:
+    for package in constants.ASSUMED_PACKAGES & variables:
         fix = f"import {package}"
         print(f"Inserting '{fix}' at line {lineno}")
         lines.insert(lineno, fix)
 
-    for alias in PACKAGE_ALIASES.keys() & variables:
-        package = PACKAGE_ALIASES[alias]
+    for alias in constants.PACKAGE_ALIASES.keys() & variables:
+        package = constants.PACKAGE_ALIASES[alias]
         fix = f"import {package} as {alias}"
         print(f"Inserting '{fix}' at line {lineno}")
         lines.insert(lineno, fix)
@@ -943,26 +942,13 @@ def move_imports_to_toplevel(content: str) -> str:
     for node in toplevel_imports:
         toplevel_packages.update(_get_package_names(node))
 
-    builtin_packages = {name.lstrip("_") for name in sys.builtin_module_names}
-    builtin_packages |= {
-        "typing",
-        "math",
-        "pathlib",
-        "datetime",
-        "enum",
-        "dataclasses",
-        "heapq",
-        "queue",
-        "re",
-    }
-    # TODO implement a better way to get the builtin packages, there are many missing
-
-    safe_toplevel_packages = builtin_packages | toplevel_packages
-
     imports_movable_to_toplevel = {
         node
         for node in all_imports - toplevel_imports
-        if all(name in safe_toplevel_packages for name in _get_package_names(node))
+        if all(
+            name in constants.PYTHON_311_STDLIB or name in toplevel_packages
+            for name in _get_package_names(node)
+        )
     }
 
     defs = {
