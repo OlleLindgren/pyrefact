@@ -8,7 +8,7 @@ import re
 import sys
 import tempfile
 from pathlib import Path
-from typing import Collection, Iterable, List, Mapping, Tuple, Union
+from typing import Collection, Iterable, List, Mapping, Sequence, Tuple, Union
 
 import black
 import isort
@@ -73,11 +73,7 @@ def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
     if variable == "_":
         return variable
 
-    renamed_variable = variable.upper() if static else variable.lower()
-    renamed_variable = re.sub("_{1,}", "_", renamed_variable)
-
-    if renamed_variable.endswith("_"):
-        renamed_variable = renamed_variable[:-1]
+    renamed_variable = _make_snakecase(variable, uppercase=static)
 
     if private and not _is_private(renamed_variable):
         renamed_variable = f"_{renamed_variable}"
@@ -90,22 +86,28 @@ def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
     raise RuntimeError(f"Unable to find a replacement name for {variable}")
 
 
+def _list_words(name: str) -> Sequence[str]:
+    return [
+        match.group()
+        for match in re.finditer(r"([A-Z]{2,}(?![a-z])|[A-Z]?[a-z]*)\d*", name)
+        if match.end() > match.start()
+    ]
+
+
+def _make_snakecase(name: str, *, uppercase: bool = False) -> str:
+    return "_".join(word.upper() if uppercase else word.lower() for word in _list_words(name))
+
+
+def _make_camelcase(name: str) -> str:
+    return "".join(word[0].upper() + word[1:].lower() for word in _list_words(name))
+
+
 def _rename_class(name: str, *, private: bool) -> str:
     name = re.sub("_{1,}", "_", name)
     if len(name) == 0:
         raise ValueError("Cannot rename empty name")
-    if len(name) == 1:
-        name = name.upper()
-    else:
-        accum = (last := name[0].upper())
-        for char in name[1:]:
-            if last == "_":
-                accum += (last := char.upper())
-            else:
-                accum += char
-            last = char
 
-        name = accum
+    name = _make_camelcase(name)
 
     if private and not _is_private(name):
         return f"_{name}"
