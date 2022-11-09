@@ -75,10 +75,10 @@ def replace_nodes(content: str, replacements: Mapping[ast.AST, ast.AST]) -> str:
 
 
 def insert_nodes(content: str, additions: Collection[ast.AST]) -> str:
-    """Insert ast nodes at line number.
+    """Insert ast nodes in python source code.
 
     Args:
-        content (str): Source code before insertions.
+        content (str): Python source code before insertions.
         additions (Collection[ast.AST]): Ast nodes to add. Linenos must be accurate.
 
     Returns:

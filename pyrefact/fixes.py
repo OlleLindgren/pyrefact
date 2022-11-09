@@ -179,9 +179,9 @@ def _get_variable_name_substitutions(ast_tree: ast.AST, content: str) -> Mapping
                 for refnode in _get_uses_of(node, partial_tree, content):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
-                name = node.name
-                if name.startswith("__") and name.endswith("__"):
+                if _is_magic_method(node):
                     continue
+                name = node.name
                 funcdefs.append(node)
                 substitute = _rename_variable(name, private=_is_private(name), static=False)
                 renamings[node].add(substitute)
@@ -650,6 +650,24 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
     return content
 
 
+def _is_pointless_string(node: ast.AST) -> bool:
+    """Check if an AST is a pointless string statement.
+
+    This is useful for figuring out if a node is a docstring.
+
+    Args:
+        node (ast.AST): AST to check
+
+    Returns:
+        bool: True if the node is a pointless string statement.
+    """
+    return (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    )
+
+
 def delete_pointless_statements(content: str) -> str:
     """Delete pointless statements with no side effects from code
 
@@ -665,11 +683,7 @@ def delete_pointless_statements(content: str) -> str:
     for node in itertools.chain([ast_tree], parsing.iter_bodies_recursive(ast_tree)):
         for i, child in enumerate(node.body):
             if not parsing.has_side_effect(child, safe_callables):
-                if i > 0 or not (
-                    isinstance(child, ast.Expr)
-                    and isinstance(child.value, ast.Constant)
-                    and isinstance(child.value.value, str)
-                ):
+                if i > 0 or not _is_pointless_string(child):  # Docstring
                     delete.append(child)
 
     content = processing.remove_nodes(content, delete, ast_tree)
@@ -677,59 +691,69 @@ def delete_pointless_statements(content: str) -> str:
     return content
 
 
+def _is_magic_method(node: ast.AST) -> bool:
+    """Determine if a node is a magic method function definition, like __init__ for example.
+
+    Args:
+        node (ast.AST): AST to check.
+
+    Returns:
+        bool: True if it is a magic method function definition.
+    """
+    return (
+        isinstance(node, ast.FunctionDef)
+        and node.name.startswith("__")
+        and node.name.endswith("__")
+    )
+
+
 def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> Iterable[ast.AST]:
     funcdefs = []
     classdefs = []
-    names = []
+    name_usages = collections.defaultdict(set)
 
     for node in ast.walk(root):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name not in preserve:
             funcdefs.append(node)
-        elif isinstance(node, ast.ClassDef):
+        elif isinstance(node, ast.ClassDef) and node.name not in preserve:
             classdefs.append(node)
         elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-            names.append(node)
+            name_usages[node.id].add(node)
 
-    class_magics = collections.defaultdict(set)
+    constructors = collections.defaultdict(set)
     for node in classdefs:
         for child in node.body:
-            if (
-                isinstance(child, ast.FunctionDef)
-                and child.name.startswith("__")
-                and child.name.endswith("__")
-            ):
-                class_magics[node].add(child)
+            if _is_magic_method(child):
+                constructors[node].add(child)
 
-    magic_source_classes = {}
-    for classdef, magics in class_magics.items():
+    constructor_classes = {}
+    for classdef, magics in constructors.items():
         for magic in magics:
-            magic_source_classes[magic] = classdef
+            constructor_classes[magic] = classdef
 
     for def_node in funcdefs:
-        if def_node.name in preserve:
-            continue
-        usages = {node for node in names if node.id == def_node.name}
-        if parent_class := magic_source_classes.get(def_node):
-            usages.update(node for node in names if node.id == parent_class.name)
+        usages = name_usages[def_node.name]
+        if parent_class := constructor_classes.get(def_node):
+            constructor_usages = name_usages[parent_class.name]
+        else:
+            constructor_usages = set()
         recursive_usages = {
             node
             for node in ast.walk(def_node)
             if isinstance(node, ast.Name) and node.id == def_node.name
         }
-        if not usages - recursive_usages:
+        if not (usages | constructor_usages) - recursive_usages:
             print(f"{def_node.name} is never used")
             yield def_node
 
     for def_node in classdefs:
-        if def_node.name in preserve:
-            continue
-        usages = {node for node in names if node.id == def_node.name}
+        usages = name_usages[def_node.name]
         internal_usages = {
             node
             for node in ast.walk(def_node)
             if isinstance(node, ast.Name)
             and isinstance(node.ctx, ast.Load)
-            and node.id in (def_node.name, "self", "cls")
+            and node.id in {def_node.name, "self", "cls"}
         }
         if not usages - internal_usages:
             print(f"{def_node.name} is never used")
@@ -778,6 +802,20 @@ def delete_unreachable_code(content: str) -> str:
     """
     root = ast.parse(content)
 
+    replacements = {}
+    for node in ast.walk(root):
+        if isinstance(node, ast.IfExp):
+            try:
+                test_value = parsing.literal_value(node.test)
+            except ValueError:
+                pass
+            else:
+                replacements[node] = node.body if test_value else node.orelse
+
+    if replacements:
+        content = processing.replace_nodes(content, replacements)
+        root = ast.parse(content)
+
     delete = set()
     for node in parsing.iter_bodies_recursive(root):
         if isinstance(node, (ast.If, ast.While)):
@@ -793,7 +831,7 @@ def delete_unreachable_code(content: str) -> str:
                         delete.update(node.body)
                     else:
                         delete.add(node)
-                elif not test_value:
+                elif isinstance(node, ast.While) and not test_value:
                     delete.add(node)
         else:
             delete.update(_iter_unreachable_nodes(node.body))
