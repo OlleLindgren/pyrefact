@@ -79,6 +79,42 @@ for x in range(11):
     print(x)
     """,
         ),
+        (
+            """
+for x in range(11):
+    if x == 3:
+        a = 12
+    elif x == 5:
+        a = x
+    elif x == 8:
+        a = sum((x, 2, 3))
+    else:
+        a = x + 1
+
+    print(x)
+    print(x, 1, 2)
+    print(x, x, x)
+    """,
+            """
+def _pyrefact_abstraction_1(x):
+    if x == 3:
+        return 12
+    elif x == 5:
+        return x
+    elif x == 8:
+        return sum((x, 2, 3))
+    else:
+        return x + 1
+
+
+for x in range(11):
+    a = _pyrefact_abstraction_1(x)
+
+    print(x)
+    print(x, 1, 2)
+    print(x, x, x)
+    """,
+        ),
     )
 
     for content, expected_abstraction in test_cases:

@@ -75,8 +75,15 @@ def _possible_external_effects(node: ast.AST, safe_callables: Collection[str]) -
     Yields:
         ast.AST: Node that could potentially be encountered, and that may have some effect.
     """
+    comprehension_local_vars = {
+        comp.target for comp in ast.walk(node) if isinstance(comp, ast.comprehension)
+    }
     for child in ast.walk(node):
-        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+        if (
+            isinstance(child, ast.Name)
+            and isinstance(child.ctx, ast.Store)
+            and child not in comprehension_local_vars
+        ):
             yield child
         elif isinstance(child, (ast.Yield, ast.YieldFrom, ast.Continue, ast.Break, ast.Return)):
             yield child
@@ -140,13 +147,14 @@ def _hashable_node_purpose_type(node: ast.AST) -> Tuple[str]:
         side_effects = [child for child in _possible_external_effects(node, EverythingContainer())]
         if all(isinstance(child, ast.Name) for child in side_effects):
             stored_names = set(_definite_stored_names(node))
-            return tuple([type(node)] + sorted(stored_names))
+            if all(effect.id in stored_names for effect in side_effects):
+                return tuple([ast.Assign] + sorted(stored_names))
         elif all(isinstance(node, ast.Break) for node in side_effects):
             return (ast.Break,)
         elif all(isinstance(node, ast.Continue) for node in side_effects):
             return (ast.Continue,)
-        else:
-            raise ValueError(f"Node {node} of type {type(node)} has no singular purpose")
+
+        raise ValueError(f"Node {node} of type {type(node)} has no singular purpose")
 
     raise NotImplementedError(f"Cannot determine hashable node type of node of type {type(node)}")
 
@@ -278,8 +286,6 @@ def _code_dependencies_outputs(
             raise ValueError(
                 "Dependency mapping is not implemented for code with exception handling."
             )
-        elif isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
-            children = [comp.iter for comp in node.generators]
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             created_names.update(
                 alias.name if alias.asname is None else alias.asname for alias in node.names
@@ -288,13 +294,25 @@ def _code_dependencies_outputs(
         else:
             node_created = set()
             node_needed = set()
+            generator_internal_names = set()
+            for child in ast.walk(node):
+                if isinstance(child, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+                    comp_created = {comp.target.id for comp in child.generators}
+                    for grandchild in ast.walk(child):
+                        if isinstance(grandchild, ast.Name) and grandchild.id in comp_created:
+                            generator_internal_names.add(grandchild)
+
             for child in ast.walk(node):
                 if isinstance(child, ast.Attribute) and isinstance(child.ctx, ast.Load):
                     for n in ast.walk(child):
-                        if isinstance(n, ast.Name):
+                        if isinstance(n, ast.Name) and n not in generator_internal_names:
                             node_needed.add(n.id)
 
-                if isinstance(child, ast.Name) and child.id not in node_needed:
+                if (
+                    isinstance(child, ast.Name)
+                    and child.id not in node_needed
+                    and child not in generator_internal_names
+                ):
                     if isinstance(child.ctx, ast.Load):
                         node_needed.add(child.id)
                     elif isinstance(child.ctx, ast.Store):
@@ -311,8 +329,8 @@ def _code_dependencies_outputs(
         temp_created, temp_needed = _code_dependencies_outputs(temp_children)
         created = []
         needed = []
-        for child in children:
-            c_created, c_needed = _code_dependencies_outputs(node.body)
+        for nodes in children:
+            c_created, c_needed = _code_dependencies_outputs(nodes)
             created.append(c_created)
             needed.append(c_needed - temp_created)
 
@@ -367,18 +385,22 @@ def create_abstractions(content: str) -> str:
             import_linenos.append(node.lineno)
 
     for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
-        if _code_complexity_length(node) < 100 and len(node.body) < 4:
-            continue
-
         for nodes in group_nodes_by_purpose(node.body):
-            if sum(_code_complexity_length(node) for node in nodes) < 100 and len(nodes) < 3:
-                continue
-
             purposes = {_hashable_node_purpose_type(child) for child in nodes}
             assert len(purposes) == 1
             purpose = purposes.pop()
 
-            if len(nodes) == 1 and isinstance(nodes[0], purpose):
+            children_with_purpose = sum(
+                isinstance(grandchild, purpose[0])
+                for child in nodes
+                for grandchild in ast.walk(child)
+            )
+            if (
+                sum(_code_complexity_length(node) for node in nodes) < 100
+                and children_with_purpose < 3
+            ):
+                continue
+            if children_with_purpose <= 2:
                 continue
 
             created_names, required_names = _code_dependencies_outputs(nodes)
@@ -434,7 +456,7 @@ def create_abstractions(content: str) -> str:
                 function_call = ast.Assign(
                     targets=assign_targets, value=call, lineno=nodes[0].lineno
                 )
-                function_body = nodes + [ast.Return(value=return_targets)]
+                function_body = _build_function_body(nodes, purpose[0])
                 returns = None
 
             else:

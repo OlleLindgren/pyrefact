@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
 
-from . import abstractions, completion, fixes, parsing
+from . import abstractions, completion, constants, fixes, parsing
 
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
@@ -49,13 +49,15 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
     content = fixes.delete_pointless_statements(content)
     content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
-    if tuple(sys.version_info) >= (3, 9):
+    if constants.PYTHON_VERSION >= (3, 9):
         content = fixes.replace_with_sets(content)
         content = fixes.remove_redundant_chained_calls(content)
         content = fixes.move_imports_to_toplevel(content)
+        content = fixes.remove_redundant_else(content)
         content = abstractions.create_abstractions(content)
 
     content = fixes.remove_duplicate_functions(content, preserve=preserve)
+
     content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
     content = fixes.fix_black(content)

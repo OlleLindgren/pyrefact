@@ -21,6 +21,7 @@ It is strongly recommended that you version control or otherwise backup any code
 * Delete variables named `_`, unless where that would cause a syntax error.
 * Move code into primitive functions.
 * Remove duplicate function definitions.
+* Remove redundant elif and else
 * More to come!
 
 ## Usage

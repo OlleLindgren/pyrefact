@@ -1,4 +1,5 @@
 import builtins
+import sys
 import typing
 
 ASSUMED_PACKAGES = frozenset(
@@ -285,3 +286,5 @@ PYTHON_311_STDLIB = frozenset(
 )
 
 BUILTIN_FUNCTIONS = frozenset(name for name in dir(builtins) if name != "_")
+
+PYTHON_VERSION = tuple(sys.version_info)
