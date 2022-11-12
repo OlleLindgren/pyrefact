@@ -1,7 +1,7 @@
 import ast
-import builtins
 import sys
 
+from pyrefact import constants
 from pyrefact.parsing import has_side_effect
 
 
@@ -11,7 +11,7 @@ def main() -> int:
     Returns:
         int: 1 if the function behaves incorrectly, otherwise 0
     """
-    whitelist = set(dir(builtins)) - {"print", "exit"}
+    whitelist = constants.BUILTIN_FUNCTIONS - {"print", "exit"}
     for source in (
         "{}",
         "()",

@@ -1,9 +1,9 @@
 import ast
-import builtins
+import itertools
 import re
 from typing import Collection, Iterable, Sequence, Tuple
 
-from . import parsing, processing
+from . import constants, parsing, processing
 
 
 class EverythingContainer:
@@ -138,7 +138,7 @@ def _hashable_node_purpose_type(node: ast.AST) -> Tuple[str]:
         return (type(node),)
     if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr, ast.If)):
         side_effects = [child for child in _possible_external_effects(node, EverythingContainer())]
-        if all(isinstance(node, ast.Name) for node in side_effects):
+        if all(isinstance(child, ast.Name) for child in side_effects):
             stored_names = set(_definite_stored_names(node))
             return tuple([type(node)] + sorted(stored_names))
         elif all(isinstance(node, ast.Break) for node in side_effects):
@@ -192,7 +192,7 @@ def group_nodes_by_purpose(body: Sequence[ast.AST]) -> Iterable[Sequence[ast.AST
         yield nodes
 
 
-def _build_bool_body(
+def _build_function_body(
     nodes: Sequence[ast.AST],
     return_injection_type: ast.AST,
 ) -> ast.FunctionDef:
@@ -212,20 +212,29 @@ def _build_bool_body(
     body = []
     for node in nodes:
         if isinstance(node, return_injection_type):
-            body.append(ast.Return(value=ast.Constant(value=True)))
+            if return_injection_type == ast.Continue:
+                body.append(ast.Return(value=ast.Constant(value=False)))
+            elif return_injection_type == ast.Break:
+                body.append(ast.Return(value=ast.Constant(value=True)))
+            elif return_injection_type == ast.Assign:
+                # The purpose of the function is just to assign some variable, so we return
+                # whatever it would have been assigned to.
+                body.append(ast.Return(value=node.value))
+            else:
+                raise NotImplementedError(f"Unknown injection type: {return_injection_type}")
         elif isinstance(node, ast.If):
             body.append(
                 ast.If(
                     test=node.test,
-                    body=_build_bool_body(node.body, return_injection_type),
-                    orelse=_build_bool_body(node.orelse, return_injection_type),
+                    body=_build_function_body(node.body, return_injection_type),
+                    orelse=_build_function_body(node.orelse, return_injection_type),
                 )
             )
         elif isinstance(node, ast.With):
             body.append(
                 ast.With(
                     items=node.items,
-                    body=_build_bool_body(node.body, return_injection_type),
+                    body=_build_function_body(node.body, return_injection_type),
                 )
             )
         elif isinstance(node, ast.For):
@@ -234,7 +243,7 @@ def _build_bool_body(
                     target=node.target,
                     iter=node.iter,
                     body=node.body,
-                    orelse=_build_bool_body(node.orelse, return_injection_type),
+                    orelse=_build_function_body(node.orelse, return_injection_type),
                 )
             )
         elif isinstance(node, ast.While):
@@ -242,7 +251,7 @@ def _build_bool_body(
                 ast.While(
                     test=node.test,
                     body=node.body,
-                    orelse=_build_bool_body(node.orelse, return_injection_type),
+                    orelse=_build_function_body(node.orelse, return_injection_type),
                 )
             )
         else:
@@ -338,7 +347,7 @@ def _code_complexity_length(node: ast.AST) -> int:
 def create_abstractions(content: str) -> str:
     root = ast.parse(content)
     global_names = (
-        _scoped_dependencies(root) | parsing.get_imported_names(root) | set(dir(builtins))
+        _scoped_dependencies(root) | parsing.get_imported_names(root) | constants.BUILTIN_FUNCTIONS
     )
     for node in parsing.iter_funcdefs(root):
         global_names.add(node.name)
@@ -357,12 +366,12 @@ def create_abstractions(content: str) -> str:
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             import_linenos.append(node.lineno)
 
-    for node in parsing.iter_bodies_recursive(root):
-        if _code_complexity_length(node) < 100:
+    for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
+        if _code_complexity_length(node) < 100 and len(node.body) < 4:
             continue
 
         for nodes in group_nodes_by_purpose(node.body):
-            if sum(_code_complexity_length(node) for node in nodes) < 100:
+            if sum(_code_complexity_length(node) for node in nodes) < 100 and len(nodes) < 3:
                 continue
 
             purposes = {_hashable_node_purpose_type(child) for child in nodes}
@@ -403,13 +412,16 @@ def create_abstractions(content: str) -> str:
             )
 
             if purpose[0] in (ast.Continue, ast.Break):
+                if purpose[0] == ast.Continue:
+                    call = ast.UnaryOp(op=ast.Not(), operand=call)
                 function_call = ast.If(
                     test=call,
                     body=[purpose[0](col_offset=nodes[0].col_offset + 4)],
                     orelse=[],
                 )
-                function_body = _build_bool_body(nodes, purpose[0]) + [
-                    ast.Return(value=ast.Constant(value=False))
+                return_value = purpose[0] == ast.Continue
+                function_body = _build_function_body(nodes, purpose[0]) + [
+                    ast.Return(value=ast.Constant(value=return_value))
                 ]
                 returns = ast.Name(id="bool", ctx=ast.Load())
 

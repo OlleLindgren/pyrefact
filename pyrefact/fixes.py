@@ -1,5 +1,4 @@
 import ast
-import builtins
 import collections
 import io
 import itertools
@@ -246,7 +245,7 @@ def _fix_variable_names(
 ) -> str:
     replacements = []
     ast_tree = ast.parse(content)
-    blacklisted_names = parsing.get_imported_names(ast_tree) | set(dir(builtins))
+    blacklisted_names = parsing.get_imported_names(ast_tree) | constants.BUILTIN_FUNCTIONS
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
             raise RuntimeError(

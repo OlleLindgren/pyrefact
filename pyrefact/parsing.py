@@ -1,8 +1,9 @@
 import ast
-import builtins
 import functools
 import itertools
 from typing import Collection, Iterable, Sequence, Tuple, Union
+
+from pyrefact import constants
 
 
 def is_valid_python(content: str) -> bool:
@@ -460,8 +461,7 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
     function_defs = {
         node for node in ast.walk(root) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
-    builtin_names = set(dir(builtins))
-    safe_callables = builtin_names - {"print", "exit"}
+    safe_callables = set(constants.BUILTIN_FUNCTIONS) - {"print", "exit"}
     safe_callable_nodes = set()
     changes = True
     while changes:

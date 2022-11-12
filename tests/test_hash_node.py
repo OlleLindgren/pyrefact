@@ -3,11 +3,27 @@
 import ast
 import sys
 
-from pyrefact import abstractions
+from pyrefact import abstractions, constants
+
+
+def _error_message(left: ast.AST, right: ast.AST, *, positive: bool) -> str:
+    if positive:
+        msg = "Hashes are different, but should be the same for"
+    else:
+        msg = "Hashes are the same, but should be different for"
+    return f"""{msg}:
+
+    {ast.dump(left, indent=2)}
+
+    and
+
+    {ast.dump(right, indent=2)}
+    """
 
 
 def main() -> None:
-    for left_expression, right_expression in (
+    preserved_names = constants.BUILTIN_FUNCTIONS
+    positives = (
         ("lambda x: x", "lambda y: y"),
         ("lambda x: (x**3 - x**2) // 11", "lambda aaaa: (aaaa**3 - aaaa**2) // 11"),
         (
@@ -28,22 +44,22 @@ def qz(aaa, bbb, ccc):
     return aaa*bbb +ccc*aaa
         """,
         ),
-    ):
+    )
+    negatives = (("lambda x: list(x)", "lambda x: set(x)"),)
+
+    for left_expression, right_expression in positives:
         left_node = ast.parse(left_expression).body[0]
         right_node = ast.parse(right_expression).body[0]
-        preserved_names = set()
         left_hash = abstractions.hash_node(left_node, preserved_names)
         right_hash = abstractions.hash_node(right_node, preserved_names)
-        assert (
-            left_hash == right_hash
-        ), f"""Hashes differ for:
+        assert left_hash == right_hash, _error_message(left_node, right_node, positive=True)
 
-{ast.dump(left_node, indent=2)}
-
-and
-
-{ast.dump(right_node, indent=2)}
-"""
+    for left_expression, right_expression in negatives:
+        left_node = ast.parse(left_expression).body[0]
+        right_node = ast.parse(right_expression).body[0]
+        left_hash = abstractions.hash_node(left_node, preserved_names)
+        right_hash = abstractions.hash_node(right_node, preserved_names)
+        assert left_hash != right_hash, _error_message(left_node, right_node, positive=False)
 
 
 if __name__ == "__main__":

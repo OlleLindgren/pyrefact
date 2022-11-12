@@ -1,3 +1,4 @@
+import builtins
 import typing
 
 ASSUMED_PACKAGES = frozenset(
@@ -282,3 +283,5 @@ PYTHON_311_STDLIB = frozenset(
         "xdrlib",
     )
 )
+
+BUILTIN_FUNCTIONS = frozenset(name for name in dir(builtins) if name != "_")
