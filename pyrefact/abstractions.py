@@ -362,6 +362,36 @@ def _code_complexity_length(node: ast.AST) -> int:
     return node_unparse_length - node_string_length
 
 
+def _get_function_insertion_lineno(
+    containing_node: ast.AST, function_def_linenos: Collection[int], import_linenos: Collection[int]
+) -> int:
+    """Get line number to insert new function at.
+
+    Args:
+        containing_node (ast.AST): Node that originally contained the logic in the function.
+        function_def_linenos (Collection[int]): Line numbers of function defs.
+        import_linenos (Collection[int]): Line numbers of imports.
+
+    Returns:
+        int: Line number to insert function definition at
+    """
+    if containing_node.lineno in function_def_linenos:
+        return containing_node.lineno - 1
+
+    if function_def_linenos:
+        if all((lineno > containing_node.lineno for lineno in function_def_linenos)):
+            return max(import_linenos) if import_linenos else containing_node.lineno - 1
+
+        return (
+            max((lineno for lineno in function_def_linenos if lineno <= containing_node.lineno)) - 1
+        )
+
+    if import_linenos:
+        return max(import_linenos) + 1
+
+    return containing_node.lineno - 1
+
+
 def create_abstractions(content: str) -> str:
     root = ast.parse(content)
     global_names = (
@@ -462,20 +492,9 @@ def create_abstractions(content: str) -> str:
             else:
                 continue
 
-            if node.lineno in function_def_linenos:
-                insertion_lineno = node.lineno - 1
-            elif function_def_linenos:
-                if all(lineno > node.lineno for lineno in function_def_linenos):
-                    insertion_lineno = max(import_linenos) if import_linenos else node.lineno - 1
-                else:
-                    insertion_lineno = (
-                        max(lineno for lineno in function_def_linenos if lineno <= node.lineno) - 1
-                    )
-            else:
-                if import_linenos:
-                    insertion_lineno = max(import_linenos) + 1
-                else:
-                    insertion_lineno = node.lineno - 1
+            insertion_lineno = _get_function_insertion_lineno(
+                node, function_def_linenos, import_linenos
+            )
 
             function_def = ast.FunctionDef(
                 name=function_name,
