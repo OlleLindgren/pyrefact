@@ -50,6 +50,7 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
     content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
     if constants.PYTHON_VERSION >= (3, 9):
+        content = fixes.singleton_eq_comparison(content)
         content = fixes.replace_with_sets(content)
         content = fixes.remove_redundant_chained_calls(content)
         content = fixes.move_imports_to_toplevel(content)

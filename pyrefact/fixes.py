@@ -1123,3 +1123,43 @@ def remove_redundant_else(content: str) -> str:
                     content = modified_pre_else + modified_orelse + content[end:]
 
     return content
+
+
+def singleton_eq_comparison(content: str) -> str:
+    """Replace singleton comparisons using "==" with "is".
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Fixed code
+    """
+    root = ast.parse(content)
+
+    replacements = {}
+    for node in ast.walk(root):
+        if isinstance(node, ast.Compare):
+            changes = False
+            operators = []
+            for comparator, node_operator in zip(node.comparators, node.ops):
+                is_comparator_singleton = isinstance(comparator, ast.Constant) and comparator.value in {None, True, False}
+                if is_comparator_singleton and isinstance(node_operator, ast.Eq):
+                    operators.append(ast.Is())
+                    changes = True
+                elif is_comparator_singleton and isinstance(node_operator, ast.NotEq):
+                    operators.append(ast.IsNot())
+                    changes = True
+                else:
+                    operators.append(node_operator)
+
+            if changes:
+                replacements[node] = ast.Compare(
+                    left=node.left,
+                    ops=operators,
+                    comparators=node.comparators,
+                )
+
+    if replacements:
+        content = processing.replace_nodes(content, replacements)
+
+    return content
