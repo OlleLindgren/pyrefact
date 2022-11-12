@@ -1,67 +1,32 @@
 import ast
 import collections
-import io
 import itertools
 import queue
 import re
-import sys
-import tempfile
-from pathlib import Path
 from typing import Collection, Iterable, List, Mapping, Sequence, Tuple, Union
 
 import black
 import isort
 import rmspace
-from pylint.lint import Run
 
 from pyrefact import abstractions, constants, parsing, processing
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
 
-def _deconstruct_pylint_warning(error_line: str) -> Tuple[Path, int, int, str, str]:
-    filename, lineno, charno, error_code, error_msg = error_line.split(":")
-
-    return filename, lineno, charno, error_code.strip(), error_msg.strip()
-
-
-def _find_pylint_errors(content: str, error_code: str) -> Iterable[str]:
-    original_sys_stdout = sys.stdout
-    with tempfile.NamedTemporaryFile(suffix=".py") as temp:
-        temp.write(content.encode("utf-8"))
-        temp.seek(0)
-        stdout = io.StringIO()
-        args = [
-            "--disable",
-            "all",
-            "--enable",
-            f"{error_code}",
-            temp.name,
-        ]
-        try:
-            sys.stdout = stdout
-            Run(args, exit=False)
-        finally:
-            sys.stdout = original_sys_stdout
-
-    re_pattern = re.compile(r".*\.py:\d+:\d+: \w\d+: .* \(" + error_code + r"\)")
-    output = stdout.getvalue()
-    for line in output.splitlines():
-        if re_pattern.match(line):
-            yield line
-
-
 def _get_undefined_variables(content: str) -> Collection[str]:
-    variables = set()
-    for line in _find_pylint_errors(content, "undefined-variable"):
-        try:
-            _, *_, error_msg = _deconstruct_pylint_warning(line)
-            _, variable_name, _ = error_msg.split("'")
-            variables.add(variable_name)
-        except ValueError:
-            pass
+    root = ast.parse(content)
+    imported_names = parsing.get_imported_names(root)
+    defined_names = set()
+    referenced_names = set()
+    for node in ast.walk(root):
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Load):
+                referenced_names.add(node.id)
+            elif isinstance(node.ctx, ast.Store):
+                defined_names.add(node.id)
 
-    return variables
+    return referenced_names - defined_names - imported_names - constants.BUILTIN_FUNCTIONS
 
 
 def _is_private(variable: str) -> bool:

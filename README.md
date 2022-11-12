@@ -9,7 +9,7 @@ It is strongly recommended that you version control or otherwise backup any code
 * Delete unused imports
 * Move safe imports to toplevel
 * Add missing imports by guessing what you probably wanted.
-  * For example, if pylint reports an undefined variable for `Sequence`, it will insert `from typing import Sequence` at the top of the file.
+  * For example, if `Sequence` is used but never defined, it will insert `from typing import Sequence` at the top of the file.
 * Rename variables, functions and classes with conventions.
 * Delete unused functions, classes and variables.
 * Remove most pointless simple statements.
