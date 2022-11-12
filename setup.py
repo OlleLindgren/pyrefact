@@ -14,6 +14,6 @@ setuptools.setup(
     author="Olle Lindgren",
     author_email="olle.ln@outlook.com",
     packages=["pyrefact"],
-    install_requires=["black>=22.1.0", "pylint>=2.12.2", "rmspace>=6"],
+    install_requires=["black>=22.1.0", "rmspace>=6"],
     url="https://github.com/OlleLindgren/pyrefact",
 )
