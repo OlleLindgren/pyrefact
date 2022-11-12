@@ -1142,7 +1142,11 @@ def singleton_eq_comparison(content: str) -> str:
             changes = False
             operators = []
             for comparator, node_operator in zip(node.comparators, node.ops):
-                is_comparator_singleton = isinstance(comparator, ast.Constant) and comparator.value in {None, True, False}
+                is_comparator_singleton = isinstance(comparator, ast.Constant) and (
+                    comparator.value is None
+                    or comparator.value is True
+                    or comparator.value is False
+                )
                 if is_comparator_singleton and isinstance(node_operator, ast.Eq):
                     operators.append(ast.Is())
                     changes = True
