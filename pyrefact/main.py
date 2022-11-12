@@ -55,6 +55,7 @@ def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int
         content = fixes.move_imports_to_toplevel(content)
         content = abstractions.create_abstractions(content)
 
+    content = fixes.remove_duplicate_functions(content, preserve=preserve)
     content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
     content = fixes.fix_black(content)

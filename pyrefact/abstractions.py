@@ -18,26 +18,48 @@ def _scoped_dependencies(node: ast.AST):
     return set(name.id for name in parsing.iter_assignments(node))
 
 
-def _hash_node(
+def hash_node(
     node: ast.AST, preserved_callable_names: Collection[str] = EverythingContainer()
 ) -> int:
+    """Compute a hash for a node, such that equivalent nodes should get the same hash.
+
+    For example, the expressions (lambda x: x) and (lambda y: y) should get the same hash.
+
+    Args:
+        node (ast.AST): AST to hash.
+        preserved_callable_names (Collection[str], optional): Names to preserve. By default all names.
+
+    Returns:
+        int: Hash of node.
+    """
     name_increment = 0
     name_hashes = {}
 
     things_to_hash = []
     for child in ast.walk(node):
         things_to_hash.append(type(child))
-        things_to_hash.extend(
-            (key, value) for key, value in child.__dict__.items() if isinstance(value, (str, int))
-        )
-        if isinstance(node, ast.Name):
-            if node.id in preserved_callable_names:
-                things_to_hash.append(node.id)
-            elif node.id in name_hashes:
-                things_to_hash.append(name_hashes[node.id])
+        names = []
+        if isinstance(child, ast.Name):
+            names = [child.id]
+        elif isinstance(child, ast.arg):
+            names = [child.arg]
+        elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            names = [child.name]
+        else:
+            things_to_hash.extend(
+                (key, value)
+                for key, value in child.__dict__.items()
+                if isinstance(value, (str, int))
+                if key not in {"lineno", "end_lineno", "col_offset", "end_col_offset"}
+            )
+        for name in names:
+            if name in preserved_callable_names:
+                things_to_hash.append(name)
+            elif name in name_hashes:
+                things_to_hash.append(name_hashes[name])
             else:
                 name_increment += 1
-                name_hashes[node.id] = name_increment
+                name_hashes[name] = name_increment
                 things_to_hash.append(name_increment)
 
     return hash(tuple(things_to_hash))
@@ -81,7 +103,7 @@ def _definite_external_effects(
         for child in node.body:
             body_effects.update(
                 {
-                    _hash_node(n, safe_callables): n
+                    hash_node(n, safe_callables): n
                     for n in _definite_external_effects(child, safe_callables)
                 }
             )
@@ -91,7 +113,7 @@ def _definite_external_effects(
         for child in node.body:
             orelse_effects.update(
                 {
-                    _hash_node(n, safe_callables): n
+                    hash_node(n, safe_callables): n
                     for n in _definite_external_effects(child, safe_callables)
                 }
             )

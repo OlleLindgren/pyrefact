@@ -20,6 +20,7 @@ It is strongly recommended that you version control or otherwise backup any code
 * Rename unused variables to `_`
 * Delete variables named `_`, unless where that would cause a syntax error.
 * Move code into primitive functions.
+* Remove duplicate function definitions.
 * More to come!
 
 ## Usage

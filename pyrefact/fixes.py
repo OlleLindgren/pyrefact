@@ -15,7 +15,7 @@ import isort
 import rmspace
 from pylint.lint import Run
 
-from pyrefact import constants, parsing, processing
+from pyrefact import abstractions, constants, parsing, processing
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
@@ -430,6 +430,7 @@ def _remove_unused_imports(
         ast_tree, unused_imports
     )
     if completely_unused_imports:
+        print("Removing unused imports")
         content = processing.remove_nodes(content, completely_unused_imports, ast_tree)
         if not partially_unused_imports:
             return content
@@ -688,7 +689,9 @@ def delete_pointless_statements(content: str) -> str:
                 if i > 0 or not _is_pointless_string(child):  # Docstring
                     delete.append(child)
 
-    content = processing.remove_nodes(content, delete, ast_tree)
+    if delete:
+        print("Removing pointless statements")
+        content = processing.remove_nodes(content, delete, ast_tree)
 
     return content
 
@@ -788,7 +791,9 @@ def delete_unused_functions_and_classes(
 
     delete = set(_get_unused_functions_classes(root, preserve))
 
-    content = processing.remove_nodes(content, delete, root)
+    if delete:
+        print("Removing unused functions and classes")
+        content = processing.remove_nodes(content, delete, root)
 
     return content
 
@@ -838,6 +843,8 @@ def delete_unreachable_code(content: str) -> str:
         else:
             delete.update(_iter_unreachable_nodes(node.body))
 
+    if delete:
+        print("Removing unreachable code")
     content = processing.remove_nodes(content, delete, root)
 
     return content
@@ -1037,10 +1044,69 @@ def move_imports_to_toplevel(content: str) -> str:
         additions.append(new_node)
 
     if removals:
+        print("Removing imports outside of toplevel")
         content = processing.remove_nodes(content, removals, root)
     if additions:
+        print("Adding imports to toplevel")
         content = processing.insert_nodes(content, additions)
 
     # Isort will remove redundant imports
+
+    return content
+
+
+def remove_duplicate_functions(content: str, preserve: Collection[str]) -> str:
+    """Remove duplicate function definitions.
+
+    Args:
+        content (str): Python source code
+        preserve (Collection[str]): Names to preserve
+
+    Returns:
+        str: Modified code
+    """
+    root = ast.parse(content)
+    function_defs = collections.defaultdict(set)
+
+    for node in root.body:
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        function_defs[abstractions.hash_node(node, preserve)].add(node)
+
+    delete = set()
+    renamings = {}
+
+    for funcdefs in function_defs.values():
+        if len(funcdefs) == 1:
+            continue
+        print(", ".join(node.name for node in funcdefs) + " are equivalent")
+        preserved_nodes = {node for node in funcdefs if node.name in preserve}
+        if preserved_nodes:
+            replacement = min(preserved_nodes, key=lambda node: node.lineno)
+        else:
+            replacement = min(funcdefs, key=lambda node: node.lineno)
+            preserved_nodes = {replacement}
+
+        for node in funcdefs - preserved_nodes:
+            delete.add(node)
+            renamings[node.name] = replacement.name
+
+    if not delete and not renamings:
+        return content
+
+    names = collections.defaultdict(list)
+    for node in ast.walk(root):
+        if isinstance(node, ast.Name):
+            names[node.id].append(node)
+
+    node_renamings = collections.defaultdict(set)
+    for name, substitute in renamings.items():
+        for node in names[name]:
+            node_renamings[node].add(substitute)
+
+    if node_renamings:
+        content = _fix_variable_names(content, node_renamings, preserve)
+    if delete:
+        content = processing.remove_nodes(content, delete, root)
 
     return content
