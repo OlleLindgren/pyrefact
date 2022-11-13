@@ -21,3 +21,12 @@ jobs:
     - name: Running unit tests
       run: |
         python ./tests/main.py
+    - name: Running on self
+      run: |
+        python -m pyrefact . --preserve .
+    - name: Install as editable
+      run: |
+        pip install -e .
+    - name: Rerun unit tests
+      run: |
+        python ./tests/main.py
