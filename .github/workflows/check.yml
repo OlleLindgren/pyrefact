@@ -36,6 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - uses: technote-space/get-diff-action@v6
+      with:
+        FILES: |
+          version.py
     - name: Set up Python
       uses: actions/setup-python@v3
       with:
@@ -47,8 +51,8 @@ jobs:
     - name: Build package
       run: python -m build
     - name: Publish package
+      if: env.GIT_DIFF
       uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
-      if: ${{ $(git diff HEAD^ HEAD) == *"setuptools.setup"*"version"* }}
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
