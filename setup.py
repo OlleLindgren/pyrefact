@@ -14,7 +14,7 @@ def _parse_description() -> str:
         return stream.read()
 
 def _parse_version() -> str:
-    with open(Path(__file__).parent / "VERSION.py", encoding="utf-8") as stream:
+    with open(Path(__file__).parent / "version.py", encoding="utf-8") as stream:
         source_code = stream.read()
 
     for match in re.finditer(r"VERSION *=.*", source_code):
