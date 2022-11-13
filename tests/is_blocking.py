@@ -69,6 +69,12 @@ if None:
     break
 else:
     f = 2 + x()
+""", """
+for i in []:
+    raise ValueError()
+""", """
+for i in something:
+    raise ValueError()
 """,
     ):
         node = ast.parse(source).body[0]
@@ -81,18 +87,18 @@ else:
 
     for source in (
         """
-for i in range(10):
+for i in [1, 2, 3]:
     raise ValueError()
 """,
         """
-for i in range(10):
+for i in (1, 2, 3):
     print(1)
     print(2)
     with x as y:
         raise RuntimeError()
 """,
         """
-for i in x:
+for i in [None, False]:
     while True:
         break
     assert False

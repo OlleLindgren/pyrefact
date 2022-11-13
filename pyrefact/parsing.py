@@ -365,9 +365,7 @@ def is_blocking(node: ast.AST, parent_type: ast.AST = None) -> bool:
 
     if parent_type is None:
         blocking_types = (ast.Return, ast.Continue, ast.Break)
-    elif parent_type == ast.For:
-        return False
-    elif parent_type == ast.While:
+    elif parent_type in (ast.For, ast.While):
         blocking_types = (ast.Return,)
 
     if isinstance(node, blocking_types):
@@ -398,6 +396,16 @@ def is_blocking(node: ast.AST, parent_type: ast.AST = None) -> bool:
                     return False
                 if is_blocking(child, type(node)):
                     return True
+
+    if isinstance(node, ast.For):
+        try:
+            iterator = literal_value(node.iter)
+        except ValueError:
+            return False
+        try:
+            next(iter(iterator))
+        except StopIteration:
+            return False
 
     if isinstance(node, (ast.For, ast.While)):
         for child in node.body:
