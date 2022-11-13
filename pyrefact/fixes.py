@@ -120,6 +120,15 @@ def _get_variable_name_substitutions(ast_tree: ast.AST, content: str) -> Mapping
         for refnode in _get_uses_of(node, ast_tree, content):
             renamings[refnode].add(substitute)
 
+    typevars = set()
+    for node in parsing.iter_typedefs(ast_tree):
+        assert len(node.targets) == 1
+        target = node.targets[0]
+        assert isinstance(target, (ast.Name, ast.Attribute))
+        typevars.add(target)
+        for refnode in _get_uses_of(target, ast_tree, content):
+            typevars.add(refnode)
+
     for node in parsing.iter_funcdefs(ast_tree):
         name = node.name
         substitute = _rename_variable(name, private=_is_private(name), static=False)
@@ -129,7 +138,10 @@ def _get_variable_name_substitutions(ast_tree: ast.AST, content: str) -> Mapping
             renamings[refnode].add(substitute)
 
     for node in parsing.iter_assignments(ast_tree):
-        substitute = _rename_variable(node.id, private=_is_private(node.id), static=True)
+        if node in typevars:
+            substitute = _rename_class(node.id, private=_is_private(node.id))
+        else:
+            substitute = _rename_variable(node.id, private=_is_private(node.id), static=True)
         renamings[node].add(substitute)
         for refnode in _get_uses_of(node, ast_tree, content):
             renamings[refnode].add(substitute)

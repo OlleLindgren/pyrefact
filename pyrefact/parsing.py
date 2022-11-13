@@ -66,7 +66,7 @@ def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
     """Iterate over defined variables in code
 
     Args:
-        content (str): Python source code
+        ast_tree (ast.Module): Module to parse
 
     Yields:
         ast.ClassDef: A class definition node
@@ -74,6 +74,36 @@ def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
     for node in ast_tree.body:
         if isinstance(node, (ast.ClassDef)):
             yield node
+
+
+def iter_typedefs(ast_tree: ast.Module) -> Iterable[ast.Name]:
+    """Iterate ove all TypeVars and custom type annotations in code
+
+    Args:
+        ast_tree (ast.Module): Module to parse
+
+    Yields:
+        ast.Assign: An assignment of a custom type annotation or typevar
+    """
+    for node in ast_tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            for child in ast.walk(node.value):
+                if isinstance(child, ast.Name) and (
+                    child.id in constants.ASSUMED_SOURCES["typing"] or "namedtuple" in child.id
+                ):
+                    yield node
+                    break
+                if (
+                    isinstance(child, ast.Attribute)
+                    and isinstance(child.value, ast.Name)
+                    and child.value.id in {"collections", "typing"}
+                    and (
+                        "namedtuple" in child.attr
+                        or child.attr in constants.ASSUMED_SOURCES["typing"]
+                    )
+                ):
+                    yield node
+                    break
 
 
 def has_side_effect(
