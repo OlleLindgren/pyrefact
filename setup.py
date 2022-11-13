@@ -9,7 +9,7 @@ if tuple(sys.version_info) < (3, 9):
 
 setuptools.setup(
     name="pyrefact",
-    version="17",
+    version="18",
     description="Automatic python refactoring",
     author="Olle Lindgren",
     author_email="olle.ln@outlook.com",
