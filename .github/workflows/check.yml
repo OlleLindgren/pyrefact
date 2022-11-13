@@ -37,6 +37,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: technote-space/get-diff-action@v6
+      id: git-diff
       with:
         FILES: |
           version.py
@@ -51,7 +52,7 @@ jobs:
     - name: Build package
       run: python -m build
     - name: Publish package
-      if: env.GIT_DIFF
+      if: steps.git-diff.outputs.diff
       uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
       with:
         user: __token__
