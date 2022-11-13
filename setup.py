@@ -1,5 +1,5 @@
 """Installer for pyrefact"""
-import re
+
 import sys
 import warnings
 from pathlib import Path
@@ -9,19 +9,16 @@ import setuptools
 if tuple(sys.version_info) < (3, 9):
     warnings.warn("Pyrefact is not tested with python < 3.9, and may not work.")
 
+
 def _parse_description() -> str:
     with open(Path(__file__).parent / "README.md", encoding="utf-8") as stream:
         return stream.read()
 
+
 def _parse_version() -> str:
-    with open(Path(__file__).parent / "version.py", encoding="utf-8") as stream:
-        source_code = stream.read()
+    with open(Path(__file__).parent / "version.txt", encoding="utf-8") as stream:
+        return stream.read().strip()
 
-    for match in re.finditer(r"VERSION *=.*", source_code):
-        _, version = match.group().split("=", 1)
-        return version
-
-    raise RuntimeError(f"Unable to parse version from {source_code}")
 
 setuptools.setup(
     name="pyrefact",
