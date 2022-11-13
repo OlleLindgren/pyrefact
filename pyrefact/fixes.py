@@ -108,13 +108,13 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
             yield refnode
 
 
-def _get_variable_name_substitutions(ast_tree: ast.AST, content: str) -> Mapping[ast.AST, str]:
+def _get_variable_name_substitutions(ast_tree: ast.AST, content: str, preserve: Collection[str]) -> Mapping[ast.AST, str]:
     renamings = collections.defaultdict(set)
     classdefs: List[ast.ClassDef] = []
     funcdefs: List[ast.FunctionDef] = []
     for node in parsing.iter_classdefs(ast_tree):
         name = node.name
-        substitute = _rename_class(name, private=_is_private(name))
+        substitute = _rename_class(name, private=_is_private(name) or name not in preserve)
         classdefs.append(node)
         renamings[node].add(substitute)
         for refnode in _get_uses_of(node, ast_tree, content):
@@ -131,7 +131,7 @@ def _get_variable_name_substitutions(ast_tree: ast.AST, content: str) -> Mapping
 
     for node in parsing.iter_funcdefs(ast_tree):
         name = node.name
-        substitute = _rename_variable(name, private=_is_private(name), static=False)
+        substitute = _rename_variable(name, private=_is_private(name) or name not in preserve, static=False)
         funcdefs.append(node)
         renamings[node].add(substitute)
         for refnode in _get_uses_of(node, ast_tree, content):
@@ -510,7 +510,7 @@ def align_variable_names_with_convention(
         str: Source code, where all variable names comply with normal convention
     """
     ast_tree = ast.parse(content)
-    renamings = _get_variable_name_substitutions(ast_tree, content)
+    renamings = _get_variable_name_substitutions(ast_tree, content, preserve)
 
     if renamings:
         content = _fix_variable_names(content, renamings, preserve)
