@@ -6,7 +6,7 @@ from typing import Collection, Iterable, Sequence, Tuple
 from . import constants, parsing, processing
 
 
-class EverythingContainer:
+class _EverythingContainer:
     """Object that contains everything."""
 
     @staticmethod
@@ -19,7 +19,7 @@ def _scoped_dependencies(node: ast.AST):
 
 
 def hash_node(
-    node: ast.AST, preserved_callable_names: Collection[str] = EverythingContainer()
+    node: ast.AST, preserved_callable_names: Collection[str] = _EverythingContainer()
 ) -> int:
     """Compute a hash for a node, such that equivalent nodes should get the same hash.
 
@@ -135,7 +135,7 @@ def _definite_external_effects(
 
 
 def _definite_stored_names(node: ast.AST) -> Iterable[str]:
-    for child in _definite_external_effects(node, EverythingContainer()):
+    for child in _definite_external_effects(node, _EverythingContainer()):
         if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
             yield child.id
 
@@ -144,7 +144,7 @@ def _hashable_node_purpose_type(node: ast.AST) -> Tuple[str]:
     if isinstance(node, (ast.Continue, ast.Break)):
         return (type(node),)
     if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr, ast.If)):
-        side_effects = [child for child in _possible_external_effects(node, EverythingContainer())]
+        side_effects = [child for child in _possible_external_effects(node, _EverythingContainer())]
         if all(isinstance(child, ast.Name) for child in side_effects):
             stored_names = set(_definite_stored_names(node))
             if all(effect.id in stored_names for effect in side_effects):
@@ -159,7 +159,7 @@ def _hashable_node_purpose_type(node: ast.AST) -> Tuple[str]:
     raise NotImplementedError(f"Cannot determine hashable node type of node of type {type(node)}")
 
 
-def group_nodes_by_purpose(body: Sequence[ast.AST]) -> Iterable[Sequence[ast.AST]]:
+def _group_nodes_by_purpose(body: Sequence[ast.AST]) -> Iterable[Sequence[ast.AST]]:
     """Group nodes by common purpose
 
     Args:
@@ -415,7 +415,7 @@ def create_abstractions(content: str) -> str:
             import_linenos.append(node.lineno)
 
     for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
-        for nodes in group_nodes_by_purpose(node.body):
+        for nodes in _group_nodes_by_purpose(node.body):
             purposes = {_hashable_node_purpose_type(child) for child in nodes}
             assert len(purposes) == 1
             purpose = purposes.pop()

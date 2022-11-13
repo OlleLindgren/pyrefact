@@ -23,7 +23,7 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int:
+def _run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int:
     """Fix a file.
 
     Args:
@@ -130,7 +130,7 @@ def main(args: Sequence[str]) -> int:
         for name, variables in used_names.items():
             if name != _namespace_name(filename):
                 preserve.update(variables)
-        code = run_pyrefact(filename, preserve=frozenset(preserve))
+        code = _run_pyrefact(filename, preserve=frozenset(preserve))
         if code != 0:
             print(f"pyrefact failed for filename {filename}")
             return_code = max(return_code, code)

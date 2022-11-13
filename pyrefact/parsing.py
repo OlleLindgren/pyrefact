@@ -22,13 +22,13 @@ def is_valid_python(content: str) -> bool:
         return False
 
 
-def unpack_ast_target(target: ast.AST) -> Iterable[ast.Name]:
+def _unpack_ast_target(target: ast.AST) -> Iterable[ast.Name]:
     if isinstance(target, ast.Name):
         yield target
         return
     if isinstance(target, ast.Tuple):
         for subtarget in target.elts:
-            yield from unpack_ast_target(subtarget)
+            yield from _unpack_ast_target(subtarget)
 
 
 def iter_assignments(ast_tree: ast.Module) -> Iterable[ast.Name]:
@@ -42,10 +42,10 @@ def iter_assignments(ast_tree: ast.Module) -> Iterable[ast.Name]:
     """
     for node in ast_tree.body:
         if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
-            yield from unpack_ast_target(node.target)
+            yield from _unpack_ast_target(node.target)
         if isinstance(node, ast.Assign):
             for target in node.targets:
-                yield from unpack_ast_target(target)
+                yield from _unpack_ast_target(target)
 
 
 def iter_funcdefs(ast_tree: ast.Module) -> Iterable[ast.FunctionDef]:
@@ -448,7 +448,7 @@ def iter_bodies_recursive(
                 yield node
 
 
-def get_imports(ast_tree: ast.Module) -> Iterable[Union[ast.Import, ast.ImportFrom]]:
+def _get_imports(ast_tree: ast.Module) -> Iterable[Union[ast.Import, ast.ImportFrom]]:
     """Iterate over all import nodes in ast tree. __future__ imports are skipped.
 
     Args:
@@ -474,7 +474,7 @@ def get_imported_names(ast_tree: ast.Module) -> Collection[str]:
         Collection[str]: All imported names.
     """
     imports = set()
-    for node in get_imports(ast_tree):
+    for node in _get_imports(ast_tree):
         for alias in node.names:
             imports.add(alias.name if alias.asname is None else alias.asname)
 

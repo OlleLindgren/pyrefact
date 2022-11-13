@@ -69,10 +69,12 @@ if None:
     break
 else:
     f = 2 + x()
-""", """
+""",
+        """
 for i in []:
     raise ValueError()
-""", """
+""",
+        """
 for i in something:
     raise ValueError()
 """,

@@ -7,7 +7,7 @@ import sys
 from pyrefact import fixes
 
 
-def unit():
+def _unit():
     print(f"Running tests in {__file__}...")
     assert fixes._list_words("AbCDEFghi0K123___LM4Nopq_rstUvwxYz") == [
         "Ab",
@@ -52,7 +52,7 @@ def _remove_multi_whitespace(content: str) -> str:
     return re.sub("\n{2,}", "\n", f"\n{content}\n").strip()
 
 
-def integration() -> int:
+def _integration() -> int:
     test_cases = (
         (
             """
@@ -126,8 +126,8 @@ def main() -> None:
 
 
 def main():
-    unit()
-    return integration()
+    _unit()
+    return _integration()
 
 
 if __name__ == "__main__":
