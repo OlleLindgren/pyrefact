@@ -100,7 +100,7 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
         n_end = (refnode.end_lineno, refnode.end_col_offset)
         if end < n_start:
             yield refnode
-        elif isinstance(node, (ast.Module, ast.ClassDef)) and n_end < start:
+        elif isinstance(scope, (ast.Module, ast.ClassDef)) and n_end < start:
             yield refnode
 
 

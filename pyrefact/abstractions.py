@@ -85,6 +85,13 @@ def _possible_external_effects(node: ast.AST, safe_callables: Collection[str]) -
             and child not in comprehension_local_vars
         ):
             yield child
+        elif (
+            isinstance(child, ast.Subscript)
+            and isinstance(child.ctx, ast.Store)
+            and child not in comprehension_local_vars
+            and isinstance(child.value, ast.Name)
+        ):
+            yield child
         elif isinstance(child, (ast.Yield, ast.YieldFrom, ast.Continue, ast.Break, ast.Return)):
             yield child
         elif isinstance(child, ast.Call) and not (
@@ -138,13 +145,22 @@ def _definite_stored_names(node: ast.AST) -> Iterable[str]:
     for child in _definite_external_effects(node, _EverythingContainer()):
         if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
             yield child.id
+        elif (
+            isinstance(child, ast.Subscript)
+            and isinstance(child.ctx, ast.Store)
+            and isinstance(child.value, ast.Name)
+        ):
+            yield child.value.id
 
 
 def _hashable_node_purpose_type(node: ast.AST) -> Tuple[str]:
     if isinstance(node, (ast.Continue, ast.Break)):
         return (type(node),)
     if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr, ast.If)):
-        side_effects = [child for child in _possible_external_effects(node, _EverythingContainer())]
+        side_effects = [
+            child.value if isinstance(child, ast.Subscript) else child
+            for child in _possible_external_effects(node, _EverythingContainer())
+        ]
         if all(isinstance(child, ast.Name) for child in side_effects):
             stored_names = set(_definite_stored_names(node))
             if all(effect.id in stored_names for effect in side_effects):
@@ -219,7 +235,7 @@ def _build_function_body(
     """
     body = []
     for node in nodes:
-        if isinstance(node, return_injection_type):
+        if return_injection_type is not None and isinstance(node, return_injection_type):
             if return_injection_type == ast.Continue:
                 body.append(ast.Return(value=ast.Constant(value=False)))
             elif return_injection_type == ast.Break:
@@ -278,7 +294,10 @@ def _code_dependencies_outputs(
         children = []
         if isinstance(node, (ast.While, ast.For, ast.If)):
             temp_children = [node.test]
-            children = [node.body, node.orelse]
+            children = []
+            for subset in (node.body, node.orelse):
+                if not any(parsing.is_blocking(child) for child in subset):
+                    children.append(subset)
         elif isinstance(node, ast.With):
             temp_children = [node.items]
             children = [node.body]
@@ -416,9 +435,14 @@ def create_abstractions(content: str) -> str:
 
     for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
         for nodes in _group_nodes_by_purpose(node.body):
+            if len(nodes) > len(node.body) - 2:
+                continue
             purposes = {_hashable_node_purpose_type(child) for child in nodes}
             assert len(purposes) == 1
             purpose = purposes.pop()
+
+            if isinstance(nodes[0], (ast.Assign, ast.AnnAssign)) and len(nodes) == 1:
+                continue
 
             children_with_purpose = sum(
                 isinstance(grandchild, purpose[0])
@@ -439,6 +463,10 @@ def create_abstractions(content: str) -> str:
 
             abstraction_count += 1
             function_name = f"_pyrefact_abstraction_{abstraction_count}"
+            while function_name in global_names:
+                abstraction_count += 1
+                function_name = f"_pyrefact_abstraction_{abstraction_count}"
+
             args = sorted(required_names - global_names)
             call_args = [ast.Name(id=arg, ctx=ast.Load()) for arg in args]
             signature_args = ast.arguments(
@@ -486,7 +514,29 @@ def create_abstractions(content: str) -> str:
                 function_call = ast.Assign(
                     targets=assign_targets, value=call, lineno=nodes[0].lineno
                 )
-                function_body = _build_function_body(nodes, purpose[0])
+                ifs = []
+                for n in nodes:
+                    for c in ast.walk(n):
+                        if isinstance(c, ast.If):
+                            ifs.append(c)
+                pure_nested_if = len(nodes) == 1 and all(
+                    len(n.body) == len(n.orelse) == 1 for n in ifs
+                )
+                function_body = _build_function_body(
+                    nodes,
+                    purpose[0] if pure_nested_if else None,
+                )
+                if not pure_nested_if:
+                    ifs = []
+                    for c in ast.walk(nodes[0]):
+                        if isinstance(c, ast.If):
+                            ifs.append(c)
+                    if (
+                        not isinstance(nodes[0], (ast.Assign, ast.AnnAssign))
+                        and not all(len(n.body) == len(n.orelse) == 1 for n in ifs)
+                    ):
+                        continue
+                    function_body.append(ast.Return(value=return_targets))
                 returns = None
 
             else:

@@ -16,6 +16,7 @@ def main() -> int:
         (
             """
 for x in range(11):
+    print(x > 7)
     if x == 3:
         continue
     if x == 5:
@@ -38,6 +39,7 @@ def _pyrefact_abstraction_1(x) -> bool:
 
 
 for x in range(11):
+    print(x > 7)
     if not _pyrefact_abstraction_1(x):
         continue
     pass
@@ -49,6 +51,7 @@ for x in range(11):
         (
             """
 for x in range(11):
+    print(x > 7)
     if x == 3:
         break
     if x == 5:
@@ -71,6 +74,7 @@ def _pyrefact_abstraction_1(x) -> bool:
 
 
 for x in range(11):
+    print(x > 7)
     if _pyrefact_abstraction_1(x):
         break
     pass
@@ -114,6 +118,52 @@ for x in range(11):
     print(x, 1, 2)
     print(x, x, x)
     """,
+        ),
+        (
+            """
+for var in range(11):
+    print(22)
+    params = {"password": 11, "username": 22}
+
+    if var == 2:
+        params["x"] = True
+    elif var == 11 and s == 3:
+        params["y"] = var, s
+    else:
+        params["xxx"] = 3
+
+    if foo:
+        params["is_foo"] = True
+
+    response = requests.get(url, params)
+    assert response.status_code == 200, "got a non-200 response"
+        """,
+            """
+def _pyrefact_abstraction_1(foo, s, var):
+    params = {'password': 11, 'username': 22}
+
+    if var == 2:
+        params['x'] = True
+    elif var == 11 and s == 3:
+        params['y'] = (var, s)
+    else:
+        params['xxx'] = 3
+
+    if foo:
+        params['is_foo'] = True
+
+    return params
+
+
+for var in range(11):
+    print(22)
+
+    params = _pyrefact_abstraction_1(foo, s, var)
+    pass
+    pass
+    response = requests.get(url, params)
+    assert response.status_code == 200, "got a non-200 response"
+        """,
         ),
     )
 
