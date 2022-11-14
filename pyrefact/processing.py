@@ -22,11 +22,6 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
         start, end = parsing.get_charnos(node, content)
         print(f"Removing:\n{content[start:end]}")
         keep_mask[start:end] = [False] * (end - start)
-        for decorator_node in getattr(node, "decorator_list", []):
-            start, end = parsing.get_charnos(decorator_node, content)
-            start -= 1  # The @ is missed otherwise
-            print(f"Removing:\n{content[start:end]}")
-            keep_mask[start:end] = [False] * (end - start)
 
     passes = [len(content) + 1]
 
@@ -68,7 +63,7 @@ def replace_nodes(content: str, replacements: Mapping[ast.AST, ast.AST]) -> str:
             f"{indent * int(i > 0)}{code}"
             for i, code in enumerate(new_code.splitlines(keepends=True))
         )
-        print(f"Replacing {code}\nWith      {new_code}")
+        print(f"Replacing \n{code}\nWith      \n{new_code}")
         content = content[:start] + new_code + content[end:]
 
     return content

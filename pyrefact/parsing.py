@@ -1,6 +1,7 @@
 import ast
 import functools
 import itertools
+import re
 from typing import Collection, Iterable, Sequence, Tuple, Union
 
 from pyrefact import constants
@@ -302,8 +303,19 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
     """
     line_lengths = _get_line_lengths(content)
 
-    start_charno = sum(line_lengths[: node.lineno - 1]) + node.col_offset
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.decorator_list:
+        start = min(node.decorator_list, key=lambda n: (n.lineno, n.col_offset))
+    else:
+        start = node
+
+    start_charno = sum(line_lengths[: start.lineno - 1]) + start.col_offset
     end_charno = sum(line_lengths[: node.end_lineno - 1]) + node.end_col_offset
+
+    code = content[start_charno:end_charno]
+    if whitespace := re.findall(r"^ +", code):
+        start_charno += len(whitespace[0])
+    if whitespace := re.findall(r" +$", code):
+        end_charno -= len(whitespace[0])
 
     return start_charno, end_charno
 
