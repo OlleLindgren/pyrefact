@@ -1,5 +1,7 @@
 """Fixes related to improving classes and object-oriented code."""
 import ast
+import re
+from typing import Collection, Iterable
 
 from pyrefact import parsing, processing
 
@@ -21,11 +23,8 @@ def remove_unused_self_cls(content: str) -> str:
         class_non_instance_methods = {
             funcdef.name
             for funcdef in parsing.iter_funcdefs(classdef)
-            if any(
-                decorator.id in {"staticmethod", "classmethod"}
-                for decorator in funcdef.decorator_list
-                if isinstance(decorator, ast.Name)
-            )
+            if any(_decorators_of_type(funcdef, "staticmethod"))
+            or any(_decorators_of_type(funcdef, "classmethod"))
         }
         for funcdef in parsing.iter_funcdefs(classdef):
             arguments = funcdef.args.posonlyargs + funcdef.args.args
@@ -55,20 +54,15 @@ def remove_unused_self_cls(content: str) -> str:
             static_access_names = {
                 node.id for node in static_accesses if node.id not in instance_access_names
             }
-            decorators = {
-                decorator.id
-                for decorator in funcdef.decorator_list
-                if isinstance(decorator, ast.Name)
-            }
             delete_decorators = set()
             if first_arg_name in static_access_names:
                 # Add classmethod at the top
-                if "classmethod" in decorators:
+                if any(_decorators_of_type(funcdef, "classmethod")):
                     continue
                 decorator = "classmethod"
             else:
                 # Add staticmethod at the top, remove classmethod
-                if "staticmethod" in decorators:
+                if any(_decorators_of_type(funcdef, "staticmethod")):
                     continue
                 decorator = "staticmethod"
                 delete_decorators.add("classmethod")
@@ -102,5 +96,111 @@ def remove_unused_self_cls(content: str) -> str:
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
+
+    return content
+
+
+def _decorators_of_type(node: ast.FunctionDef, name: str) -> Iterable[ast.AST]:
+    for decorator in node.decorator_list:
+        if isinstance(decorator, ast.Name) and decorator.id == name:
+            yield decorator
+
+
+def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> str:
+    root = ast.parse(content)
+
+    attributes_to_preserve = set()
+    for name in preserve:
+        if "." in name:
+            *_, property_name = name.split(".")
+            attributes_to_preserve.add(property_name)
+
+    class_function_names = set()
+    class_attribute_accesses = set()
+    for classdef in parsing.iter_classdefs(root):
+        for funcdef in parsing.iter_funcdefs(classdef):
+            class_function_names.add((classdef.name, funcdef.name))
+
+    for node in ast.walk(root):
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            if (
+                node.value.id in {"self", "cls"}
+                or (node.value.id, node.attr) in class_function_names
+            ):
+                class_attribute_accesses.add(node)
+            else:
+                attributes_to_preserve.add(node.value.id)
+
+    static_names = {funcdef.name for funcdef in parsing.iter_funcdefs(root)} | preserve
+    name_replacements = {}
+
+    replacements = {}
+    for classdef in sorted(parsing.iter_classdefs(root), key=lambda cd: cd.lineno, reverse=True):
+
+        for funcdef in parsing.iter_funcdefs(classdef):
+            if funcdef.name in attributes_to_preserve or parsing.is_magic_method(funcdef):
+                continue
+            staticmethod_decorators = set(_decorators_of_type(funcdef, "staticmethod"))
+            if not staticmethod_decorators:
+                continue
+            new_name = funcdef.name
+            if not parsing.is_private(new_name):
+                new_name = f"_{new_name}"
+            if new_name in static_names:
+                new_name = re.sub("^_{2,}", "", f"_{classdef.name}{new_name}")
+            if new_name in static_names:
+                continue
+            name_replacements[(classdef.name, funcdef.name)] = new_name
+
+        moved_function_names = {fname: name for ((_, fname), name) in name_replacements.items()}
+        for node in class_attribute_accesses:
+            if (node.value.id == classdef.name and node.attr in moved_function_names) or (
+                classdef.lineno < node.lineno < classdef.end_lineno
+                and node.value.id in {"self", "cls"}
+                and node.attr in moved_function_names
+            ):
+                replacements[node] = ast.Name(
+                    id=moved_function_names[node.attr], ctx=node.ctx, lineno=node.lineno
+                )
+            else:
+                print(1)
+
+    if not name_replacements:
+        return content
+
+    if len(name_replacements) != len(set(name_replacements.values())):
+        return content
+
+    if replacements:
+        content = processing.replace_nodes(content, replacements)
+        root = ast.parse(content)
+
+    for classdef in sorted(parsing.iter_classdefs(root), key=lambda cd: cd.lineno, reverse=True):
+        delete = []
+        additions = []
+
+        for funcdef in parsing.iter_funcdefs(classdef):
+            new_name = name_replacements.get((classdef.name, funcdef.name))
+            if new_name is None:
+                continue
+            staticmethod_decorators = set(_decorators_of_type(funcdef, "staticmethod"))
+            static_names.add(new_name)
+            delete.append(funcdef)
+            additions.append(
+                ast.FunctionDef(
+                    name=new_name,
+                    args=funcdef.args,
+                    body=funcdef.body,
+                    decorator_list=[
+                        dec for dec in funcdef.decorator_list if dec not in staticmethod_decorators
+                    ],
+                    returns=funcdef.returns,
+                    lineno=classdef.lineno - 1,
+                )
+            )
+
+        if delete or additions:
+            content = processing.remove_nodes(content, delete, root)
+            content = processing.insert_nodes(content, reversed(additions))
 
     return content

@@ -29,19 +29,15 @@ def _get_undefined_variables(content: str) -> Collection[str]:
     return referenced_names - defined_names - imported_names - constants.BUILTIN_FUNCTIONS
 
 
-def _is_private(variable: str) -> bool:
-    return variable.startswith("_")
-
-
 def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
     if variable == "_":
         return variable
 
     renamed_variable = _make_snakecase(variable, uppercase=static)
 
-    if private and not _is_private(renamed_variable):
+    if private and not parsing.is_private(renamed_variable):
         renamed_variable = f"_{renamed_variable}"
-    if not private and _is_private(renamed_variable):
+    if not private and parsing.is_private(renamed_variable):
         renamed_variable = renamed_variable.lstrip("_")
 
     if renamed_variable:
@@ -73,9 +69,9 @@ def _rename_class(name: str, *, private: bool) -> str:
 
     name = _make_camelcase(name)
 
-    if private and not _is_private(name):
+    if private and not parsing.is_private(name):
         return f"_{name}"
-    if not private and _is_private(name):
+    if not private and parsing.is_private(name):
         return name[1:]
 
     return name
@@ -116,7 +112,7 @@ def _get_variable_name_substitutions(
     funcdefs: List[ast.FunctionDef] = []
     for node in parsing.iter_classdefs(ast_tree):
         name = node.name
-        substitute = _rename_class(name, private=_is_private(name) or name not in preserve)
+        substitute = _rename_class(name, private=parsing.is_private(name) or name not in preserve)
         classdefs.append(node)
         renamings[node].add(substitute)
         for refnode in _get_uses_of(node, ast_tree, content):
@@ -134,7 +130,7 @@ def _get_variable_name_substitutions(
     for node in parsing.iter_funcdefs(ast_tree):
         name = node.name
         substitute = _rename_variable(
-            name, private=_is_private(name) or name not in preserve, static=False
+            name, private=parsing.is_private(name) or name not in preserve, static=False
         )
         funcdefs.append(node)
         renamings[node].add(substitute)
@@ -143,9 +139,9 @@ def _get_variable_name_substitutions(
 
     for node in parsing.iter_assignments(ast_tree):
         if node in typevars:
-            substitute = _rename_class(node.id, private=_is_private(node.id))
+            substitute = _rename_class(node.id, private=parsing.is_private(node.id))
         else:
-            substitute = _rename_variable(node.id, private=_is_private(node.id), static=True)
+            substitute = _rename_variable(node.id, private=parsing.is_private(node.id), static=True)
         renamings[node].add(substitute)
         for refnode in _get_uses_of(node, ast_tree, content):
             renamings[refnode].add(substitute)
@@ -156,22 +152,22 @@ def _get_variable_name_substitutions(
             for node in parsing.iter_classdefs(partial_tree):
                 name = node.name
                 classdefs.append(node)
-                substitute = _rename_class(name, private=_is_private(name))
+                substitute = _rename_class(name, private=parsing.is_private(name))
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, content):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
-                if _is_magic_method(node):
+                if parsing.is_magic_method(node):
                     continue
                 name = node.name
                 funcdefs.append(node)
-                substitute = _rename_variable(name, private=_is_private(name), static=False)
+                substitute = _rename_variable(name, private=parsing.is_private(name), static=False)
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, content):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
-                substitute = _rename_variable(name, private=_is_private(name), static=False)
+                substitute = _rename_variable(name, private=parsing.is_private(name), static=False)
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, content):
                     renamings[refnode].add(substitute)
@@ -676,22 +672,6 @@ def delete_pointless_statements(content: str) -> str:
     return content
 
 
-def _is_magic_method(node: ast.AST) -> bool:
-    """Determine if a node is a magic method function definition, like __init__ for example.
-
-    Args:
-        node (ast.AST): AST to check.
-
-    Returns:
-        bool: True if it is a magic method function definition.
-    """
-    return (
-        isinstance(node, ast.FunctionDef)
-        and node.name.startswith("__")
-        and node.name.endswith("__")
-    )
-
-
 def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> Iterable[ast.AST]:
     funcdefs = []
     classdefs = []
@@ -708,7 +688,7 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
     constructors = collections.defaultdict(set)
     for node in classdefs:
         for child in node.body:
-            if _is_magic_method(child):
+            if parsing.is_magic_method(child):
                 constructors[node].add(child)
 
     constructor_classes = {}
@@ -1178,108 +1158,6 @@ def singleton_eq_comparison(content: str) -> str:
                     ops=operators,
                     comparators=node.comparators,
                 )
-
-    if replacements:
-        content = processing.replace_nodes(content, replacements)
-
-    return content
-
-
-def remove_unused_self_cls(content: str) -> str:
-    """Remove unused self and cls arguments from classes.
-
-    Args:
-        content (str): Python source code
-
-    Returns:
-        str: Python source code without any unused self or cls arguments.
-    """
-    root = ast.parse(content)
-
-    replacements = {}
-
-    for classdef in parsing.iter_classdefs(root):
-        class_non_instance_methods = {
-            funcdef.name
-            for funcdef in parsing.iter_funcdefs(classdef)
-            if any(
-                decorator.id in {"staticmethod", "classmethod"}
-                for decorator in funcdef.decorator_list
-                if isinstance(decorator, ast.Name)
-            )
-        }
-        for funcdef in parsing.iter_funcdefs(classdef):
-            arguments = funcdef.args.posonlyargs + funcdef.args.args
-            if not arguments:
-                continue
-            first_arg_name = arguments[0].arg
-
-            first_arg_accesses = set()
-            static_accesses = set()
-            for node in funcdef.body:
-                for child in ast.walk(node):
-                    if isinstance(child, ast.Name) and child.id == first_arg_name:
-                        first_arg_accesses.add(child)
-                    elif isinstance(child, ast.Call):
-                        func = child.func
-                        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-                            if (
-                                func.value.id == first_arg_name
-                                and func.attr in class_non_instance_methods
-                            ):
-                                static_accesses.add(func.value)
-
-            instance_access_names = {node.id for node in first_arg_accesses - static_accesses}
-            if first_arg_name in instance_access_names:
-                # Should be non-static and non-classmethod
-                continue
-            static_access_names = {
-                node.id for node in static_accesses if node.id not in instance_access_names
-            }
-            decorators = {
-                decorator.id
-                for decorator in funcdef.decorator_list
-                if isinstance(decorator, ast.Name)
-            }
-            delete_decorators = set()
-            if first_arg_name in static_access_names:
-                # Add classmethod at the top
-                if "classmethod" in decorators:
-                    continue
-                decorator = "classmethod"
-            else:
-                # Add staticmethod at the top, remove classmethod
-                if "staticmethod" in decorators:
-                    continue
-                decorator = "staticmethod"
-                delete_decorators.add("classmethod")
-            funcdef.lineno = min(x.lineno for x in ast.walk(funcdef) if hasattr(x, "lineno"))
-            funcdef.decorator_list = [
-                dec
-                for dec in funcdef.decorator_list
-                if not (isinstance(dec, ast.Name) and dec.id in delete_decorators)
-            ]
-            funcdef.decorator_list.insert(
-                0,
-                ast.Name(
-                    id=decorator,
-                    ctx=ast.Load(),
-                    lineno=funcdef.lineno - 1,
-                    col_offset=funcdef.col_offset,
-                ),
-            )
-            args = funcdef.args.posonlyargs or funcdef.args.args
-            del args[0]
-            if decorator == "classmethod":
-                args.insert(0, ast.arg(arg="cls", annotation=None))
-
-            if decorator == "classmethod":
-                for node in funcdef.body:
-                    for child in ast.walk(node):
-                        if isinstance(child, ast.Name) and child.id == first_arg_name:
-                            child.id = "cls"
-
-            replacements[funcdef] = funcdef
 
     if replacements:
         content = processing.replace_nodes(content, replacements)

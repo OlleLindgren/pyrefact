@@ -51,6 +51,7 @@ def _run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> in
 
     if constants.PYTHON_VERSION >= (3, 9):
         content = object_oriented.remove_unused_self_cls(content)
+        content = object_oriented.move_staticmethod_static_scope(content, preserve=preserve)
         content = fixes.singleton_eq_comparison(content)
         content = fixes.replace_with_sets(content)
         content = fixes.remove_redundant_chained_calls(content)

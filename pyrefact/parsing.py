@@ -23,6 +23,26 @@ def is_valid_python(content: str) -> bool:
         return False
 
 
+def is_private(variable: str) -> bool:
+    return variable.startswith("_")
+
+
+def is_magic_method(node: ast.AST) -> bool:
+    """Determine if a node is a magic method function definition, like __init__ for example.
+
+    Args:
+        node (ast.AST): AST to check.
+
+    Returns:
+        bool: True if it is a magic method function definition.
+    """
+    return (
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("__")
+        and node.name.endswith("__")
+    )
+
+
 def _unpack_ast_target(target: ast.AST) -> Iterable[ast.Name]:
     if isinstance(target, ast.Name):
         yield target
@@ -319,6 +339,8 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
         start_charno += len(whitespace[0])
     if whitespace := re.findall(r" +$", code):
         end_charno -= len(whitespace[0])
+    if content[start_charno - 1] == "@":
+        start_charno -= 1
 
     return start_charno, end_charno
 

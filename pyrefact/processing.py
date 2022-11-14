@@ -82,10 +82,12 @@ def insert_nodes(content: str, additions: Collection[ast.AST]) -> str:
     lines = content.splitlines(keepends=True)
 
     for node in sorted(additions, key=lambda n: n.lineno, reverse=True):
+        addition = ast.unparse(node)
+        print(f"Adding:\n{addition}")
         lines = (
             lines[: node.lineno]
             + ["\n"] * 3
-            + ast.unparse(node).splitlines(keepends=True)
+            + addition.splitlines(keepends=True)
             + ["\n"] * 3
             + lines[node.lineno :]
         )
