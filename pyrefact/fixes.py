@@ -1184,6 +1184,7 @@ def singleton_eq_comparison(content: str) -> str:
 
     return content
 
+
 def remove_unused_self_cls(content: str) -> str:
     """Remove unused self and cls arguments from classes.
 
@@ -1222,15 +1223,24 @@ def remove_unused_self_cls(content: str) -> str:
                     elif isinstance(child, ast.Call):
                         func = child.func
                         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-                            if func.value.id == first_arg_name and func.attr in class_non_instance_methods:
+                            if (
+                                func.value.id == first_arg_name
+                                and func.attr in class_non_instance_methods
+                            ):
                                 static_accesses.add(func.value)
 
             instance_access_names = {node.id for node in first_arg_accesses - static_accesses}
             if first_arg_name in instance_access_names:
                 # Should be non-static and non-classmethod
                 continue
-            static_access_names = {node.id for node in static_accesses if node.id not in instance_access_names}
-            decorators = {decorator.id for decorator in funcdef.decorator_list if isinstance(decorator, ast.Name)}
+            static_access_names = {
+                node.id for node in static_accesses if node.id not in instance_access_names
+            }
+            decorators = {
+                decorator.id
+                for decorator in funcdef.decorator_list
+                if isinstance(decorator, ast.Name)
+            }
             delete_decorators = set()
             if first_arg_name in static_access_names:
                 # Add classmethod at the top
@@ -1254,9 +1264,9 @@ def remove_unused_self_cls(content: str) -> str:
                 ast.Name(
                     id=decorator,
                     ctx=ast.Load(),
-                    lineno=funcdef.lineno-1,
+                    lineno=funcdef.lineno - 1,
                     col_offset=funcdef.col_offset,
-                )
+                ),
             )
             args = funcdef.args.posonlyargs or funcdef.args.args
             del args[0]

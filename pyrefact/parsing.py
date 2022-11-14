@@ -303,7 +303,10 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
     """
     line_lengths = _get_line_lengths(content)
 
-    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.decorator_list:
+    if (
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        and node.decorator_list
+    ):
         start = min(node.decorator_list, key=lambda n: (n.lineno, n.col_offset))
     else:
         start = node
