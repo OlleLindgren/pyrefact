@@ -24,6 +24,7 @@ It is strongly recommended that you version control or otherwise backup any code
 * Remove redundant elif and else.
 * Use is for comparisons to None, True and False instead of ==.
 * Remove unused `self` and `cls` function arguments, and add `@staticmethod` or `@classmethod`.
+* Move functions decorated with `@staticmethod` outside of their class namespaces.
 * More to come!
 
 ## Usage
