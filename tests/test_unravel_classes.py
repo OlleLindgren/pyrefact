@@ -4,7 +4,7 @@ import itertools
 import re
 import sys
 
-from pyrefact import fixes
+from pyrefact import object_oriented
 
 
 def _remove_multi_whitespace(content: str) -> str:
@@ -85,7 +85,7 @@ class Foo:
 
     for content, expected_abstraction in test_cases:
 
-        processed_content = fixes.remove_unused_self_cls(content)
+        processed_content = object_oriented.remove_unused_self_cls(content)
 
         processed_content = _remove_multi_whitespace(processed_content)
         expected_abstraction = _remove_multi_whitespace(expected_abstraction)
