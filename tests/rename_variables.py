@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Test rename variables logic"""
-import itertools
-import re
+
+
 import sys
+from pathlib import Path
 
 from pyrefact import fixes
-
-from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
 import testing_infra

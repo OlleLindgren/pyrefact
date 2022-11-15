@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 
-import itertools
-import re
+
 import sys
+from pathlib import Path
 
 from pyrefact import object_oriented
 
-from pathlib import Path
-
 sys.path.append(str(Path(__file__).parent))
 import testing_infra
+
 
 def _test_remove_unused_self_cls() -> int:
     test_cases = (

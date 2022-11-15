@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 
-import itertools
-import re
+
 import sys
+from pathlib import Path
 
 from pyrefact import abstractions
-
-
-from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
 import testing_infra
@@ -176,6 +173,7 @@ for var in range(11):
             return 1
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
