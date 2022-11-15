@@ -265,7 +265,11 @@ def has_side_effect(
 
     if isinstance(node, ast.Call):
         return (
-            has_side_effect(node.func, safe_callable_whitelist)
+            not all(
+                child.id in safe_callable_whitelist
+                for child in ast.walk(node.func)
+                if isinstance(child, ast.Name)
+            )
             or not all(
                 child.id in safe_callable_whitelist or child.id == "_"
                 for child in ast.walk(node.func)

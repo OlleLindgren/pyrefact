@@ -531,9 +531,8 @@ def create_abstractions(content: str) -> str:
                     for c in ast.walk(nodes[0]):
                         if isinstance(c, ast.If):
                             ifs.append(c)
-                    if (
-                        not isinstance(nodes[0], (ast.Assign, ast.AnnAssign))
-                        and not all(len(n.body) == len(n.orelse) == 1 for n in ifs)
+                    if not isinstance(nodes[0], (ast.Assign, ast.AnnAssign)) and not all(
+                        len(n.body) == len(n.orelse) == 1 for n in ifs
                     ):
                         continue
                     function_body.append(ast.Return(value=return_targets))

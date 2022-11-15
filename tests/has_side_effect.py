@@ -75,6 +75,7 @@ def main() -> int:
         """for i in range(10):
     1
 """,
+        "mysterious_function()",
     ):
         node = ast.parse(source).body[0]
         if not has_side_effect(node, whitelist):
