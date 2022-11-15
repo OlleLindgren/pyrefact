@@ -6,25 +6,10 @@ import sys
 
 from pyrefact import object_oriented
 
+from pathlib import Path
 
-def _remove_multi_whitespace(content: str) -> str:
-    return re.sub("\n{2,}", "\n", f"\n{content}\n").strip()
-
-
-def _check_fixes(processed_content: str, expected_abstraction: str) -> int:
-    processed_content = _remove_multi_whitespace(processed_content)
-    expected_abstraction = _remove_multi_whitespace(expected_abstraction)
-
-    if processed_content != expected_abstraction:
-        for i, (expected, got) in enumerate(
-            itertools.zip_longest(expected_abstraction.splitlines(), processed_content.splitlines())
-        ):
-            if expected != got:
-                print(f"Line {i+1}, expected/got:\n{expected}\n{got}")
-                return 1
-
-    return 0
-
+sys.path.append(str(Path(__file__).parent))
+import testing_infra
 
 def _test_remove_unused_self_cls() -> int:
     test_cases = (
@@ -100,9 +85,8 @@ class Foo:
 
     for content, expected_abstraction in test_cases:
         processed_content = object_oriented.remove_unused_self_cls(content)
-        returncode = _check_fixes(processed_content, expected_abstraction)
-        if returncode:
-            return returncode
+        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
+            return 1
 
     return 0
 
@@ -162,9 +146,8 @@ class Foo:
 
     for content, expected_abstraction in test_cases:
         processed_content = object_oriented.move_staticmethod_static_scope(content, preserve=set())
-        returncode = _check_fixes(processed_content, expected_abstraction)
-        if returncode != 0:
-            return returncode
+        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
+            return 1
 
     return 0
 

@@ -7,8 +7,10 @@ import sys
 from pyrefact import abstractions
 
 
-def _remove_multi_whitespace(content: str) -> str:
-    return re.sub("\n{2,}", "\n", f"\n{content}\n").strip()
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent))
+import testing_infra
 
 
 def main() -> int:
@@ -170,20 +172,10 @@ for var in range(11):
     for content, expected_abstraction in test_cases:
 
         processed_content = abstractions.create_abstractions(content)
+        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
+            return 1
 
-        processed_content = _remove_multi_whitespace(processed_content)
-        expected_abstraction = _remove_multi_whitespace(expected_abstraction)
-
-        if processed_content != expected_abstraction:
-            for i, (expected, got) in enumerate(
-                itertools.zip_longest(
-                    expected_abstraction.splitlines(), processed_content.splitlines()
-                )
-            ):
-                if expected != got:
-                    print(f"Line {i+1}, expected/got:\n{expected}\n{got}")
-                    return 1
-
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

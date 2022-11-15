@@ -6,6 +6,11 @@ import sys
 
 from pyrefact import fixes
 
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent))
+import testing_infra
+
 
 def _unit():
     print(f"Running tests in {__file__}...")
@@ -46,10 +51,6 @@ def _unit():
     assert fixes._rename_variable("__var_Name__", private=False, static=True) == "VAR_NAME"
     assert fixes._rename_variable("__var_Name__", private=True, static=False) == "_var_name"
     assert fixes._rename_variable("__var_Name__", private=True, static=True) == "_VAR_NAME"
-
-
-def _remove_multi_whitespace(content: str) -> str:
-    return re.sub("\n{2,}", "\n", f"\n{content}\n").strip()
 
 
 def _integration() -> int:
@@ -108,19 +109,8 @@ def main() -> None:
     for content, expected_abstraction in test_cases:
 
         processed_content = fixes.align_variable_names_with_convention(content, set())
-
-        processed_content = _remove_multi_whitespace(processed_content)
-        expected_abstraction = _remove_multi_whitespace(expected_abstraction)
-
-        if processed_content != expected_abstraction:
-            for i, (expected, got) in enumerate(
-                itertools.zip_longest(
-                    expected_abstraction.splitlines(), processed_content.splitlines()
-                )
-            ):
-                if expected != got:
-                    print(f"Line {i+1}, expected/got:\n{expected}\n{got}")
-                    return 1
+        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
+            return 1
 
     return 0
 

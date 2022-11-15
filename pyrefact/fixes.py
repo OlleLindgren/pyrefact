@@ -998,8 +998,22 @@ def move_imports_to_toplevel(content: str) -> str:
         if isinstance(node, ast.Import):
             new_node = ast.Import(names=node.names, lineno=lineno)
         else:
+            if node.module in constants.PYTHON_311_STDLIB:
+                safe_position_lineno = lineno
+            else:
+                module_import_linenos = [
+                    candidate.lineno
+                    for candidate in toplevel_imports
+                    if node.module in _get_package_names(candidate)
+                ]
+                if not module_import_linenos:
+                    continue
+                safe_position_lineno = min(module_import_linenos)
             new_node = ast.ImportFrom(
-                module=node.module, names=node.names, level=node.level, lineno=lineno
+                module=node.module,
+                names=node.names,
+                level=node.level,
+                lineno=safe_position_lineno,
             )
         additions.append(new_node)
 
