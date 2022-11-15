@@ -556,7 +556,14 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
                     nonreturn_children.append(child)
                 else:
                     break
-            if not any(has_side_effect(child, safe_callables) for child in nonreturn_children):
+            return_children = []
+            for child in ast.walk(node):
+                if isinstance(child, ast.Return):
+                    return_children.append(child.value)
+            if not any(
+                has_side_effect(child, safe_callables)
+                for child in itertools.chain(nonreturn_children, return_children)
+            ):
                 safe_callable_nodes.add(node)
                 safe_callables.add(node.name)
                 changes = True
