@@ -15,7 +15,7 @@ def remove_unused_self_cls(content: str) -> str:
     Returns:
         str: Python source code without any unused self or cls arguments.
     """
-    root = ast.parse(content)
+    root = parsing.parse(content)
 
     replacements = {}
 
@@ -107,7 +107,7 @@ def _decorators_of_type(node: ast.FunctionDef, name: str) -> Iterable[ast.AST]:
 
 
 def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> str:
-    root = ast.parse(content)
+    root = parsing.parse(content)
 
     attributes_to_preserve = set()
     for name in preserve:
@@ -121,8 +121,8 @@ def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> s
         for funcdef in parsing.iter_funcdefs(classdef):
             class_function_names.add((classdef.name, funcdef.name))
 
-    for node in ast.walk(root):
-        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+    for node in parsing.walk(root, ast.Attribute):
+        if isinstance(node.value, ast.Name):
             if (
                 node.value.id in {"self", "cls"}
                 or (node.value.id, node.attr) in class_function_names
@@ -171,7 +171,7 @@ def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> s
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
-        root = ast.parse(content)
+        root = parsing.parse(content)
 
     for classdef in sorted(parsing.iter_classdefs(root), key=lambda cd: cd.lineno, reverse=True):
         delete = []

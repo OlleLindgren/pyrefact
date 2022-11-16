@@ -114,9 +114,9 @@ def main(args: Sequence[str]) -> int:
     for filename in _iter_python_files(args.preserve):
         with open(filename, "r", encoding="utf-8") as stream:
             content = stream.read()
-        ast_root = ast.parse(content)
+        ast_root = parsing.parse(content)
         imported_names = parsing.get_imported_names(ast_root)
-        for node in ast.walk(ast_root):
+        for node in parsing.walk(ast_root, (ast.Name, ast.Attribute)):
             if isinstance(node, ast.Name) and node.id in imported_names:
                 used_names[_namespace_name(filename)].add(node.id)
             elif (

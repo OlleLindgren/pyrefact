@@ -15,16 +15,15 @@ _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\
 
 
 def _get_undefined_variables(content: str) -> Collection[str]:
-    root = ast.parse(content)
+    root = parsing.parse(content)
     imported_names = parsing.get_imported_names(root)
     defined_names = set()
     referenced_names = set()
-    for node in ast.walk(root):
-        if isinstance(node, ast.Name):
-            if isinstance(node.ctx, ast.Load):
-                referenced_names.add(node.id)
-            elif isinstance(node.ctx, ast.Store):
-                defined_names.add(node.id)
+    for node in parsing.walk(root, ast.Name):
+        if isinstance(node.ctx, ast.Load):
+            referenced_names.add(node.id)
+        elif isinstance(node.ctx, ast.Store):
+            defined_names.add(node.id)
 
     return referenced_names - defined_names - imported_names - constants.BUILTIN_FUNCTIONS
 
@@ -79,13 +78,6 @@ def _rename_class(name: str, *, private: bool) -> str:
 
 def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Name]:
     name = node.id if isinstance(node, ast.Name) else node.name
-    reference_nodes = {
-        refnode
-        for refnode in ast.walk(scope)
-        if isinstance(refnode, ast.Name)
-        and isinstance(refnode.ctx, ast.Load)
-        and refnode.id == name
-    }
     if isinstance(node, ast.Name):
         start = (node.lineno, node.col_offset)
         end = (node.end_lineno, node.end_col_offset)
@@ -95,13 +87,15 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
         end = (node.lineno, end_charno)
     else:
         raise NotImplementedError(f"Unknown type: {type(node)}")
-    for refnode in reference_nodes:
-        n_start = (refnode.lineno, refnode.col_offset)
-        n_end = (refnode.end_lineno, refnode.end_col_offset)
-        if end < n_start:
-            yield refnode
-        elif isinstance(scope, (ast.Module, ast.ClassDef)) and n_end < start:
-            yield refnode
+    is_maybe_unordered_scope = isinstance(scope, (ast.Module, ast.ClassDef, ast.While, ast.For))
+    for refnode in parsing.walk(scope, ast.Name):
+        if isinstance(refnode.ctx, ast.Load) and refnode.id == name:
+            n_start = (refnode.lineno, refnode.col_offset)
+            n_end = (refnode.end_lineno, refnode.end_col_offset)
+            if end < n_start:
+                yield refnode
+            elif is_maybe_unordered_scope and n_end < start:
+                yield refnode
 
 
 def _get_variable_name_substitutions(
@@ -221,7 +215,7 @@ def _fix_variable_names(
     preserve: Collection[str] = frozenset(),
 ) -> str:
     replacements = []
-    ast_tree = ast.parse(content)
+    ast_tree = parsing.parse(content)
     blacklisted_names = parsing.get_imported_names(ast_tree) | constants.BUILTIN_FUNCTIONS
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
@@ -328,22 +322,17 @@ def _get_unused_imports(ast_tree: ast.Module) -> Collection[str]:
     """
     imports = parsing.get_imported_names(ast_tree)
 
-    names = {
-        node.id
-        for node in ast.walk(ast_tree)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-    }
-    for node in ast.walk(ast_tree):
-        if isinstance(node, ast.Attribute):
-            try:
-                full_name = _recursive_attribute_name(node)
-            except AttributeError:
-                continue
+    names = {node.id for node in parsing.walk(ast_tree, ast.Name) if isinstance(node.ctx, ast.Load)}
+    for node in parsing.walk(ast_tree, ast.Attribute):
+        try:
+            full_name = _recursive_attribute_name(node)
+        except AttributeError:
+            continue
 
+        names.add(full_name)
+        while "." in full_name:
+            full_name = re.sub(r"\.[^\.]*$", "", full_name)
             names.add(full_name)
-            while "." in full_name:
-                full_name = re.sub(r"\.[^\.]*$", "", full_name)
-                names.add(full_name)
 
     return imports - names
 
@@ -364,12 +353,11 @@ def _get_unused_imports_split(
         Tuple: completely_unused_imports, partially_unused_imports
     """
     import_unused_aliases = collections.defaultdict(set)
-    for node in ast.walk(ast_tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            for alias in node.names:
-                used_name = alias.name if alias.asname is None else alias.asname
-                if used_name in unused_imports:
-                    import_unused_aliases[node].add(alias)
+    for node in parsing.walk(ast_tree, (ast.Import, ast.ImportFrom)):
+        for alias in node.names:
+            used_name = alias.name if alias.asname is None else alias.asname
+            if used_name in unused_imports:
+                import_unused_aliases[node].add(alias)
 
     partially_unused_imports = set()
     completely_unused_imports = set()
@@ -410,7 +398,7 @@ def _remove_unused_imports(
         content = processing.remove_nodes(content, completely_unused_imports, ast_tree)
         if not partially_unused_imports:
             return content
-        ast_tree = ast.parse(content)
+        ast_tree = parsing.parse(content)
         completely_unused_imports, partially_unused_imports = _get_unused_imports_split(
             ast_tree, unused_imports
         )
@@ -445,7 +433,7 @@ def remove_unused_imports(content: str) -> str:
     Returns:
         str: Source code, with added imports removed
     """
-    ast_tree = ast.parse(content)
+    ast_tree = parsing.parse(content)
     unused_imports = _get_unused_imports(ast_tree)
     if unused_imports:
         content = _remove_unused_imports(ast_tree, content, unused_imports)
@@ -509,7 +497,7 @@ def align_variable_names_with_convention(
     Returns:
         str: Source code, where all variable names comply with normal convention
     """
-    ast_tree = ast.parse(content)
+    ast_tree = parsing.parse(content)
     renamings = _get_variable_name_substitutions(ast_tree, content, preserve)
 
     if renamings:
@@ -546,21 +534,18 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
     Returns:
         str: Python source code, with no definitions of unused variables
     """
-    ast_tree = ast.parse(content)
+    ast_tree = parsing.parse(content)
     renamings = collections.defaultdict(set)
     imports = set()
-    for node in ast.walk(ast_tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            imports.update(alias.name for alias in node.names)
+    for node in parsing.walk(ast_tree, (ast.Import, ast.ImportFrom)):
+        imports.update(alias.name for alias in node.names)
 
     for def_node in itertools.chain(
         [ast_tree],
         parsing.iter_funcdefs(ast_tree),
     ):
         reference_nodes = {
-            node
-            for node in ast.walk(def_node)
-            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+            node for node in parsing.walk(def_node, ast.Name) if isinstance(node.ctx, ast.Load)
         }
         body = queue.PriorityQueue()
         for node in def_node.body:
@@ -613,18 +598,17 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
 
     if renamings:
         content = _fix_variable_names(content, renamings, preserve)
-        ast_tree = ast.parse(content)
+        ast_tree = parsing.parse(content)
 
-    for node in ast.walk(ast_tree):
-        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
-            target_nodes = _unique_assignment_targets(node)
-            target_names = {x.id for x in target_nodes}
-            if target_names == {"_"}:
-                code = parsing.get_code(node, content)
-                changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
-                if code != changed_code:
-                    print(f"Removing redundant assignments in {code}")
-                    content = content.replace(code, changed_code)
+    for node in parsing.walk(ast_tree, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+        target_nodes = _unique_assignment_targets(node)
+        target_names = {x.id for x in target_nodes}
+        if target_names == {"_"}:
+            code = parsing.get_code(node, content)
+            changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
+            if code != changed_code:
+                print(f"Removing redundant assignments in {code}")
+                content = content.replace(code, changed_code)
 
     return content
 
@@ -656,7 +640,7 @@ def delete_pointless_statements(content: str) -> str:
     Returns:
         str: Modified code
     """
-    ast_tree = ast.parse(content)
+    ast_tree = parsing.parse(content)
     delete = []
     safe_callables = parsing.safe_callable_names(ast_tree)
     for node in itertools.chain([ast_tree], parsing.iter_bodies_recursive(ast_tree)):
@@ -677,12 +661,14 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
     classdefs = []
     name_usages = collections.defaultdict(set)
 
-    for node in ast.walk(root):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name not in preserve:
+    for node in parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if node.name not in preserve:
             funcdefs.append(node)
-        elif isinstance(node, ast.ClassDef) and node.name not in preserve:
+    for node in parsing.walk(root, ast.ClassDef):
+        if node.name not in preserve:
             classdefs.append(node)
-        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+    for node in parsing.walk(root, ast.Name):
+        if isinstance(node.ctx, ast.Load):
             name_usages[node.id].add(node)
 
     constructors = collections.defaultdict(set)
@@ -747,7 +733,7 @@ def delete_unused_functions_and_classes(
     Returns:
         str: Python source code, where unused functions and classes have been deleted.
     """
-    root = ast.parse(content)
+    root = parsing.parse(content)
 
     delete = set(_get_unused_functions_classes(root, preserve))
 
@@ -767,21 +753,20 @@ def delete_unreachable_code(content: str) -> str:
     Returns:
         str: Source code with dead code deleted
     """
-    root = ast.parse(content)
+    root = parsing.parse(content)
 
     replacements = {}
-    for node in ast.walk(root):
-        if isinstance(node, ast.IfExp):
-            try:
-                test_value = parsing.literal_value(node.test)
-            except ValueError:
-                pass
-            else:
-                replacements[node] = node.body if test_value else node.orelse
+    for node in parsing.walk(root, ast.IfExp):
+        try:
+            test_value = parsing.literal_value(node.test)
+        except ValueError:
+            pass
+        else:
+            replacements[node] = node.body if test_value else node.orelse
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
-        root = ast.parse(content)
+        root = parsing.parse(content)
 
     delete = set()
     for node in parsing.iter_bodies_recursive(root):
@@ -805,7 +790,7 @@ def delete_unreachable_code(content: str) -> str:
 
     if delete:
         print("Removing unreachable code")
-    content = processing.remove_nodes(content, delete, root)
+        content = processing.remove_nodes(content, delete, root)
 
     return content
 
@@ -818,13 +803,11 @@ def _get_package_names(node: Union[ast.Import, ast.ImportFrom]):
 
 
 def move_imports_to_toplevel(content: str) -> str:
-    root = ast.parse(content)
+    root = parsing.parse(content)
     toplevel_imports = {
         node for node in root.body if isinstance(node, (ast.Import, ast.ImportFrom))
     }
-    all_imports = {
-        node for node in ast.walk(root) if isinstance(node, (ast.Import, ast.ImportFrom))
-    }
+    all_imports = {node for node in parsing.walk(root, (ast.Import, ast.ImportFrom))}
     toplevel_packages = set()
     for node in toplevel_imports:
         toplevel_packages.update(_get_package_names(node))
@@ -919,7 +902,7 @@ def remove_duplicate_functions(content: str, preserve: Collection[str]) -> str:
     Returns:
         str: Modified code
     """
-    root = ast.parse(content)
+    root = parsing.parse(content)
     function_defs = collections.defaultdict(set)
 
     for node in root.body:
@@ -949,9 +932,8 @@ def remove_duplicate_functions(content: str, preserve: Collection[str]) -> str:
         return content
 
     names = collections.defaultdict(list)
-    for node in ast.walk(root):
-        if isinstance(node, ast.Name):
-            names[node.id].append(node)
+    for node in parsing.walk(root, ast.Name):
+        names[node.id].append(node)
 
     node_renamings = collections.defaultdict(set)
     for name, substitute in renamings.items():
@@ -978,10 +960,8 @@ def remove_redundant_else(content: str) -> str:
     changes = True
     while changes:
         changes = False
-        root = ast.parse(content)
-        for node in ast.walk(root):
-            if not isinstance(node, ast.If):
-                continue
+        root = parsing.parse(content)
+        for node in parsing.walk(root, ast.If):
             if not node.orelse:
                 continue
             if not parsing.get_code(node, content).startswith("if"):  # Otherwise we get FPs on elif
@@ -1024,34 +1004,31 @@ def singleton_eq_comparison(content: str) -> str:
     Returns:
         str: Fixed code
     """
-    root = ast.parse(content)
+    root = parsing.parse(content)
 
     replacements = {}
-    for node in ast.walk(root):
-        if isinstance(node, ast.Compare):
-            changes = False
-            operators = []
-            for comparator, node_operator in zip(node.comparators, node.ops):
-                is_comparator_singleton = isinstance(comparator, ast.Constant) and (
-                    comparator.value is None
-                    or comparator.value is True
-                    or comparator.value is False
-                )
-                if is_comparator_singleton and isinstance(node_operator, ast.Eq):
-                    operators.append(ast.Is())
-                    changes = True
-                elif is_comparator_singleton and isinstance(node_operator, ast.NotEq):
-                    operators.append(ast.IsNot())
-                    changes = True
-                else:
-                    operators.append(node_operator)
+    for node in parsing.walk(root, ast.Compare):
+        changes = False
+        operators = []
+        for comparator, node_operator in zip(node.comparators, node.ops):
+            is_comparator_singleton = isinstance(comparator, ast.Constant) and (
+                comparator.value is None or comparator.value is True or comparator.value is False
+            )
+            if is_comparator_singleton and isinstance(node_operator, ast.Eq):
+                operators.append(ast.Is())
+                changes = True
+            elif is_comparator_singleton and isinstance(node_operator, ast.NotEq):
+                operators.append(ast.IsNot())
+                changes = True
+            else:
+                operators.append(node_operator)
 
-            if changes:
-                replacements[node] = ast.Compare(
-                    left=node.left,
-                    ops=operators,
-                    comparators=node.comparators,
-                )
+        if changes:
+            replacements[node] = ast.Compare(
+                left=node.left,
+                ops=operators,
+                comparators=node.comparators,
+            )
 
     if replacements:
         content = processing.replace_nodes(content, replacements)

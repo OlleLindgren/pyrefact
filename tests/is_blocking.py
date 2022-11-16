@@ -1,7 +1,7 @@
 import ast
 import sys
 
-from pyrefact.parsing import is_blocking
+from pyrefact import parsing
 
 
 def main() -> int:
@@ -79,8 +79,8 @@ for i in something:
     raise ValueError()
 """,
     ):
-        node = ast.parse(source).body[0]
-        if is_blocking(node):
+        node = parsing.parse(source).body[0]
+        if parsing.is_blocking(node):
             print("Ast is blocking, but should not be:")
             print(source)
             print("Ast structure:")
@@ -152,8 +152,8 @@ else:
     return 0
 """,
     ):
-        node = ast.parse(source).body[0]
-        if not is_blocking(node):
+        node = parsing.parse(source).body[0]
+        if not parsing.is_blocking(node):
             print("Ast is not blocking, but should be:")
             print(source)
             print("Ast structure:")

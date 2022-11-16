@@ -1,8 +1,7 @@
 import ast
 import sys
 
-from pyrefact import constants
-from pyrefact.parsing import has_side_effect
+from pyrefact import constants, parsing
 
 
 def main() -> int:
@@ -53,8 +52,8 @@ def main() -> int:
     1
 """,
     ):
-        node = ast.parse(source).body[0]
-        if has_side_effect(node, whitelist):
+        node = parsing.parse(source).body[0]
+        if parsing.has_side_effect(node, whitelist):
             print("Ast has side effect, but should not:")
             print(source)
             print("Ast structure:")
@@ -77,8 +76,8 @@ def main() -> int:
 """,
         "mysterious_function()",
     ):
-        node = ast.parse(source).body[0]
-        if not has_side_effect(node, whitelist):
+        node = parsing.parse(source).body[0]
+        if not parsing.has_side_effect(node, whitelist):
             print("Ast has no side effect, but should:")
             print(source)
             print("Ast structure:")

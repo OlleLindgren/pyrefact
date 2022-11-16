@@ -65,18 +65,22 @@ def replace_with_sets(content: str) -> str:
     Returns:
         str: Modified python source code
     """
-    root = ast.parse(content)
+    root = parsing.parse(content)
     safe_callables = parsing.safe_callable_names(root)
 
     replacements = {}
 
-    for node in ast.walk(root):
+    for node in parsing.walk(root, ast.Compare):
         if not _is_contains_comparison(node):
             continue
 
         for comp in node.comparators:
             if isinstance(comp, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
-                preferred_type = ast.SetComp if _can_be_evaluated_safe(ast.Expression(body=comp)) else ast.GeneratorExp
+                preferred_type = (
+                    ast.SetComp
+                    if _can_be_evaluated_safe(ast.Expression(body=comp))
+                    else ast.GeneratorExp
+                )
                 if isinstance(node, preferred_type):
                     continue
                 replacement = preferred_type(elt=comp.elt, generators=comp.generators)
@@ -110,7 +114,7 @@ def replace_with_sets(content: str) -> str:
 
 
 def remove_redundant_chained_calls(content: str) -> str:
-    root = ast.parse(content)
+    root = parsing.parse(content)
 
     function_chain_redundancy_mapping = {
         "sorted": {"list", "sorted", "tuple", "iter", "reversed"},
@@ -124,8 +128,8 @@ def remove_redundant_chained_calls(content: str) -> str:
     replacements = {}
     touched_linenos = set()
 
-    for node in ast.walk(root):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.args:
+    for node in parsing.walk(root, ast.Call):
+        if isinstance(node.func, ast.Name) and node.args:
             node_lineno_range = set(range(node.lineno, node.end_lineno + 1))
             if node_lineno_range & touched_linenos:
                 continue
@@ -162,7 +166,7 @@ def _is_sorted_subscript(node) -> bool:
 
 
 def replace_sorted_heapq(content: str) -> str:
-    root = ast.parse(content)
+    root = parsing.parse(content)
 
     replacements = {}
     heapq_nlargest = ast.Attribute(
@@ -176,7 +180,7 @@ def replace_sorted_heapq(content: str) -> str:
     builtin_list = ast.Name(id="list", ctx=ast.Load())
     builtin_reversed = ast.Name(id="reversed", ctx=ast.Load())
 
-    for node in ast.walk(root):
+    for node in parsing.walk(root, ast.Subscript):
         if not _is_sorted_subscript(node):
             continue
 

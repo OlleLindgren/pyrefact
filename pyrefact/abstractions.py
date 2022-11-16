@@ -75,10 +75,18 @@ def _possible_external_effects(node: ast.AST, safe_callables: Collection[str]) -
     Yields:
         ast.AST: Node that could potentially be encountered, and that may have some effect.
     """
-    comprehension_local_vars = {
-        comp.target for comp in ast.walk(node) if isinstance(comp, ast.comprehension)
-    }
-    for child in ast.walk(node):
+    comprehension_local_vars = {comp.target for comp in parsing.walk(node, ast.comprehension)}
+    types = (
+        ast.Name,
+        ast.Subscript,
+        ast.Call,
+        ast.Yield,
+        ast.YieldFrom,
+        ast.Continue,
+        ast.Break,
+        ast.Return,
+    )
+    for child in parsing.walk(node, types):
         if (
             isinstance(child, ast.Name)
             and isinstance(child.ctx, ast.Store)
@@ -412,7 +420,7 @@ def _get_function_insertion_lineno(
 
 
 def create_abstractions(content: str) -> str:
-    root = ast.parse(content)
+    root = parsing.parse(content)
     global_names = (
         _scoped_dependencies(root) | parsing.get_imported_names(root) | constants.BUILTIN_FUNCTIONS
     )
@@ -427,11 +435,10 @@ def create_abstractions(content: str) -> str:
     function_def_linenos = []
     import_linenos = []
 
-    for node in ast.walk(root):
-        if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
-            function_def_linenos.append(node.lineno)
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            import_linenos.append(node.lineno)
+    for node in parsing.walk(root, (ast.AsyncFunctionDef, ast.FunctionDef)):
+        function_def_linenos.append(node.lineno)
+    for node in parsing.walk(root, (ast.Import, ast.ImportFrom)):
+        import_linenos.append(node.lineno)
 
     for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
         for nodes in _group_nodes_by_purpose(node.body):

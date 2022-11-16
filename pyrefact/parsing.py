@@ -1,10 +1,49 @@
 import ast
+import collections
 import functools
 import itertools
 import re
-from typing import Collection, Iterable, Sequence, Tuple, Union
+from typing import Collection, Iterable, Mapping, Sequence, Tuple, Union
 
 from pyrefact import constants
+
+
+@functools.lru_cache(maxsize=100)
+def parse(source_code: str) -> ast.AST:
+    """Parse python source code and cache
+
+    Args:
+        source_code (str): Python source code
+
+    Returns:
+        ast.AST: Parsed AST
+    """
+    return ast.parse(source_code)
+
+
+@functools.lru_cache(maxsize=100)
+def _group_nodes_in_scope(scope: ast.AST) -> Mapping[ast.AST, Sequence[ast.AST]]:
+    node_types = collections.defaultdict(list)
+    for node in ast.walk(scope):
+        node_types[type(node)].append(node)
+
+    return node_types
+
+
+def walk(scope: ast.AST, node_type: Union[ast.AST, Sequence[ast.AST]]) -> Sequence[ast.AST]:
+    """Get nodes in scope of a particular type
+
+    Args:
+        scope (ast.AST): Scope to search
+        node_type (ast.AST): Node type to filter on
+
+    Returns:
+        Sequence[ast.AST]: All nodes in scope of that type
+    """
+    types_in_scope = _group_nodes_in_scope(scope)
+    for variant, nodes in types_in_scope.items():
+        if issubclass(variant, node_type):
+            yield from nodes
 
 
 def is_valid_python(content: str) -> bool:
@@ -17,7 +56,7 @@ def is_valid_python(content: str) -> bool:
         bool: True if content is valid python.
     """
     try:
-        ast.parse(content, "")
+        parse(content)
         return True
     except SyntaxError:
         return False
@@ -311,8 +350,13 @@ def has_side_effect(
 
 
 @functools.lru_cache(maxsize=1)
-def _get_line_lengths(content: str) -> Sequence[int]:
-    return tuple([len(line) for line in content.splitlines(keepends=True)])
+def _get_line_start_charnos(content: str) -> Sequence[int]:
+    start = 0
+    charnos = []
+    for line in content.splitlines(keepends=True):
+        charnos.append(start)
+        start += len(line)
+    return charnos
 
 
 def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
@@ -325,8 +369,7 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
     Returns:
         Tuple[int, int]: start, end
     """
-    line_lengths = _get_line_lengths(content)
-
+    line_start_charnos = _get_line_start_charnos(content)
     if (
         isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
         and node.decorator_list
@@ -335,13 +378,15 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
     else:
         start = node
 
-    start_charno = sum(line_lengths[: start.lineno - 1]) + start.col_offset
-    end_charno = sum(line_lengths[: node.end_lineno - 1]) + node.end_col_offset
+    start_charno = line_start_charnos[start.lineno - 1] + start.col_offset
+    end_charno = line_start_charnos[node.end_lineno - 1] + node.end_col_offset
 
     code = content[start_charno:end_charno]
-    if whitespace := re.findall(r"^ +", code):
+    if code[0] == " ":
+        whitespace = re.findall(r"^ +", code)
         start_charno += len(whitespace[0])
-    if whitespace := re.findall(r" +$", code):
+    if code[-1] == " ":
+        whitespace = re.findall(r" +$", code)
         end_charno -= len(whitespace[0])
     if content[start_charno - 1] == "@":
         start_charno -= 1
@@ -498,10 +543,10 @@ def _get_imports(ast_tree: ast.Module) -> Iterable[Union[ast.Import, ast.ImportF
     Yields:
         str: An import node
     """
-    for node in ast.walk(ast_tree):
-        if isinstance(node, ast.Import):
-            yield node
-        elif isinstance(node, ast.ImportFrom) and node.module != "__future__":
+    for node in walk(ast_tree, ast.Import):
+        yield node
+    for node in walk(ast_tree, ast.ImportFrom):
+        if node.module != "__future__":
             yield node
 
 
@@ -534,14 +579,8 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
     Returns:
         Collection[str]: Names of all functions that have no side effect when called.
     """
-    defined_names = {
-        node.id
-        for node in ast.walk(root)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
-    }
-    function_defs = {
-        node for node in ast.walk(root) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
+    defined_names = {node.id for node in walk(root, ast.Name) if isinstance(node.ctx, ast.Store)}
+    function_defs = list(walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)))
     safe_callables = set(constants.BUILTIN_FUNCTIONS) - {"print", "exit"}
     safe_callable_nodes = set()
     changes = True
@@ -567,17 +606,17 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
                 safe_callable_nodes.add(node)
                 safe_callables.add(node.name)
                 changes = True
-        function_defs = {node for node in function_defs if node.name not in safe_callables}
 
-    for node in ast.walk(root):
-        if isinstance(node, ast.ClassDef):
-            constructors = {
-                child
-                for child in node.body
-                if isinstance(child, ast.FunctionDef)
-                and child.name in {"__init__", "__post_init__", "__new__"}
-            }
-            if not constructors - safe_callable_nodes:
-                safe_callables.add(node.name)
+        function_defs = [node for node in function_defs if node.name not in safe_callables]
+
+    for node in walk(root, ast.ClassDef):
+        constructors = {
+            child
+            for child in node.body
+            if isinstance(child, ast.FunctionDef)
+            and child.name in {"__init__", "__post_init__", "__new__"}
+        }
+        if not constructors - safe_callable_nodes:
+            safe_callables.add(node.name)
 
     return safe_callables

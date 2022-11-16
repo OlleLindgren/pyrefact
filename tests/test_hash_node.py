@@ -3,7 +3,7 @@
 import ast
 import sys
 
-from pyrefact import abstractions, constants
+from pyrefact import abstractions, constants, parsing
 
 
 def _error_message(left: ast.AST, right: ast.AST, *, positive: bool) -> str:
@@ -48,15 +48,15 @@ def qz(aaa, bbb, ccc):
     negatives = (("lambda x: list(x)", "lambda x: set(x)"),)
 
     for left_expression, right_expression in positives:
-        left_node = ast.parse(left_expression).body[0]
-        right_node = ast.parse(right_expression).body[0]
+        left_node = parsing.parse(left_expression).body[0]
+        right_node = parsing.parse(right_expression).body[0]
         left_hash = abstractions.hash_node(left_node, preserved_names)
         right_hash = abstractions.hash_node(right_node, preserved_names)
         assert left_hash == right_hash, _error_message(left_node, right_node, positive=True)
 
     for left_expression, right_expression in negatives:
-        left_node = ast.parse(left_expression).body[0]
-        right_node = ast.parse(right_expression).body[0]
+        left_node = parsing.parse(left_expression).body[0]
+        right_node = parsing.parse(right_expression).body[0]
         left_hash = abstractions.hash_node(left_node, preserved_names)
         right_hash = abstractions.hash_node(right_node, preserved_names)
         assert left_hash != right_hash, _error_message(left_node, right_node, positive=False)
