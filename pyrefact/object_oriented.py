@@ -162,8 +162,6 @@ def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> s
                 replacements[node] = ast.Name(
                     id=moved_function_names[node.attr], ctx=node.ctx, lineno=node.lineno
                 )
-            else:
-                print(1)
 
     if not name_replacements:
         return content

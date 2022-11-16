@@ -16,6 +16,23 @@ def _is_contains_comparison(node) -> bool:
     return True
 
 
+def _can_be_evaluated_safe(node: ast.AST) -> bool:
+    """Check if a node can be evaluated at "compile-time"
+
+    Args:
+        node (ast.AST): Node to check
+
+    Returns:
+        bool: True if the node can be evaluated
+    """
+    try:
+        ast.literal_eval(node)
+    except (ValueError, SyntaxError):
+        return False
+
+    return True
+
+
 def _can_be_evaluated(node: ast.AST, safe_callables: Collection[str]) -> bool:
     """Determine if a node can be evaluated.
 
@@ -58,8 +75,11 @@ def replace_with_sets(content: str) -> str:
             continue
 
         for comp in node.comparators:
-            if isinstance(comp, (ast.ListComp, ast.GeneratorExp)):
-                replacement = ast.SetComp(elt=comp.elt, generators=comp.generators)
+            if isinstance(comp, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+                preferred_type = ast.SetComp if _can_be_evaluated_safe(ast.Expression(body=comp)) else ast.GeneratorExp
+                if isinstance(node, preferred_type):
+                    continue
+                replacement = preferred_type(elt=comp.elt, generators=comp.generators)
             elif isinstance(comp, ast.DictComp):
                 replacement = ast.SetComp(elt=comp.key, generators=comp.generators)
             elif isinstance(comp, (ast.List, ast.Tuple)):
