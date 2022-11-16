@@ -15,8 +15,9 @@ It is strongly recommended that you version control or otherwise backup any code
 * Remove most pointless simple statements.
 * Remove branches of code that obviously do nothing useful.
 * Remove unreachable code.
-* Replace hardcoded lists and list comprehensions with set equivalents in places where that would improve performance.
-* Remove redundant chained calls involving sorted(), set(), tuple() and list().
+* Replace hardcoded inlined collections and comprehensions with set or generator equivalents in places where that would improve performance.
+* Remove redundant chained calls involving sorted(), set(), tuple(), reversed() and list().
+* Replace `sorted()[:n]` with `heapq.nsmallest`, replace `sorted()[0]` with `min`
 * Rename unused variables to `_`
 * Delete variables named `_`, unless where that would cause a syntax error.
 * Move code into primitive functions.
