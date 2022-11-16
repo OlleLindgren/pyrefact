@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
 
-from . import abstractions, completion, constants, fixes, object_oriented, parsing
+from . import abstractions, completion, constants, fixes, object_oriented, parsing, performance
 
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
@@ -53,10 +53,11 @@ def _run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> in
         content = object_oriented.remove_unused_self_cls(content)
         content = object_oriented.move_staticmethod_static_scope(content, preserve=preserve)
         content = fixes.singleton_eq_comparison(content)
-        content = fixes.replace_with_sets(content)
-        content = fixes.remove_redundant_chained_calls(content)
         content = fixes.move_imports_to_toplevel(content)
         content = fixes.remove_redundant_else(content)
+        content = performance.replace_with_sets(content)
+        content = performance.remove_redundant_chained_calls(content)
+        content = performance.replace_sorted_heapq(content)
         content = abstractions.create_abstractions(content)
 
     content = fixes.remove_duplicate_functions(content, preserve=preserve)
