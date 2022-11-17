@@ -128,6 +128,7 @@ def alter_code(
     actions.extend((x.lineno, "delete", x) for x in removals)
     actions.extend((x.lineno, "replace", {x: y}) for x, y in replacements.items())
 
+    # a < d => deletions will go before additions if same lineno and reversed sorting.
     for _, action, value in sorted(actions, reverse=True):
         if action == "add":
             content = insert_nodes(content, [value])
@@ -139,4 +140,3 @@ def alter_code(
             raise ValueError(f"Invalid action: {action}")
 
     return content
-

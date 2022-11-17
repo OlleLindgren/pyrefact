@@ -279,7 +279,11 @@ def has_side_effect(
         return (
             has_side_effect(node.value, safe_callable_whitelist)
             or has_side_effect(node.slice, safe_callable_whitelist)
-            or (isinstance(node.ctx, ast.Store) and node.value.id != "_")
+            or (
+                isinstance(node.ctx, ast.Store)
+                and isinstance(node.value, ast.Name)
+                and node.value.id != "_"
+            )
         )
 
     if isinstance(node, ast.Slice):
