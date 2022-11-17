@@ -1,6 +1,6 @@
 import ast
 import heapq
-from typing import Collection, Iterable, Mapping
+from typing import Collection, Iterable, Mapping, Optional
 
 from . import parsing
 
@@ -51,19 +51,22 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     return "".join(chars)
 
 
-def replace_nodes(content: str, replacements: Mapping[ast.AST, ast.AST]) -> str:
+def replace_nodes(content: str, replacements: Mapping[ast.AST, Optional[ast.AST]]) -> str:
     for node, replacement in sorted(
         replacements.items(), key=lambda tup: (tup[0].lineno, tup[0].end_lineno), reverse=True
     ):
         start, end = parsing.get_charnos(node, content)
         code = content[start:end]
-        new_code = ast.unparse(replacement)
+        new_code = ast.unparse(replacement) if replacement is not None else ""
         indent = " " * node.col_offset
         new_code = "".join(
             f"{indent * int(i > 0)}{code}"
             for i, code in enumerate(new_code.splitlines(keepends=True))
         )
-        print(f"Replacing \n{code}\nWith      \n{new_code}")
+        if new_code:
+            print(f"Replacing \n{code}\nWith      \n{new_code}")
+        else:
+            print(f"Removing \n{code}")
         content = content[:start] + new_code + content[end:]
 
     return content
@@ -93,3 +96,47 @@ def insert_nodes(content: str, additions: Collection[ast.AST]) -> str:
         )
 
     return "".join(lines)
+
+
+def alter_code(
+    content: str,
+    root: ast.AST,
+    *,
+    additions: Collection[ast.AST] = frozenset(),
+    removals: Collection[ast.AST] = frozenset(),
+    replacements: Mapping[ast.AST, ast.AST] = frozenset(),
+) -> str:
+    """Alter python code.
+
+    This coordinates additions, removals and replacements in a safe way.
+
+    Args:
+        content (str): Python source code
+        root (ast.AST): Parsed AST tree corresponding to source code
+        additions (Collection[ast.AST], optional): Nodes to add
+        removals (Collection[ast.AST], optional): Nodes to remove
+        replacements (Mapping[ast.AST, ast.AST], optional): Nodes to replace
+
+    Raises:
+        ValueError: _description_
+
+    Returns:
+        str: _description_
+    """
+    actions = []
+    actions.extend((x.lineno, "add", x) for x in additions)
+    actions.extend((x.lineno, "delete", x) for x in removals)
+    actions.extend((x.lineno, "replace", {x: y}) for x, y in replacements.items())
+
+    for _, action, value in sorted(actions, reverse=True):
+        if action == "add":
+            content = insert_nodes(content, [value])
+        elif action == "delete":
+            content = remove_nodes(content, [value], root)
+        elif action == "replace":
+            content = replace_nodes(content, value)
+        else:
+            raise ValueError(f"Invalid action: {action}")
+
+    return content
+

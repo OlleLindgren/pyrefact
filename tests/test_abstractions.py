@@ -41,8 +41,6 @@ for x in range(11):
     print(x > 7)
     if not _pyrefact_abstraction_1(x):
         continue
-    pass
-    pass
 
     print(x)
     """,
@@ -76,8 +74,6 @@ for x in range(11):
     print(x > 7)
     if _pyrefact_abstraction_1(x):
         break
-    pass
-    pass
 
     print(x)
     """,
@@ -158,8 +154,6 @@ for var in range(11):
     print(22)
 
     params = _pyrefact_abstraction_1(foo, s, var)
-    pass
-    pass
     response = requests.get(url, params)
     assert response.status_code == 200, "got a non-200 response"
         """,

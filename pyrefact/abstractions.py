@@ -430,13 +430,14 @@ def create_abstractions(content: str) -> str:
         global_names.add(node.name)
     replacements = {}
     additions = []
+    removals = []
     abstraction_count = 0
 
     function_def_linenos = []
     import_linenos = []
 
     for node in parsing.walk(root, (ast.AsyncFunctionDef, ast.FunctionDef)):
-        function_def_linenos.append(node.lineno)
+        function_def_linenos.append(min(node.lineno, *(x.lineno for x in node.decorator_list)))
     for node in parsing.walk(root, (ast.Import, ast.ImportFrom)):
         import_linenos.append(node.lineno)
 
@@ -571,12 +572,15 @@ def create_abstractions(content: str) -> str:
                 raise RuntimeError("Found bool abstraction without return")
 
             replacements[nodes[0]] = function_call
-            for child in nodes[1:]:
-                replacements[child] = ast.Pass()
+            removals.extend(nodes[1:])
             additions.append(function_def)
 
-    if replacements or additions:
-        content = processing.replace_nodes(content, replacements)
-        content = processing.insert_nodes(content, additions)
+    content = processing.alter_code(
+        content,
+        root,
+        additions=additions,
+        removals=removals,
+        replacements=replacements
+    )
 
     return content
