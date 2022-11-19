@@ -446,6 +446,14 @@ def create_abstractions(content: str) -> str:
         for nodes in _group_nodes_by_purpose(node.body):
             if len(nodes) > len(node.body) - 2:
                 continue
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and all(
+                isinstance(child, ast.Return)
+                or (isinstance(child, ast.Expr) and isinstance(child.value, ast.Constant))
+                or child in nodes
+                for child in node.body
+            ):
+                continue
+
             purposes = {_hashable_node_purpose_type(child) for child in nodes}
             assert len(purposes) == 1
             purpose = purposes.pop()
@@ -567,17 +575,65 @@ def create_abstractions(content: str) -> str:
             )
 
             if isinstance(function_call, ast.Assign) and not return_args:
-                raise RuntimeError("Found assignment without return")
+                continue  # Probably a property of an input arg being modified, I don't particularly like these anyways
 
             if isinstance(function_call, (ast.Continue, ast.Break)) and len(return_args) != 1:
                 raise RuntimeError("Found bool abstraction without return")
 
-            if ast.unparse(function_body[-1]) == ast.unparse(nodes[-1]):
+            after_nodes = False
+            nodes_after_abstraction = []
+            for child in node.body:
+                if after_nodes:
+                    nodes_after_abstraction.append(child)
+                elif child is nodes[-1]:
+                    after_nodes = True
+
+            is_singular_return_reassignment = (
+                isinstance(function_call, ast.Assign)
+                and len(return_args) == 1
+                and len(nodes_after_abstraction) == 1
+                and (
+                    (
+                        isinstance(nodes_after_abstraction[0], ast.Return)
+                        and isinstance(nodes_after_abstraction[0].value, ast.Name)
+                    )
+                    or (
+                        isinstance(nodes_after_abstraction[0], ast.Expr)
+                        and isinstance(nodes_after_abstraction[0].value, (ast.Yield, ast.YieldFrom))
+                        and isinstance(nodes_after_abstraction[0].value.value, ast.Name)
+                    )
+                )
+            )
+
+            if is_singular_return_reassignment and isinstance(
+                nodes_after_abstraction[0], ast.Return
+            ):
+                col_offset = nodes[0].col_offset
+                lineno = nodes[0].lineno
+                for i, child in enumerate(function_body):
+                    child.lineno = lineno + i
+                    child.col_offset = col_offset
                 removals.extend(nodes)
                 additions.extend(function_body)
             else:
-                replacements[nodes[0]] = function_call
-                removals.extend(nodes[1:])
+                if is_singular_return_reassignment:
+                    if isinstance(nodes_after_abstraction[0], ast.Return):
+                        inlined_return_call = ast.Return(
+                            value=function_call.value,
+                            lineno=function_call.lineno,
+                        )
+                    else:
+                        inlined_return_call = ast.Expr(
+                            type(nodes_after_abstraction[0].value)(
+                                value=function_call.value,
+                            ),
+                            lineno=function_call.lineno,
+                        )
+                    replacements[nodes_after_abstraction[0]] = inlined_return_call
+                    removals.extend(nodes)
+                else:
+                    replacements[nodes[0]] = function_call
+                    removals.extend(nodes[1:])
                 additions.append(function_def)
 
     content = processing.alter_code(

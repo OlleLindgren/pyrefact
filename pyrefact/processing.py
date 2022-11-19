@@ -26,6 +26,8 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     passes = [len(content) + 1]
 
     for node in ast.walk(root):
+        if isinstance(node, ast.Module):
+            continue
         for bodytype in "body", "finalbody", "orelse":
             if body := getattr(node, bodytype, []):
                 if isinstance(body, list) and all(child in nodes for child in body):

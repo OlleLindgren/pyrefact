@@ -158,6 +158,72 @@ for var in range(11):
     assert response.status_code == 200, "got a non-200 response"
         """,
         ),
+        (
+            """
+def f(x):
+    '''This is a docstring'''
+    if x == 3:
+        y = AAA
+    elif x > 9:
+        y = 3
+    else:
+        if x >= 2:
+            y = 5
+        else:
+            y = 8
+    return y
+        """,
+            """
+def f(x):
+    '''This is a docstring'''
+    if x == 3:
+        y = AAA
+    elif x > 9:
+        y = 3
+    else:
+        if x >= 2:
+            y = 5
+        else:
+            y = 8
+    return y
+        """,
+        ),
+        (
+            """
+AAA = 3
+def f(x):
+    '''This is a docstring'''
+    for x in range(13):
+        print(x > 5)
+        if x == 3:
+            y = AAA
+        elif x > 9:
+            y = 3
+        else:
+            if x >= 2:
+                y = 5
+            else:
+                y = 8
+        yield y
+        """,
+            """
+AAA = 3
+def _pyrefact_abstraction_1(x):
+    if x == 3:
+        return AAA
+    elif x > 9:
+        return 3
+    elif x >= 2:
+        return 5
+    else:
+        return 8
+def f(x):
+    '''This is a docstring'''
+    for x in range(13):
+        print(x > 5)
+        yield _pyrefact_abstraction_1(x)
+        """,
+        ),
     )
 
     for content, expected_abstraction in test_cases:

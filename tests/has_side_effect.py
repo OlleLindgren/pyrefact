@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import ast
 import sys
 
@@ -75,6 +77,9 @@ def main() -> int:
     1
 """,
         "mysterious_function()",
+        "flat_dict[value] = something",
+        "nested_dict[value][item] = something",
+        "deep_nested_dict[a][b][c][d][e][f][g] = something",
     ):
         node = parsing.parse(source).body[0]
         if not parsing.has_side_effect(node, whitelist):
