@@ -1060,24 +1060,36 @@ def swap_if_else(content: str) -> str:
     replacements = {}
 
     root = parsing.parse(content)
+    loops = list(parsing.walk(root, (ast.For, ast.While)))
+
     for stmt in parsing.walk(root, ast.If):
-        if not stmt.orelse:
-            continue
-        if any(parsing.is_blocking(node) for node in stmt.body) and not any(
-            parsing.is_blocking(node) for node in stmt.orelse
+        if (
+            stmt.orelse
+            and any(parsing.is_blocking(node) for node in stmt.body)
+            and not any(parsing.is_blocking(node) for node in stmt.orelse)
         ):
             continue  # Redundant else
         if parsing.get_code(stmt, content).startswith("elif"):
             continue
         body_lines = stmt.body[-1].end_lineno - stmt.body[0].lineno
-        orelse_lines = stmt.orelse[-1].end_lineno - stmt.orelse[0].lineno
-        if all(isinstance(node, ast.Pass) for node in stmt.body) or body_lines > 2 * orelse_lines:
-            replacements[stmt] = ast.If(
-                test=_negate_condition(stmt.test),
-                body=stmt.orelse,
-                orelse=[node for node in stmt.body if not isinstance(node, ast.Pass)],
-                lineno=stmt.lineno,
-            )
+        orelse_lines = stmt.orelse[-1].end_lineno - stmt.orelse[0].lineno if stmt.orelse else 0
+        if (
+            all((isinstance(node, ast.Pass) for node in stmt.body)) or body_lines > 2 * orelse_lines
+        ):
+            if stmt.orelse:
+                replacements[stmt] = ast.If(
+                    test=_negate_condition(stmt.test),
+                    body=stmt.orelse,
+                    orelse=[node for node in stmt.body if not isinstance(node, ast.Pass)],
+                    lineno=stmt.lineno,
+                )
+            elif any(stmt is loop.body[-1] for loop in loops):
+                replacements[stmt] = ast.If(
+                    test=_negate_condition(stmt.test),
+                    body=[ast.Continue()],
+                    orelse=[node for node in stmt.body if not isinstance(node, ast.Pass)],
+                    lineno=stmt.lineno,
+                )
 
     last_end = -1
     for node, _ in sorted(replacements.items(), key=lambda t: (t[0].lineno, t[0].end_lineno)):
@@ -1138,6 +1150,34 @@ def early_return(content: str) -> str:
         root,
         replacements=replacements,
         removals=removals,
+    )
+
+    return content
+
+
+def early_continue(content: str) -> str:
+
+    additions = []
+
+    root = parsing.parse(content)
+    for loop in parsing.walk(root, ast.For):
+        stmt = loop.body[-1]
+        if isinstance(stmt, ast.If) and not isinstance(stmt.body[-1], ast.Continue):
+            recursive_ifs = [stmt]
+            for child in stmt.orelse:
+                recursive_ifs.extend(parsing.walk(child, ast.If))
+            if any(len(node.orelse) > 2 for node in recursive_ifs):
+                additions.append(
+                    ast.Continue(
+                        lineno=stmt.body[-1].end_lineno,
+                        col_offset=stmt.body[-1].col_offset,
+                    )
+                )
+
+    content = processing.alter_code(
+        content,
+        root,
+        additions=additions,
     )
 
     return content

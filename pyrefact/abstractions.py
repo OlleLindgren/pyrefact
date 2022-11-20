@@ -55,12 +55,17 @@ def hash_node(
         for name in names:
             if name in preserved_callable_names:
                 things_to_hash.append(name)
-            elif name in name_hashes:
+
+                continue
+
+            if name in name_hashes:
                 things_to_hash.append(name_hashes[name])
-            else:
-                name_increment += 1
-                name_hashes[name] = name_increment
-                things_to_hash.append(name_increment)
+
+                continue
+
+            name_increment += 1
+            name_hashes[name] = name_increment
+            things_to_hash.append(name_increment)
 
     return hash(tuple(things_to_hash))
 

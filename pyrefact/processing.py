@@ -1,5 +1,6 @@
 import ast
 import heapq
+from types import MappingProxyType
 from typing import Collection, Iterable, Mapping, Optional
 
 from . import parsing
@@ -88,11 +89,12 @@ def insert_nodes(content: str, additions: Collection[ast.AST]) -> str:
 
     for node in sorted(additions, key=lambda n: n.lineno, reverse=True):
         addition = ast.unparse(node)
+        col_offset = getattr(node, "col_offset", 0)
         print(f"Adding:\n{addition}")
         lines = (
             lines[: node.lineno]
             + ["\n"] * 3
-            + addition.splitlines(keepends=True)
+            + [" " * col_offset + line for line in addition.splitlines(keepends=True)]
             + ["\n"] * 3
             + lines[node.lineno :]
         )
@@ -106,7 +108,7 @@ def alter_code(
     *,
     additions: Collection[ast.AST] = frozenset(),
     removals: Collection[ast.AST] = frozenset(),
-    replacements: Mapping[ast.AST, ast.AST] = frozenset(),
+    replacements: Mapping[ast.AST, ast.AST] = MappingProxyType({}),
 ) -> str:
     """Alter python code.
 
