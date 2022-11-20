@@ -1,6 +1,8 @@
+import ast
 import builtins
 import sys
 import typing
+from types import MappingProxyType
 
 ASSUMED_PACKAGES = frozenset(
     (
@@ -288,3 +290,14 @@ PYTHON_311_STDLIB = frozenset(
 BUILTIN_FUNCTIONS = frozenset(name for name in dir(builtins) if name != "_")
 
 PYTHON_VERSION = tuple(sys.version_info)
+
+REVERSE_OPERATOR_MAPPING = MappingProxyType(
+    {
+        ast.Eq: ast.NotEq,
+        ast.NotEq: ast.Eq,
+        ast.Gt: ast.LtE,
+        ast.Lt: ast.GtE,
+        ast.GtE: ast.Lt,
+        ast.LtE: ast.Gt,
+    }
+)

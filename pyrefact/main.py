@@ -54,6 +54,8 @@ def _run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> in
         content = object_oriented.move_staticmethod_static_scope(content, preserve=preserve)
         content = fixes.singleton_eq_comparison(content)
         content = fixes.move_imports_to_toplevel(content)
+        content = fixes.swap_if_else(content)
+        content = fixes.early_return(content)
         content = fixes.remove_redundant_else(content)
         content = performance.replace_with_sets(content)
         content = performance.remove_redundant_chained_calls(content)

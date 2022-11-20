@@ -120,31 +120,34 @@ def _definite_external_effects(
     Yields:
         ast.AST: Node that will be encountered, and that may have some effect.
     """
-    if isinstance(node, (ast.If, ast.IfExp)):
-        body_effects = {}
-        for child in node.body:
-            body_effects.update(
-                {
-                    hash_node(n, safe_callables): n
-                    for n in _definite_external_effects(child, safe_callables)
-                }
-            )
-            if parsing.is_blocking(node):
-                break
-        orelse_effects = {}
-        for child in node.body:
-            orelse_effects.update(
-                {
-                    hash_node(n, safe_callables): n
-                    for n in _definite_external_effects(child, safe_callables)
-                }
-            )
-            if parsing.is_blocking(node):
-                break
-        for key in body_effects.keys() & orelse_effects:
-            yield body_effects[key]
-    else:
+    if not isinstance(node, (ast.If, ast.IfExp)):
         yield from _possible_external_effects(node, safe_callables)
+        if isinstance(node, (ast.Break, ast.Continue)):
+            yield node
+        return
+
+    body_effects = {}
+    for child in node.body:
+        body_effects.update(
+            {
+                hash_node(n, safe_callables): n
+                for n in _definite_external_effects(child, safe_callables)
+            }
+        )
+        if parsing.is_blocking(node):
+            break
+    orelse_effects = {}
+    for child in node.body:
+        orelse_effects.update(
+            {
+                hash_node(n, safe_callables): n
+                for n in _definite_external_effects(child, safe_callables)
+            }
+        )
+        if parsing.is_blocking(node):
+            break
+    for key in body_effects.keys() & orelse_effects:
+        yield body_effects[key]
     if isinstance(node, (ast.Break, ast.Continue)):
         yield node
 
@@ -615,26 +618,27 @@ def create_abstractions(content: str) -> str:
                     child.col_offset = col_offset
                 removals.extend(nodes)
                 additions.extend(function_body)
-            else:
-                if is_singular_return_reassignment:
-                    if isinstance(nodes_after_abstraction[0], ast.Return):
-                        inlined_return_call = ast.Return(
-                            value=function_call.value,
-                            lineno=function_call.lineno,
-                        )
-                    else:
-                        inlined_return_call = ast.Expr(
-                            type(nodes_after_abstraction[0].value)(
-                                value=function_call.value,
-                            ),
-                            lineno=function_call.lineno,
-                        )
-                    replacements[nodes_after_abstraction[0]] = inlined_return_call
-                    removals.extend(nodes)
-                else:
-                    replacements[nodes[0]] = function_call
-                    removals.extend(nodes[1:])
+                continue
+
+            if not is_singular_return_reassignment:
+                replacements[nodes[0]] = function_call
+                removals.extend(nodes[1:])
                 additions.append(function_def)
+                continue
+
+            if isinstance(nodes_after_abstraction[0], ast.Return):
+                inlined_return_call = ast.Return(
+                    value=function_call.value,
+                    lineno=function_call.lineno,
+                )
+            else:
+                inlined_return_call = ast.Expr(
+                    type(nodes_after_abstraction[0].value)(value=function_call.value),
+                    lineno=function_call.lineno,
+                )
+            replacements[nodes_after_abstraction[0]] = inlined_return_call
+            removals.extend(nodes)
+            additions.append(function_def)
 
     content = processing.alter_code(
         content, root, additions=additions, removals=removals, replacements=replacements

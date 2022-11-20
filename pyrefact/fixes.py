@@ -770,23 +770,25 @@ def delete_unreachable_code(content: str) -> str:
 
     delete = set()
     for node in parsing.iter_bodies_recursive(root):
-        if isinstance(node, (ast.If, ast.While)):
-            try:
-                test_value = parsing.literal_value(node.test)
-            except ValueError:
-                pass
-            else:
-                if isinstance(node, ast.If):
-                    if test_value and node.body:
-                        delete.update(node.orelse)
-                    elif not test_value and node.orelse:
-                        delete.update(node.body)
-                    else:
-                        delete.add(node)
-                elif isinstance(node, ast.While) and not test_value:
-                    delete.add(node)
-        else:
+        if not isinstance(node, (ast.If, ast.While)):
             delete.update(_iter_unreachable_nodes(node.body))
+            continue
+
+        try:
+            test_value = parsing.literal_value(node.test)
+        except ValueError:
+            pass
+        else:
+            if isinstance(node, ast.While) and not test_value:
+                delete.add(node)
+                continue
+            if not isinstance(node, ast.If):
+                if test_value and node.body:
+                    delete.update(node.orelse)
+                elif not test_value and node.orelse:
+                    delete.update(node.body)
+                else:
+                    delete.add(node)
 
     if delete:
         print("Removing unreachable code")
@@ -1032,5 +1034,110 @@ def singleton_eq_comparison(content: str) -> str:
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
+
+    return content
+
+
+def _negate_condition(node: ast.AST) -> ast.AST:
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return node.operand
+
+    if (
+        isinstance(node, ast.Compare)
+        and len(node.ops) == len(node.comparators) == 1
+        and type(node.ops[0]) in constants.REVERSE_OPERATOR_MAPPING
+    ):
+        opposite_operator_type = constants.REVERSE_OPERATOR_MAPPING[type(node.ops[0])]
+        return ast.Compare(
+            left=node.left, ops=[opposite_operator_type()], comparators=node.comparators
+        )
+
+    return ast.UnaryOp(op=ast.Not(), operand=node)
+
+
+def swap_if_else(content: str) -> str:
+
+    replacements = {}
+
+    root = parsing.parse(content)
+    for stmt in parsing.walk(root, ast.If):
+        if not stmt.orelse:
+            continue
+        if any(parsing.is_blocking(node) for node in stmt.body) and not any(
+            parsing.is_blocking(node) for node in stmt.orelse
+        ):
+            continue  # Redundant else
+        if parsing.get_code(stmt, content).startswith("elif"):
+            continue
+        body_lines = stmt.body[-1].end_lineno - stmt.body[0].lineno
+        orelse_lines = stmt.orelse[-1].end_lineno - stmt.orelse[0].lineno
+        if all(isinstance(node, ast.Pass) for node in stmt.body) or body_lines > 2 * orelse_lines:
+            replacements[stmt] = ast.If(
+                test=_negate_condition(stmt.test),
+                body=stmt.orelse,
+                orelse=[node for node in stmt.body if not isinstance(node, ast.Pass)],
+                lineno=stmt.lineno,
+            )
+
+    last_end = -1
+    for node, _ in sorted(replacements.items(), key=lambda t: (t[0].lineno, t[0].end_lineno)):
+        if node.lineno <= last_end:
+            del replacements[node]
+        else:
+            last_end = node.end_lineno
+
+    content = processing.replace_nodes(content, replacements)
+
+    return content
+
+
+def early_return(content: str) -> str:
+
+    replacements = {}
+    removals = []
+
+    root = parsing.parse(content)
+    for funcdef in parsing.iter_funcdefs(root):
+        if (
+            len(funcdef.body) >= 2
+            and isinstance(funcdef.body[-1], ast.Return)
+            and isinstance(funcdef.body[-2], ast.If)
+        ):
+            ret_stmt = funcdef.body[-1]
+            if_stmt = funcdef.body[-2]
+            if not isinstance(ret_stmt.value, ast.Name):
+                continue
+            retval = ret_stmt.value.id
+            recursive_last_if_nodes = [if_stmt]
+            recursive_last_nonif_nodes = []
+            while recursive_last_if_nodes:
+                node = recursive_last_if_nodes.pop()
+                last_body = node.body[-1] if node.body else None
+                last_orelse = node.orelse[-1] if node.orelse else None
+                if isinstance(last_body, ast.If):
+                    recursive_last_if_nodes.append(last_body)
+                else:
+                    recursive_last_nonif_nodes.append(last_body)
+                if isinstance(last_orelse, ast.If):
+                    recursive_last_if_nodes.append(last_orelse)
+                else:
+                    recursive_last_nonif_nodes.append(last_orelse)
+            if all(
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == retval
+                for node in recursive_last_nonif_nodes
+            ):
+                for node in recursive_last_nonif_nodes:
+                    replacements[node] = ast.Return(value=node.value, lineno=node.lineno)
+                removals.append(ret_stmt)
+
+    content = processing.alter_code(
+        content,
+        root,
+        replacements=replacements,
+        removals=removals,
+    )
 
     return content
