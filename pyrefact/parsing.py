@@ -502,6 +502,14 @@ def is_blocking(node: ast.AST, parent_type: ast.AST = None) -> bool:
                 return True
             if is_blocking(child, parent_type):
                 return False
+            if isinstance(child, ast.If) and any(walk(child, (ast.Break, ast.Continue))):
+                try:
+                    test = literal_value(child.test)
+                except ValueError:
+                    return False
+                if test:
+                    return False
+
         if isinstance(node, ast.For):
             return False
         try:

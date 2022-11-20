@@ -1083,7 +1083,7 @@ def swap_if_else(content: str) -> str:
                     orelse=[node for node in stmt.body if not isinstance(node, ast.Pass)],
                     lineno=stmt.lineno,
                 )
-            elif any(stmt is loop.body[-1] for loop in loops):
+            elif len(stmt.body) > 3 and any(stmt is loop.body[-1] for loop in loops):
                 replacements[stmt] = ast.If(
                     test=_negate_condition(stmt.test),
                     body=[ast.Continue()],
