@@ -59,18 +59,18 @@ def autocomplete(content: str) -> None:
     n_completes = 0
     for line in lines:
         for pattern, replacement in _COMPLETIONS.items():
-            if _match_pattern(pattern, line):
-                whitespace = re.findall("^ *", line)
-                whitespace = whitespace[0] if whitespace else ""
+            if not _match_pattern(pattern, line):
+                continue
 
-                completion = []
-                for new_line in ("\n" + whitespace).join(replacement.splitlines()):
-                    completion.append(new_line)
-
-                new_lines.extend(completion)
-                n_completes += 1
-                print(f"Auto-completed {line.strip()} to:\n{''.join(completion)}")
-                break
+            whitespace = re.findall("^ *", line)
+            whitespace = whitespace[0] if whitespace else ""
+            completion = []
+            for new_line in ("\n" + whitespace).join(replacement.splitlines()):
+                completion.append(new_line)
+            new_lines.extend(completion)
+            n_completes += 1
+            print(f"Auto-completed {line.strip()} to:\n{''.join(completion)}")
+            break
         else:
             new_lines.append(line)
 

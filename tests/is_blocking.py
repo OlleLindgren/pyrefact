@@ -80,12 +80,14 @@ for i in something:
 """,
     ):
         node = parsing.parse(source).body[0]
-        if parsing.is_blocking(node):
-            print("Ast is blocking, but should not be:")
-            print(source)
-            print("Ast structure:")
-            print(ast.dump(node, indent=2))
-            return 1
+        if not parsing.is_blocking(node):
+            continue
+
+        print("Ast is blocking, but should not be:")
+        print(source)
+        print("Ast structure:")
+        print(ast.dump(node, indent=2))
+        return 1
 
     for source in (
         """
@@ -153,12 +155,14 @@ else:
 """,
     ):
         node = parsing.parse(source).body[0]
-        if not parsing.is_blocking(node):
-            print("Ast is not blocking, but should be:")
-            print(source)
-            print("Ast structure:")
-            print(ast.dump(node, indent=2))
-            return 1
+        if parsing.is_blocking(node):
+            continue
+
+        print("Ast is not blocking, but should be:")
+        print(source)
+        print("Ast structure:")
+        print(ast.dump(node, indent=2))
+        return 1
 
     return 0
 

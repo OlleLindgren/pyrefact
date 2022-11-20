@@ -560,41 +560,43 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                     body.put((subnode.lineno, subnode, containing_loop_node))
                 for subnode in node.orelse:
                     body.put((subnode.lineno, subnode, containing_loop_node))
-            if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For)):
-                target_nodes = _unique_assignment_targets(node)
-                if not target_nodes:
-                    continue
-                target_names = {x.id for x in target_nodes}
-                referenced_names = set()
-                starts = []
-                ends = []
-                if containing_loop_node is not None:
-                    loop_start, loop_end = parsing.get_charnos(containing_loop_node, content)
-                else:
-                    loop_start = loop_end = -1
-                for target_node in target_nodes:
-                    s, e = parsing.get_charnos(target_node, content)
-                    starts.append(s)
-                    ends.append(e)
-                start = min(starts)
-                end = max(ends)
-                for refnode in reference_nodes:
-                    n_start, n_end = parsing.get_charnos(refnode, content)
-                    if (
-                        end < n_start
-                        or (isinstance(def_node, (ast.ClassDef, ast.Module)) and n_end < start)
-                        or isinstance(def_node, ast.For)
-                        or loop_start <= n_start <= n_end <= loop_end
-                    ):
-                        referenced_names.add(refnode.id)
-                redundant_targets = target_names - referenced_names - imports
-                if def_node is ast_tree:
-                    redundant_targets = redundant_targets - preserve
-                for target_node in target_nodes:
-                    if isinstance(target_node, ast.Attribute):
-                        target_node = target_node.value
-                    if target_node.id in redundant_targets:
-                        renamings[target_node].add("_")
+            if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For)):
+                continue
+
+            target_nodes = _unique_assignment_targets(node)
+            if not target_nodes:
+                continue
+            target_names = {x.id for x in target_nodes}
+            referenced_names = set()
+            starts = []
+            ends = []
+            if containing_loop_node is not None:
+                (loop_start, loop_end) = parsing.get_charnos(containing_loop_node, content)
+            else:
+                loop_start = loop_end = -1
+            for target_node in target_nodes:
+                (s, e) = parsing.get_charnos(target_node, content)
+                starts.append(s)
+                ends.append(e)
+            start = min(starts)
+            end = max(ends)
+            for refnode in reference_nodes:
+                (n_start, n_end) = parsing.get_charnos(refnode, content)
+                if (
+                    end < n_start
+                    or (isinstance(def_node, (ast.ClassDef, ast.Module)) and n_end < start)
+                    or isinstance(def_node, ast.For)
+                    or (loop_start <= n_start <= n_end <= loop_end)
+                ):
+                    referenced_names.add(refnode.id)
+            redundant_targets = target_names - referenced_names - imports
+            if def_node is ast_tree:
+                redundant_targets = redundant_targets - preserve
+            for target_node in target_nodes:
+                if isinstance(target_node, ast.Attribute):
+                    target_node = target_node.value
+                if target_node.id in redundant_targets:
+                    renamings[target_node].add("_")
 
     if renamings:
         content = _fix_variable_names(content, renamings, preserve)
@@ -1073,9 +1075,7 @@ def swap_if_else(content: str) -> str:
             continue
         body_lines = stmt.body[-1].end_lineno - stmt.body[0].lineno
         orelse_lines = stmt.orelse[-1].end_lineno - stmt.orelse[0].lineno if stmt.orelse else 0
-        if (
-            all((isinstance(node, ast.Pass) for node in stmt.body)) or body_lines > 2 * orelse_lines
-        ):
+        if all((isinstance(node, ast.Pass) for node in stmt.body)) or body_lines > 2 * orelse_lines:
             if stmt.orelse:
                 replacements[stmt] = ast.If(
                     test=_negate_condition(stmt.test),
@@ -1110,40 +1110,44 @@ def early_return(content: str) -> str:
 
     root = parsing.parse(content)
     for funcdef in parsing.iter_funcdefs(root):
-        if (
+        if not (
             len(funcdef.body) >= 2
             and isinstance(funcdef.body[-1], ast.Return)
             and isinstance(funcdef.body[-2], ast.If)
         ):
-            ret_stmt = funcdef.body[-1]
-            if_stmt = funcdef.body[-2]
-            if not isinstance(ret_stmt.value, ast.Name):
-                continue
-            retval = ret_stmt.value.id
-            recursive_last_if_nodes = [if_stmt]
-            recursive_last_nonif_nodes = []
-            while recursive_last_if_nodes:
-                node = recursive_last_if_nodes.pop()
-                last_body = node.body[-1] if node.body else None
-                last_orelse = node.orelse[-1] if node.orelse else None
-                if isinstance(last_body, ast.If):
-                    recursive_last_if_nodes.append(last_body)
-                else:
-                    recursive_last_nonif_nodes.append(last_body)
-                if isinstance(last_orelse, ast.If):
-                    recursive_last_if_nodes.append(last_orelse)
-                else:
-                    recursive_last_nonif_nodes.append(last_orelse)
-            if all(
+            continue
+
+        ret_stmt = funcdef.body[-1]
+        if_stmt = funcdef.body[-2]
+        if not isinstance(ret_stmt.value, ast.Name):
+            continue
+        retval = ret_stmt.value.id
+        recursive_last_if_nodes = [if_stmt]
+        recursive_last_nonif_nodes = []
+        while recursive_last_if_nodes:
+            node = recursive_last_if_nodes.pop()
+            last_body = node.body[-1] if node.body else None
+            last_orelse = node.orelse[-1] if node.orelse else None
+            if isinstance(last_body, ast.If):
+                recursive_last_if_nodes.append(last_body)
+            else:
+                recursive_last_nonif_nodes.append(last_body)
+            if isinstance(last_orelse, ast.If):
+                recursive_last_if_nodes.append(last_orelse)
+            else:
+                recursive_last_nonif_nodes.append(last_orelse)
+        if all(
+            (
                 isinstance(node, ast.Assign)
                 and len(node.targets) == 1
                 and isinstance(node.targets[0], ast.Name)
-                and node.targets[0].id == retval
+                and (node.targets[0].id == retval)
                 for node in recursive_last_nonif_nodes
-            ):
-                for node in recursive_last_nonif_nodes:
-                    replacements[node] = ast.Return(value=node.value, lineno=node.lineno)
-                removals.append(ret_stmt)
+            )
+        ):
+            for node in recursive_last_nonif_nodes:
+                replacements[node] = ast.Return(value=node.value, lineno=node.lineno)
+            removals.append(ret_stmt)
 
     content = processing.alter_code(
         content,

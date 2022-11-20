@@ -129,23 +129,25 @@ def remove_redundant_chained_calls(content: str) -> str:
     touched_linenos = set()
 
     for node in parsing.walk(root, ast.Call):
-        if isinstance(node.func, ast.Name) and node.args:
-            node_lineno_range = set(range(node.lineno, node.end_lineno + 1))
-            if node_lineno_range & touched_linenos:
-                continue
-            redundant_call_names = function_chain_redundancy_mapping.get(node.func.id)
-            if not redundant_call_names:
-                continue
-            modified_node = node
-            while (
-                isinstance(modified_node.args[0], ast.Call)
-                and isinstance(modified_node.args[0].func, ast.Name)
-                and modified_node.args[0].func.id in redundant_call_names
-            ):
-                modified_node = replacements[node] = ast.Call(
-                    func=node.func, args=modified_node.args[0].args, keywords=[]
-                )
-                touched_linenos.update(node_lineno_range)
+        if not (isinstance(node.func, ast.Name) and node.args):
+            continue
+
+        node_lineno_range = set(range(node.lineno, node.end_lineno + 1))
+        if node_lineno_range & touched_linenos:
+            continue
+        redundant_call_names = function_chain_redundancy_mapping.get(node.func.id)
+        if not redundant_call_names:
+            continue
+        modified_node = node
+        while (
+            isinstance(modified_node.args[0], ast.Call)
+            and isinstance(modified_node.args[0].func, ast.Name)
+            and (modified_node.args[0].func.id in redundant_call_names)
+        ):
+            modified_node = replacements[node] = ast.Call(
+                func=node.func, args=modified_node.args[0].args, keywords=[]
+            )
+            touched_linenos.update(node_lineno_range)
 
     if replacements:
         content = processing.replace_nodes(content, replacements)

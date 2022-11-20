@@ -55,12 +55,14 @@ def main() -> int:
 """,
     ):
         node = parsing.parse(source).body[0]
-        if parsing.has_side_effect(node, whitelist):
-            print("Ast has side effect, but should not:")
-            print(source)
-            print("Ast structure:")
-            print(ast.dump(node, indent=2))
-            return 1
+        if not parsing.has_side_effect(node, whitelist):
+            continue
+
+        print("Ast has side effect, but should not:")
+        print(source)
+        print("Ast structure:")
+        print(ast.dump(node, indent=2))
+        return 1
 
     for source in (
         "x=100",
@@ -82,12 +84,14 @@ def main() -> int:
         "deep_nested_dict[a][b][c][d][e][f][g] = something",
     ):
         node = parsing.parse(source).body[0]
-        if not parsing.has_side_effect(node, whitelist):
-            print("Ast has no side effect, but should:")
-            print(source)
-            print("Ast structure:")
-            print(ast.dump(node, indent=2))
-            return 1
+        if parsing.has_side_effect(node, whitelist):
+            continue
+
+        print("Ast has no side effect, but should:")
+        print(source)
+        print("Ast structure:")
+        print(ast.dump(node, indent=2))
+        return 1
 
     return 0
 
