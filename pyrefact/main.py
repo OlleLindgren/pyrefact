@@ -69,7 +69,7 @@ def _run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> in
 
     content = fixes.fix_black(content)
     content = fixes.fix_isort(content, line_length=10_000)
-    content = fixes.define_undefined_variables(content)
+    content = fixes.add_missing_imports(content)
     content = fixes.remove_unused_imports(content)
     content = fixes.fix_isort(content)
     content = fixes.fix_black(content)

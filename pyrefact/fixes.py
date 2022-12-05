@@ -24,6 +24,8 @@ def _get_undefined_variables(content: str) -> Collection[str]:
             referenced_names.add(node.id)
         elif isinstance(node.ctx, ast.Store):
             defined_names.add(node.id)
+    for node in parsing.walk(root, ast.arg):
+        defined_names.add(node.arg)
 
     return referenced_names - defined_names - imported_names - constants.BUILTIN_FUNCTIONS
 
@@ -268,7 +270,7 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
             print(f"Inserting '{fix}' at line {lineno}")
             lines.insert(lineno, fix)
 
-    for package in constants.ASSUMED_PACKAGES & variables:
+    for package in (constants.ASSUMED_PACKAGES | constants.PYTHON_311_STDLIB) & variables:
         fix = f"import {package}"
         print(f"Inserting '{fix}' at line {lineno}")
         lines.insert(lineno, fix)
@@ -289,7 +291,7 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def define_undefined_variables(content: str) -> str:
+def add_missing_imports(content: str) -> str:
     """Attempt to find imports matching all undefined variables.
 
     Args:
