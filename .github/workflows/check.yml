@@ -21,9 +21,14 @@ jobs:
     - name: Running unit tests
       run: |
         python ./tests/main.py
-    - name: Running on self
+    - name: Running on self with --safe, -s, --preserve . and variants thereof
       run: |
+        python -m pyrefact . --safe
+        python -m pyrefact . -s
         python -m pyrefact . --preserve .
+        python -m pyrefact . -p .
+        python -m pyrefact . --safe --preserve .
+        python -m pyrefact . -sp .
     - name: Install as editable
       run: |
         pip install -e .

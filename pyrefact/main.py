@@ -15,15 +15,22 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("paths", help="Paths to refactor", type=Path, nargs="+", default=())
     parser.add_argument(
         "--preserve",
+        "-p",
         help="Paths to preserve names in",
         type=Path,
         nargs="+",
         default=(),
     )
+    parser.add_argument("--safe", "-s", help="Don't delete or rename anything", action="store_true")
     return parser.parse_args(args)
 
 
-def _run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> int:
+def _run_pyrefact(
+    filename: Path,
+    *,
+    preserve: Collection[str] = frozenset(),
+    safe: bool = False,
+) -> int:
     """Fix a file.
 
     Args:
@@ -44,10 +51,11 @@ def _run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> in
         print("Result is not valid python.")
         return 0
 
-    content = fixes.delete_unreachable_code(content)
-    content = fixes.undefine_unused_variables(content, preserve=preserve)
-    content = fixes.delete_pointless_statements(content)
-    content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
+    if not safe:
+        content = fixes.delete_unreachable_code(content)
+        content = fixes.undefine_unused_variables(content, preserve=preserve)
+        content = fixes.delete_pointless_statements(content)
+        content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
     if constants.PYTHON_VERSION >= (3, 9):
         content = object_oriented.remove_unused_self_cls(content)
@@ -65,7 +73,8 @@ def _run_pyrefact(filename: Path, preserve: Collection[str] = frozenset()) -> in
 
     content = fixes.remove_duplicate_functions(content, preserve=preserve)
 
-    content = fixes.align_variable_names_with_convention(content, preserve=preserve)
+    if not safe:
+        content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
     content = fixes.fix_black(content)
     content = fixes.fix_isort(content, line_length=10_000)
@@ -137,7 +146,7 @@ def main(args: Sequence[str]) -> int:
             if name != _namespace_name(filename):
                 preserve.update(variables)
         print(f"Analyzing {filename}...")
-        code = _run_pyrefact(filename, preserve=frozenset(preserve))
+        code = _run_pyrefact(filename, preserve=frozenset(preserve), safe=args.safe)
         if code != 0:
             print(f"pyrefact failed for filename {filename}")
             return_code = max(return_code, code)

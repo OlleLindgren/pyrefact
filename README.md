@@ -1,5 +1,5 @@
 # pyrefact
-Automatic python refactoring, with the goal of simplifying complicated code, deleting dead code, and to some extent improve performance. 
+Automatic python refactoring, with the goal of simplifying complicated code, deleting dead code, and to some extent improve performance.
 
 It is strongly recommended that you version control or otherwise backup any code you run pyrefact on.
 
@@ -48,9 +48,13 @@ It is strongly recommended that you version control or otherwise backup any code
 
 ## Usage
 
+The `--preserve` flag lets you define places where code is used. When this is set, pyrefact will try to keep these usages intact.
+The `--safe` flag will entirely prevent pyrefact from renaming or removing code.
+
 ```bash
 pip install pyrefact
 python -m pyrefact /path/to/filename.py --preserve /path/to/module/where/filename/is/used
+python -m pyrefact /path/to/filename.py --safe
 ```
 
 When running, pyrefact will do a number of different fixes in sequence after eachother. The intention of how these fixes are ordered is not to create a pretty result in the end, but for the earlier steps to expose patterns that later steps of pyrefact can re-refactor. While this typically works well, it is also the case that some steps of pyrefact (especially when creating abstracted functions) have a way of creating new problems that the earlier steps would have solved. Therefore, my advice is that you manually re-run pyrefact until convergence.
