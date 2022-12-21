@@ -27,7 +27,13 @@ def _get_undefined_variables(content: str) -> Collection[str]:
     for node in parsing.walk(root, ast.arg):
         defined_names.add(node.arg)
 
-    return referenced_names - defined_names - imported_names - constants.BUILTIN_FUNCTIONS
+    return (
+        referenced_names
+        - defined_names
+        - imported_names
+        - {name.split(".")[0] for name in imported_names}
+        - constants.BUILTIN_FUNCTIONS
+    )
 
 
 def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
