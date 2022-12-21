@@ -55,11 +55,18 @@ def _run_pyrefact(
         # Code may not be deleted from module level
         module = parsing.parse(content)
         preserve = set.union(
-            preserve,
+            set(preserve),
             (node.name for node in module.body if isinstance(node, ast.FunctionDef)),
             (node.name for node in module.body if isinstance(node, ast.AsyncFunctionDef)),
             (node.name for node in module.body if isinstance(node, ast.ClassDef)),
-            (node.id for node in parsing.iter_assignments(module.body)),
+            (  # Function definitions directly under a class definition in module scope
+                funcdef.name
+                for node in module.body
+                if isinstance(node, ast.ClassDef)
+                for funcdef in node.body
+                if isinstance(funcdef, ast.FunctionDef)
+            ),
+            (node.id for node in parsing.iter_assignments(module)),
         )
 
     content = fixes.delete_unreachable_code(content)
