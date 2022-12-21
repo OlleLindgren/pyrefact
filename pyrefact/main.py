@@ -51,11 +51,21 @@ def _run_pyrefact(
         print("Result is not valid python.")
         return 0
 
-    if not safe:
-        content = fixes.delete_unreachable_code(content)
-        content = fixes.undefine_unused_variables(content, preserve=preserve)
-        content = fixes.delete_pointless_statements(content)
-        content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
+    if safe:
+        # Code may not be deleted from module level
+        module = parsing.parse(content)
+        preserve = set.union(
+            preserve,
+            (node.name for node in module.body if isinstance(node, ast.FunctionDef)),
+            (node.name for node in module.body if isinstance(node, ast.AsyncFunctionDef)),
+            (node.name for node in module.body if isinstance(node, ast.ClassDef)),
+            (node.id for node in parsing.iter_assignments(module.body)),
+        )
+
+    content = fixes.delete_unreachable_code(content)
+    content = fixes.undefine_unused_variables(content, preserve=preserve)
+    content = fixes.delete_pointless_statements(content)
+    content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
     if constants.PYTHON_VERSION >= (3, 9):
         content = object_oriented.remove_unused_self_cls(content)
@@ -73,8 +83,7 @@ def _run_pyrefact(
 
     content = fixes.remove_duplicate_functions(content, preserve=preserve)
 
-    if not safe:
-        content = fixes.align_variable_names_with_convention(content, preserve=preserve)
+    content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
     content = fixes.fix_black(content)
     content = fixes.fix_isort(content, line_length=10_000)
