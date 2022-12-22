@@ -224,6 +224,90 @@ def f(x):
         yield _pyrefact_abstraction_1(x)
         """,
         ),
+        (
+            """
+x = 9
+
+if x == 3:
+    y = 2
+elif x == 2:
+    y = 3
+else:
+    y = 99
+
+print(x, y)
+
+x = 2
+
+if x == 3:
+    y = 2
+elif x == 2:
+    y = 3
+else:
+    y = 99
+
+print(x, y)
+
+
+
+q = 8
+
+if q == 3:
+    z = 2
+elif q == 2:
+    z = 3
+else:
+    z = 99
+
+print(q, z)
+        """, """
+def _pyrefact_abstraction_1(x):
+    if x == 3:
+        return 2
+    elif x == 2:
+        return 3
+    else:
+        return 99
+
+def _pyrefact_abstraction_2(x):
+    if x == 3:
+        return 2
+    elif x == 2:
+        return 3
+    else:
+        return 99
+
+def _pyrefact_abstraction_3(q):
+    if q == 3:
+        return 2
+    elif q == 2:
+        return 3
+    else:
+        return 99
+
+
+x = 9
+
+y = _pyrefact_abstraction_1(x)
+
+print(x, y)
+
+
+x = 2
+
+y = _pyrefact_abstraction_2(x)
+
+print(x, y)
+
+
+q = 8
+
+z = _pyrefact_abstraction_3(q)
+
+print(q, z)
+
+        """  # Duplicate functions should be removed, but not by create_abstractions().
+        )
     )
 
     for content, expected_abstraction in test_cases:

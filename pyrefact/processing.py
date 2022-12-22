@@ -128,12 +128,16 @@ def alter_code(
         str: _description_
     """
     actions = []
-    actions.extend((x.lineno, "add", x) for x in additions)
-    actions.extend((x.lineno, "delete", x) for x in removals)
-    actions.extend((x.lineno, "replace", {x: y}) for x, y in replacements.items())
+
+    # Yes, this unparsing is an expensive way to sort the nodes.
+    # However, this runs relatively infrequently and should not have a big
+    # performance impact.
+    actions.extend((x.lineno, "add", ast.unparse(x), x) for x in additions)
+    actions.extend((x.lineno, "delete", ast.unparse(x), x) for x in removals)
+    actions.extend((x.lineno, "replace", ast.unparse(x), {x: y}) for x, y in replacements.items())
 
     # a < d => deletions will go before additions if same lineno and reversed sorting.
-    for _, action, value in sorted(actions, reverse=True):
+    for _, action, _, value in sorted(actions, reverse=True):
         if action == "add":
             content = insert_nodes(content, [value])
         elif action == "delete":
