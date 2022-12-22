@@ -9,6 +9,9 @@ from typing import Collection, Iterable, Sequence
 
 from . import abstractions, completion, constants, fixes, object_oriented, parsing, performance
 
+MAX_MODULE_PASSES = 5
+MAX_FILE_PASSES = 25
+
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -37,7 +40,7 @@ def _run_pyrefact(
         filename (Path): File to fix
 
     Returns:
-        int: 0 if successful
+        int: Number of passes made
     """
     with open(filename, "r", encoding="utf-8") as stream:
         initial_content = content = stream.read()
@@ -69,26 +72,38 @@ def _run_pyrefact(
             (node.id for node in parsing.iter_assignments(module)),
         )
 
-    content = fixes.delete_unreachable_code(content)
-    content = fixes.undefine_unused_variables(content, preserve=preserve)
-    content = fixes.delete_pointless_statements(content)
-    content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
+    # Remember past versions of source code.
+    # This lets us break if it stops making changes, or if it enters a cycle where it returns
+    # to a previous version again.
+    content_history = {content}
 
-    if constants.PYTHON_VERSION >= (3, 9):
-        content = object_oriented.remove_unused_self_cls(content)
-        content = object_oriented.move_staticmethod_static_scope(content, preserve=preserve)
-        content = fixes.singleton_eq_comparison(content)
-        content = fixes.move_imports_to_toplevel(content)
-        content = fixes.swap_if_else(content)
-        content = fixes.early_return(content)
-        content = fixes.early_continue(content)
-        content = fixes.remove_redundant_else(content)
-        content = performance.replace_with_sets(content)
-        content = performance.remove_redundant_chained_calls(content)
-        content = performance.replace_sorted_heapq(content)
-        content = abstractions.create_abstractions(content)
+    for passes in range(1, 1 + MAX_FILE_PASSES):
 
-    content = fixes.remove_duplicate_functions(content, preserve=preserve)
+        content = fixes.delete_unreachable_code(content)
+        content = fixes.undefine_unused_variables(content, preserve=preserve)
+        content = fixes.delete_pointless_statements(content)
+        content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
+
+        if constants.PYTHON_VERSION >= (3, 9):
+            content = object_oriented.remove_unused_self_cls(content)
+            content = object_oriented.move_staticmethod_static_scope(content, preserve=preserve)
+            content = fixes.singleton_eq_comparison(content)
+            content = fixes.move_imports_to_toplevel(content)
+            content = fixes.swap_if_else(content)
+            content = fixes.early_return(content)
+            content = fixes.early_continue(content)
+            content = fixes.remove_redundant_else(content)
+            content = performance.replace_with_sets(content)
+            content = performance.remove_redundant_chained_calls(content)
+            content = performance.replace_sorted_heapq(content)
+            content = abstractions.create_abstractions(content)
+
+        content = fixes.remove_duplicate_functions(content, preserve=preserve)
+
+        if content in content_history:
+            break
+
+        content_history.add(content)
 
     content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
@@ -105,6 +120,9 @@ def _run_pyrefact(
     ):
         with open(filename, "w", encoding="utf-8") as stream:
             stream.write(content)
+
+        print(f"\nPyrefact made {passes+1} passes.\n")
+        return passes
 
     return 0
 
@@ -136,8 +154,6 @@ def main(args: Sequence[str]) -> int:
     """
     args = _parse_args(args)
 
-    return_code = 0
-    count = 0
     used_names = collections.defaultdict(set)
     for filename in _iter_python_files(args.preserve):
         with open(filename, "r", encoding="utf-8") as stream:
@@ -155,23 +171,34 @@ def main(args: Sequence[str]) -> int:
                 used_names[_namespace_name(filename)].add(node.attr)
                 used_names[_namespace_name(filename)].add(node.value.id)
 
+    folder_contents = collections.defaultdict(list)
     for filename in _iter_python_files(args.paths):
-        count += 1
-        preserve = set()
-        for name, variables in used_names.items():
-            if name != _namespace_name(filename):
-                preserve.update(variables)
-        print(f"Analyzing {filename}...")
-        code = _run_pyrefact(filename, preserve=frozenset(preserve), safe=args.safe)
-        if code != 0:
-            print(f"pyrefact failed for filename {filename}")
-            return_code = max(return_code, code)
+        filename = filename.absolute()
+        folder_contents[filename.parent].append(filename)
 
-    if count == 0:
+    for folder, filenames in folder_contents.items():
+        passes = 1
+        module_passes = 0
+        for module_passes in range(1, 1 + MAX_MODULE_PASSES):
+            passes = 0
+            for filename in filenames:
+                preserve = set()
+                for name, variables in used_names.items():
+                    if name != _namespace_name(filename):
+                        preserve.update(variables)
+                print(f"Analyzing {filename}...")
+                passes += _run_pyrefact(filename, preserve=frozenset(preserve), safe=args.safe)
+
+            if passes == 0:
+                break
+
+        print(f"\nPyrefact made {module_passes} passes on {folder}.\n")
+
+    if sum(len(filenames) for filenames in folder_contents.values()) == 0:
         print("No files provided")
         return 1
 
-    return return_code
+    return 0
 
 
 if __name__ == "__main__":

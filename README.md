@@ -57,8 +57,6 @@ python -m pyrefact /path/to/filename.py --preserve /path/to/module/where/filenam
 python -m pyrefact /path/to/filename.py --safe
 ```
 
-When running, pyrefact will do a number of different fixes in sequence after eachother. The intention of how these fixes are ordered is not to create a pretty result in the end, but for the earlier steps to expose patterns that later steps of pyrefact can re-refactor. While this typically works well, it is also the case that some steps of pyrefact (especially when creating abstracted functions) have a way of creating new problems that the earlier steps would have solved. Therefore, my advice is that you manually re-run pyrefact until convergence.
-
 ## Prerequisites
 
-Many features require `python>=3.9` to work, and pyrefact is not tested with earlier python versions. Some effort is made for it not to crash on 3.8, but most of the cool stuff is disabled.
+Pyrefact requires `python>=3.9`.
