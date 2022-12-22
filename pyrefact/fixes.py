@@ -106,7 +106,6 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
             if isinstance(node.ctx, ast.Load) and node.id == name:
                 blacklisted_names.update(parsing.walk(funcdef, ast.Name))
 
-
     for refnode in parsing.walk(scope, ast.Name):
         if refnode in blacklisted_names:
             continue
@@ -991,36 +990,34 @@ def remove_redundant_else(content: str) -> str:
                 continue
             if not parsing.get_code(node, content).startswith("if"):  # Otherwise we get FPs on elif
                 continue
-            if any(parsing.is_blocking(child) for child in node.body):
-                if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):  #  elif
-                    start, end = parsing.get_charnos(node.orelse[0], content)
+            if not any((parsing.is_blocking(child) for child in node.body)):
+                continue
 
-                    orelse = content[start:end]
-                    if orelse.startswith("elif"):
-                        modified_orelse = re.sub("^elif", "if", orelse)
+            if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
+                (start, end) = parsing.get_charnos(node.orelse[0], content)
+                orelse = content[start:end]
+                if orelse.startswith("elif"):  # Regular elif
+                    modified_orelse = re.sub("^elif", "if", orelse)
+                    print("Found redundant elif:")
+                    print(parsing.get_code(node, content))
+                    content = content[:start] + modified_orelse + content[end:]
+                    continue
 
-                        print("Found redundant elif:")
-                        print(parsing.get_code(node, content))
+                # Otherwise it's an else: if:, which is handled below
 
-                        content = content[:start] + modified_orelse + content[end:]
-                        continue
-
-                # else
-                ranges = [parsing.get_charnos(child, content) for child in node.orelse]
-                start = min(s for s, _ in ranges)
-                end = max(e for _, e in ranges)
-                last_else = list(re.finditer(r"(?<![^\n]) *else: *\n?", content[:start]))[-1]
-                indent = len(re.findall(r"^ *", last_else.group())[0])
-
-                modified_pre_else = content[: last_else.start()].rstrip() + "\n\n"
-                modified_orelse = (
-                    " " * indent + re.sub(r"(?<![^\n])    ", "", content[start:end]).lstrip()
-                )
-
-                print("Found redundant else:")
-                print(parsing.get_code(node, content))
-
-                content = modified_pre_else + modified_orelse + content[end:]
+            # else:
+            ranges = [parsing.get_charnos(child, content) for child in node.orelse]
+            start = min((s for (s, _) in ranges))
+            end = max((e for (_, e) in ranges))
+            last_else = list(re.finditer("(?<![^\\n]) *else: *\\n?", content[:start]))[-1]
+            indent = len(re.findall("^ *", last_else.group())[0])
+            modified_pre_else = content[: last_else.start()].rstrip() + "\n\n"
+            modified_orelse = (
+                " " * indent + re.sub("(?<![^\\n])    ", "", content[start:end]).lstrip()
+            )
+            print("Found redundant else:")
+            print(parsing.get_code(node, content))
+            content = modified_pre_else + modified_orelse + content[end:]
 
     return content
 

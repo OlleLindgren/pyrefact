@@ -413,10 +413,10 @@ def _get_function_insertion_lineno(
     if isinstance(containing_node, ast.Module):
         if function_def_linenos:
             return min(function_def_linenos) - 1
-        elif import_linenos:
+        if import_linenos:
             return max(import_linenos) + 1
-        else:
-            return 1
+
+        return 1
 
     if containing_node.lineno in function_def_linenos:
         return containing_node.lineno - 1
@@ -500,7 +500,10 @@ def create_abstractions(content: str) -> str:
                 abstraction_count += 1
                 function_name = f"_pyrefact_abstraction_{abstraction_count}"
 
-            args = sorted(required_names - (global_names - _scoped_dependencies(root) if node is root else global_names))
+            args = sorted(
+                required_names
+                - (global_names - _scoped_dependencies(root) if node is root else global_names)
+            )
             call_args = [ast.Name(id=arg, ctx=ast.Load()) for arg in args]
             signature_args = ast.arguments(
                 posonlyargs=[],
