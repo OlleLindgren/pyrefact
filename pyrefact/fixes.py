@@ -96,7 +96,20 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
     else:
         raise NotImplementedError(f"Unknown type: {type(node)}")
     is_maybe_unordered_scope = isinstance(scope, (ast.Module, ast.ClassDef, ast.While, ast.For))
+
+    # Prevent renaming variables in function scopes
+    blacklisted_names = set()
+    for funcdef in parsing.walk(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if any(arg.arg == name for arg in parsing.walk(funcdef.args, ast.arg)):
+            blacklisted_names.update(parsing.walk(funcdef, ast.Name))
+        for node in parsing.walk(funcdef, ast.Name):
+            if isinstance(node.ctx, ast.Load) and node.id == name:
+                blacklisted_names.update(parsing.walk(funcdef, ast.Name))
+
+
     for refnode in parsing.walk(scope, ast.Name):
+        if refnode in blacklisted_names:
+            continue
         if isinstance(refnode.ctx, ast.Load) and refnode.id == name:
             n_start = (refnode.lineno, refnode.col_offset)
             n_end = (refnode.end_lineno, refnode.end_col_offset)
