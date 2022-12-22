@@ -994,28 +994,33 @@ def remove_redundant_else(content: str) -> str:
             if any(parsing.is_blocking(child) for child in node.body):
                 if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):  #  elif
                     start, end = parsing.get_charnos(node.orelse[0], content)
-                    modified_orelse = re.sub("^elif", "if", content[start:end])
 
-                    print("Found redundant elif:")
-                    print(parsing.get_code(node, content))
+                    orelse = content[start:end]
+                    if orelse.startswith("elif"):
+                        modified_orelse = re.sub("^elif", "if", orelse)
 
-                    content = content[:start] + modified_orelse + content[end:]
-                else:  # else
-                    ranges = [parsing.get_charnos(child, content) for child in node.orelse]
-                    start = min(s for s, _ in ranges)
-                    end = max(e for _, e in ranges)
-                    last_else = list(re.finditer(r"(?<![^\n]) *else: *\n?", content[:start]))[-1]
-                    indent = len(re.findall(r"^ *", last_else.group())[0])
+                        print("Found redundant elif:")
+                        print(parsing.get_code(node, content))
 
-                    modified_pre_else = content[: last_else.start()].rstrip() + "\n\n"
-                    modified_orelse = (
-                        " " * indent + re.sub(r"(?<![^\n])    ", "", content[start:end]).lstrip()
-                    )
+                        content = content[:start] + modified_orelse + content[end:]
+                        continue
 
-                    print("Found redundant else:")
-                    print(parsing.get_code(node, content))
+                # else
+                ranges = [parsing.get_charnos(child, content) for child in node.orelse]
+                start = min(s for s, _ in ranges)
+                end = max(e for _, e in ranges)
+                last_else = list(re.finditer(r"(?<![^\n]) *else: *\n?", content[:start]))[-1]
+                indent = len(re.findall(r"^ *", last_else.group())[0])
 
-                    content = modified_pre_else + modified_orelse + content[end:]
+                modified_pre_else = content[: last_else.start()].rstrip() + "\n\n"
+                modified_orelse = (
+                    " " * indent + re.sub(r"(?<![^\n])    ", "", content[start:end]).lstrip()
+                )
+
+                print("Found redundant else:")
+                print(parsing.get_code(node, content))
+
+                content = modified_pre_else + modified_orelse + content[end:]
 
     return content
 

@@ -142,6 +142,55 @@ for i in range(10):
         print(2)
             """,
         ),
+        (
+            """
+def foo() -> bool:
+    if x == 1:
+        return False
+    elif x == 2:
+        return True
+    else:
+        if z:
+            return False
+        else:
+            return True
+            """,
+            """
+def foo() -> bool:
+    if x == 1:
+        return False
+    if x == 2:
+        return True
+    if z:
+        return False
+    else:
+        return True
+            """,
+        ),  # First pass
+        (
+            """
+def foo() -> bool:
+    if x == 1:
+        return False
+    if x == 2:
+        return True
+    if z:
+        return False
+    else:
+        return True
+            """,
+            """
+def foo() -> bool:
+    if x == 1:
+        return False
+    if x == 2:
+        return True
+    if z:
+        return False
+
+    return True
+            """,
+        ),  # Second pass
     )
 
     for content, expected_abstraction in test_cases:

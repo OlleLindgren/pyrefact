@@ -260,7 +260,8 @@ else:
     z = 99
 
 print(q, z)
-        """, """
+        """,
+            """
 def _pyrefact_abstraction_1(x):
     if x == 3:
         return 2
@@ -306,8 +307,8 @@ z = _pyrefact_abstraction_3(q)
 
 print(q, z)
 
-        """  # Duplicate functions should be removed, but not by create_abstractions().
-        )
+        """,  # Duplicate functions should be removed, but not by create_abstractions().
+        ),
     )
 
     for content, expected_abstraction in test_cases:
