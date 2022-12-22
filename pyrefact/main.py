@@ -95,6 +95,7 @@ def _run_pyrefact(
             content = fixes.remove_redundant_else(content)
             content = performance.replace_with_sets(content)
             content = performance.remove_redundant_chained_calls(content)
+            content = performance.remove_redundant_iter(content)
             content = performance.replace_sorted_heapq(content)
             content = abstractions.create_abstractions(content)
 

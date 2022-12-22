@@ -95,7 +95,9 @@ def replace_with_sets(content: str) -> str:
                 and comp.func.id in {"sorted", "list", "tuple"}
             ):
                 replacement = ast.Call(
-                    func=ast.Name(id="set", ctx=ast.Load()), args=comp.args, keywords=comp.keywords
+                    func=ast.Name(id="set", ctx=ast.Load()),
+                    args=comp.args,
+                    keywords=comp.keywords,
                 )
             else:
                 continue
@@ -106,6 +108,24 @@ def replace_with_sets(content: str) -> str:
                 and _can_be_evaluated(replacement, safe_callables)
             ):
                 replacements[comp] = replacement
+
+    if replacements:
+        content = processing.replace_nodes(content, replacements)
+
+    return content
+
+
+def remove_redundant_iter(content: str) -> str:
+    root = parsing.parse(content)
+    replacements = {}
+    for node in parsing.walk(root, (ast.For, ast.comprehension)):
+        if (
+            isinstance(node.iter, ast.Call)
+            and isinstance(node.iter.func, ast.Name)
+            and node.iter.func.id in {"iter", "list", "tuple"}
+            and len(node.iter.args) == 1
+        ):
+            replacements[node.iter] = node.iter.args[0]
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
