@@ -253,9 +253,9 @@ def _build_function_body(
     for node in nodes:
         if return_injection_type is not None and isinstance(node, return_injection_type):
             if return_injection_type == ast.Continue:
-                body.append(ast.Return(value=ast.Constant(value=False)))
+                body.append(ast.Return(value=ast.Constant(value=False, kind=None)))
             elif return_injection_type == ast.Break:
-                body.append(ast.Return(value=ast.Constant(value=True)))
+                body.append(ast.Return(value=ast.Constant(value=True, kind=None)))
             elif return_injection_type == ast.Assign:
                 # The purpose of the function is just to assign some variable, so we return
                 # whatever it would have been assigned to.
@@ -382,7 +382,7 @@ def _code_dependencies_outputs(
 
 
 def _code_complexity_length(node: ast.AST) -> int:
-    node_unparse_length = len(re.sub(" *", "", ast.unparse(node)))
+    node_unparse_length = len(re.sub(" *", "", processing.unparse(node)))
     node_string_length = len(
         re.sub(
             " *",
@@ -507,7 +507,7 @@ def create_abstractions(content: str) -> str:
             call_args = [ast.Name(id=arg, ctx=ast.Load()) for arg in args]
             signature_args = ast.arguments(
                 posonlyargs=[],
-                args=[ast.arg(arg=arg) for arg in args],
+                args=[ast.arg(arg=arg, annotation=None) for arg in args],
                 vararg=None,
                 kwonlyargs=[],
                 kw_defaults=None,
@@ -537,7 +537,7 @@ def create_abstractions(content: str) -> str:
                 )
                 return_value = purpose[0] == ast.Continue
                 function_body = _build_function_body(nodes, purpose[0]) + [
-                    ast.Return(value=ast.Constant(value=return_value))
+                    ast.Return(value=ast.Constant(value=return_value, kind=None))
                 ]
                 returns = ast.Name(id="bool", ctx=ast.Load())
 

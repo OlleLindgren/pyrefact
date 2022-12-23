@@ -341,6 +341,9 @@ def has_side_effect(
             has_side_effect(child, safe_callable_whitelist) for child in (node.value, node.slice)
         )
 
+    if constants.PYTHON_VERSION < (3, 9) and isinstance(node, ast.Index):
+        return has_side_effect(node.value)
+
     # NamedExpr is :=
     if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
         if isinstance(node, ast.Assign):
@@ -393,6 +396,27 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
         end_charno -= len(whitespace[0])
     if content[start_charno - 1] == "@":
         start_charno -= 1
+
+    if (
+        constants.PYTHON_VERSION < (3, 9)
+        and not is_valid_python(content[start_charno:end_charno])
+        and not isinstance(
+            node,
+            (
+                ast.FunctionDef,
+                ast.ClassDef,
+                ast.AsyncFunctionDef,
+                ast.Expr,
+                ast.Assign,
+                ast.AnnAssign,
+                ast.AugAssign,
+                ast.If,
+                ast.IfExp,
+            ),
+        )
+    ):
+        start_charno += 2
+        end_charno += 2
 
     return start_charno, end_charno
 

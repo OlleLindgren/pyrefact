@@ -14,6 +14,14 @@ def main() -> int:
     test_cases = (
         (
             """
+x == None and k != None
+            """,
+            """
+x is None and k is not None
+            """,
+        ),
+        (
+            """
 x == None or k != None
             """,
             """

@@ -3,7 +3,7 @@
 import ast
 from typing import Collection
 
-from pyrefact import parsing, processing
+from pyrefact import constants, parsing, processing
 
 
 def _is_contains_comparison(node) -> bool:
@@ -49,7 +49,7 @@ def _can_be_evaluated(node: ast.AST, safe_callables: Collection[str]) -> bool:
     if parsing.has_side_effect(node, safe_callables):
         raise ValueError("Cannot evaluate node with side effects.")
     try:
-        eval(ast.unparse(node))  # pylint: disable=eval-used
+        eval(processing.unparse(node))  # pylint: disable=eval-used
     except Exception:  # pylint: disable=broad-except
         return False
 
@@ -212,27 +212,31 @@ def replace_sorted_heapq(content: str) -> str:
             continue
         if len(keywords) > 1 or any(kw.arg != "key" for kw in keywords):
             continue
-        if isinstance(node.slice, ast.Constant):
-            value = node.slice.value
+        if constants.PYTHON_VERSION < (3, 9) and isinstance(node.slice, ast.Index):
+            node_slice = node.slice.value
+        else:
+            node_slice = node.slice
+        if isinstance(node_slice, ast.Constant):
+            value = node_slice.value
             if value != 0:
                 continue
             replacement = ast.Call(
                 func=builtin_min, args=args, keywords=keywords, lineno=node.lineno
             )
         elif (
-            isinstance(node.slice, ast.UnaryOp)
-            and isinstance(node.slice.op, ast.USub)
-            and isinstance(node.slice.operand, ast.Constant)
+            isinstance(node_slice, ast.UnaryOp)
+            and isinstance(node_slice.op, ast.USub)
+            and isinstance(node_slice.operand, ast.Constant)
         ):
-            value = node.slice.operand.value
+            value = node_slice.operand.value
             if value != 1:
                 continue
             replacement = ast.Call(
                 func=builtin_max, args=args, keywords=keywords, lineno=node.lineno
             )
-        elif isinstance(node.slice, ast.Slice):
-            lower = node.slice.lower
-            upper = node.slice.upper
+        elif isinstance(node_slice, ast.Slice):
+            lower = node_slice.lower
+            upper = node_slice.upper
             if lower is None and upper is not None and not isinstance(upper, ast.UnaryOp):
                 func = heapq_nsmallest
                 value = upper

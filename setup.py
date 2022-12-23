@@ -1,13 +1,12 @@
 """Installer for pyrefact"""
 
 import sys
-import warnings
 from pathlib import Path
 
 import setuptools
 
-if tuple(sys.version_info) < (3, 9):
-    warnings.warn("Pyrefact is not tested with python < 3.9, and may not work.")
+if tuple(sys.version_info) < (3, 8):
+    raise RuntimeError("Pyrefact requires python >= 3.8.")
 
 
 def _parse_description() -> str:
@@ -20,6 +19,11 @@ def _parse_version() -> str:
         return stream.read().strip()
 
 
+REQUIREMENTS = ["black>=22.1.0", "isort==5.10.1", "rmspace==6"]
+if tuple(sys.version_info) < (3, 9):
+    REQUIREMENTS.append("astunparse==1.6.3")
+
+
 setuptools.setup(
     name="pyrefact",
     version=_parse_version(),
@@ -27,7 +31,7 @@ setuptools.setup(
     author="Olle Lindgren",
     author_email="olle.ln@outlook.com",
     packages=["pyrefact"],
-    install_requires=["black>=22.1.0", "isort==5.10.1", "rmspace>=6"],
+    install_requires=REQUIREMENTS,
     url="https://github.com/OlleLindgren/pyrefact",
     long_description=_parse_description(),
 )

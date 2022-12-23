@@ -3,7 +3,34 @@ import heapq
 from types import MappingProxyType
 from typing import Collection, Iterable, Mapping, Optional
 
-from . import parsing
+from . import constants, parsing
+
+
+def unparse(node: ast.AST) -> str:
+    if constants.PYTHON_VERSION >= (3, 9):
+        return ast.unparse(node)
+
+    import astunparse
+
+    content = astunparse.unparse(node)
+
+    if not isinstance(
+        node,
+        (
+            ast.FunctionDef,
+            ast.ClassDef,
+            ast.AsyncFunctionDef,
+            ast.Expr,
+            ast.Assign,
+            ast.AnnAssign,
+            ast.AugAssign,
+            ast.If,
+            ast.IfExp,
+        ),
+    ):
+        content = content.rstrip()
+
+    return content
 
 
 def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> str:
@@ -60,7 +87,7 @@ def replace_nodes(content: str, replacements: Mapping[ast.AST, Optional[ast.AST]
     ):
         start, end = parsing.get_charnos(node, content)
         code = content[start:end]
-        new_code = ast.unparse(replacement) if replacement is not None else ""
+        new_code = unparse(replacement) if replacement is not None else ""
         indent = " " * node.col_offset
         new_code = "".join(
             f"{indent * int(i > 0)}{code}"
@@ -88,7 +115,7 @@ def insert_nodes(content: str, additions: Collection[ast.AST]) -> str:
     lines = content.splitlines(keepends=True)
 
     for node in sorted(additions, key=lambda n: n.lineno, reverse=True):
-        addition = ast.unparse(node)
+        addition = unparse(node)
         col_offset = getattr(node, "col_offset", 0)
         print(f"Adding:\n{addition}")
         lines = (
@@ -132,9 +159,9 @@ def alter_code(
     # Yes, this unparsing is an expensive way to sort the nodes.
     # However, this runs relatively infrequently and should not have a big
     # performance impact.
-    actions.extend((x.lineno, "add", ast.unparse(x), x) for x in additions)
-    actions.extend((x.lineno, "delete", ast.unparse(x), x) for x in removals)
-    actions.extend((x.lineno, "replace", ast.unparse(x), {x: y}) for x, y in replacements.items())
+    actions.extend((x.lineno, "add", unparse(x), x) for x in additions)
+    actions.extend((x.lineno, "delete", unparse(x), x) for x in removals)
+    actions.extend((x.lineno, "replace", unparse(x), {x: y}) for x, y in replacements.items())
 
     # a < d => deletions will go before additions if same lineno and reversed sorting.
     for _, action, _, value in sorted(actions, reverse=True):

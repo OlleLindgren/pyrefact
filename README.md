@@ -59,4 +59,4 @@ python -m pyrefact /path/to/filename.py --safe
 
 ## Prerequisites
 
-Pyrefact requires `python>=3.9`, and is tested on 3.9, 3.10 and 3.11.
+Pyrefact requires `python>=3.8`, and is tested on 3.8, 3.9, 3.10 and 3.11. Pyrefact works best on `python>=3.9`.
