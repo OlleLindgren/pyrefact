@@ -1259,3 +1259,53 @@ def remove_redundant_comprehensions(content: str) -> str:
     content = processing.replace_nodes(content, replacements)
 
     return content
+
+def replace_functions_with_literals(content: str) -> str:
+
+    root = parsing.parse(content)
+    replacements = {}
+    for node in parsing.walk(root, ast.Call):
+        if node.keywords:
+            continue
+
+        if not isinstance(node.func, ast.Name):
+            continue
+
+        if not node.args:
+            if node.func.id == "list":
+                replacements[node] = ast.List(elts=[], ctx=ast.Load())
+            elif node.func.id == "tuple":
+                replacements[node] = ast.Tuple(elts=[], ctx=ast.Load())
+            elif node.func.id == "dict":
+                replacements[node] = ast.Dict(keys=[], values=[], ctx=ast.Load())
+            continue
+
+        if len(node.args) == 1:
+            arg = node.args[0]
+            if node.func.id == "list":
+                if isinstance(arg, (ast.List, ast.ListComp)):
+                    replacements[node] = node.args[0]
+                elif isinstance(arg, ast.Tuple):
+                    replacements[node] = ast.List(elts=arg.elts, ctx=arg.ctx)
+
+            elif node.func.id == "tuple":
+                if isinstance(arg, ast.Tuple):
+                    replacements[node] = node.args[0]
+                elif isinstance(arg, ast.List):
+                    replacements[node] = ast.Tuple(elts=arg.elts, ctx=arg.ctx)
+
+            elif node.func.id == "set":
+                if isinstance(arg, (ast.Set, ast.SetComp)):
+                    replacements[node] = node.args[0]
+                elif isinstance(arg, (ast.Tuple, ast.List)):
+                    replacements[node] = ast.Set(elts=arg.elts, ctx=arg.ctx)
+                elif isinstance(arg, ast.GeneratorExp):
+                    replacements[node] = ast.SetComp(elt=arg.elt, generators=arg.generators)
+
+            elif node.func.id == "iter":
+                if isinstance(arg, ast.GeneratorExp):
+                    replacements[node] = node.args[0]
+
+    content = processing.replace_nodes(content, replacements)
+
+    return content

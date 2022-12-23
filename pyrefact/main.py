@@ -93,6 +93,7 @@ def _run_pyrefact(
         content = fixes.early_continue(content)
         content = fixes.remove_redundant_else(content)
         content = fixes.remove_redundant_comprehensions(content)
+        content = fixes.replace_functions_with_literals(content)
         content = performance.replace_with_sets(content)
         content = performance.remove_redundant_chained_calls(content)
         content = performance.remove_redundant_iter(content)
