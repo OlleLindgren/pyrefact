@@ -15,7 +15,7 @@ class _EverythingContainer:
 
 
 def _scoped_dependencies(node: ast.AST):
-    return set(name.id for name in parsing.iter_assignments(node))
+    return {name.id for name in parsing.iter_assignments(node)}
 
 
 def hash_node(

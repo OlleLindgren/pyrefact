@@ -1260,6 +1260,7 @@ def remove_redundant_comprehensions(content: str) -> str:
 
     return content
 
+
 def replace_functions_with_literals(content: str) -> str:
 
     root = parsing.parse(content)
