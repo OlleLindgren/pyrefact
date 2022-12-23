@@ -5,9 +5,6 @@ from pathlib import Path
 
 import setuptools
 
-if tuple(sys.version_info) < (3, 8):
-    raise RuntimeError("Pyrefact requires python >= 3.8.")
-
 
 def _parse_description() -> str:
     with open(Path(__file__).parent / "README.md", encoding="utf-8") as stream:
@@ -32,6 +29,7 @@ setuptools.setup(
     author_email="olle.ln@outlook.com",
     packages=["pyrefact"],
     install_requires=REQUIREMENTS,
+    python_requires=">=3.8",
     url="https://github.com/OlleLindgren/pyrefact",
     long_description=_parse_description(),
 )
