@@ -100,10 +100,12 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
     # Prevent renaming variables in function scopes
     blacklisted_names = set()
     for funcdef in parsing.walk(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if node in parsing.walk(funcdef, type(node)):
+            continue
         if any(arg.arg == name for arg in parsing.walk(funcdef.args, ast.arg)):
             blacklisted_names.update(parsing.walk(funcdef, ast.Name))
         for node in parsing.walk(funcdef, ast.Name):
-            if isinstance(node.ctx, ast.Load) and node.id == name:
+            if isinstance(node.ctx, ast.Store) and node.id == name:
                 blacklisted_names.update(parsing.walk(funcdef, ast.Name))
 
     for refnode in parsing.walk(scope, ast.Name):

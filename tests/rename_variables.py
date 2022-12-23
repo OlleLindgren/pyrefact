@@ -73,6 +73,9 @@ def foo() -> Tuple[some_variable, T]:
 
 moose = namedtuple("moose", ["field", "foo", "bar"])
 
+ax = 22
+print(ax)
+
 
 def main() -> None:
     bar: some_variable = foo()
@@ -86,7 +89,7 @@ T = Mapping[Tuple[int, int], Collection[str]]
 SOMETHING_ELSE = 1
 
 
-def foo() -> Tuple[SomeVariable, T]:
+def _foo() -> Tuple[SomeVariable, T]:
     ax = 4
     print(ax)
     r = 3
@@ -97,9 +100,12 @@ def foo() -> Tuple[SomeVariable, T]:
 
 Moose = namedtuple("moose", ["field", "foo", "bar"])
 
+AX = 22
+print(AX)
 
-def main() -> None:
-    bar: SomeVariable = foo()
+
+def _main() -> None:
+    bar: SomeVariable = _foo()
     print(bar)
     return 0
         """,
@@ -120,5 +126,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    sys.exit(0)
+    sys.exit(main())
