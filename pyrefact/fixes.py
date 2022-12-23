@@ -833,7 +833,7 @@ def move_imports_to_toplevel(content: str) -> str:
     toplevel_imports = {
         node for node in root.body if isinstance(node, (ast.Import, ast.ImportFrom))
     }
-    all_imports = {node for node in parsing.walk(root, (ast.Import, ast.ImportFrom))}
+    all_imports = set(parsing.walk(root, (ast.Import, ast.ImportFrom)))
     toplevel_packages = set()
     for node in toplevel_imports:
         toplevel_packages.update(_get_package_names(node))
@@ -1208,5 +1208,54 @@ def early_continue(content: str) -> str:
         root,
         additions=additions,
     )
+
+    return content
+
+
+def _get_comp_wrapper_func_equivalent(node: ast.AST) -> str:
+    if isinstance(node, ast.DictComp):
+        return "dict"
+    if isinstance(node, ast.ListComp):
+        return "list"
+    if isinstance(node, ast.SetComp):
+        return "set"
+    if isinstance(node, ast.GeneratorExp):
+        return "iter"
+
+    raise ValueError(f"Unexpected type of node: {type(node)}")
+
+
+def remove_redundant_comprehensions(content: str) -> str:
+    root = parsing.parse(content)
+
+    replacements = {}
+
+    for node in parsing.walk(root, (ast.DictComp, ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+        wrapper = _get_comp_wrapper_func_equivalent(node)
+
+        if not isinstance(node, ast.DictComp):
+            elt_generator_equal = (
+                len(node.generators) == 1
+                and ast.dump(node.elt).replace("Load", "__ctx__")
+                == ast.dump(node.generators[0].target).replace("Store", "__ctx__")
+                and (not node.generators[0].ifs)
+            )
+        else:
+            elt = ast.Tuple(elts=[node.key, node.value], ctx=ast.Load())
+            elt_generator_equal = (
+                len(node.generators) == 1
+                and ast.dump(elt).replace("Load", "__ctx__")
+                == ast.dump(node.generators[0].target).replace("Store", "__ctx__")
+                and (not node.generators[0].ifs)
+            )
+
+        if elt_generator_equal:
+            replacements[node] = ast.Call(
+                func=ast.Name(id=wrapper, ctx=ast.Load()),
+                args=[node.generators[0].iter],
+                keywords=[],
+            )
+
+    content = processing.replace_nodes(content, replacements)
 
     return content
