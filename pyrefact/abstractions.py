@@ -310,10 +310,12 @@ def _code_dependencies_outputs(
         children = []
         if isinstance(node, (ast.While, ast.For, ast.If)):
             temp_children = [node.test]
-            children = []
-            for subset in (node.body, node.orelse):
-                if not any(parsing.is_blocking(child) for child in subset):
-                    children.append(subset)
+            children = [
+                subset
+                for subset in (node.body, node.orelse)
+                if not any((parsing.is_blocking(child) for child in subset))
+            ]
+
         elif isinstance(node, ast.With):
             temp_children = [node.items]
             children = [node.body]
@@ -563,10 +565,8 @@ def create_abstractions(content: str) -> str:
                     purpose[0] if pure_nested_if else None,
                 )
                 if not pure_nested_if:
-                    ifs = []
-                    for c in ast.walk(nodes[0]):
-                        if isinstance(c, ast.If):
-                            ifs.append(c)
+                    ifs = [c for c in ast.walk(nodes[0]) if isinstance(c, ast.If)]
+
                     if not isinstance(nodes[0], (ast.Assign, ast.AnnAssign)) and not all(
                         len(n.body) == len(n.orelse) == 1 for n in ifs
                     ):

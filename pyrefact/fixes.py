@@ -1326,55 +1326,60 @@ def replace_for_loops_with_comprehensions(content: str) -> str:
                 continue
             for n1, n2 in zip(body[:-1], body[1:]):
                 ifs = []
-                if (
+                if not (
                     isinstance(n1, ast.Assign)
                     and len(n1.targets) == 1
                     and isinstance(n1.targets[0], ast.Name)
                     and isinstance(n2, ast.For)
-                    and len(n2.body) == 1
+                    and (len(n2.body) == 1)
                 ):
-                    body_node = n2.body[0]
-                    while isinstance(body_node, ast.If) and not body_node.orelse and len(body_node.body) == 1:
-                        ifs.append(body_node.test)
-                        body_node = body_node.body[0]
+                    continue
 
-                    # TODO make this a separate check that can run on anything
-                    if len(ifs) > 1:
-                        ifs = [ast.BoolOp(op=ast.And(), values=ifs)]
+                body_node = n2.body[0]
+                while (
+                    isinstance(body_node, ast.If)
+                    and (not body_node.orelse)
+                    and (len(body_node.body) == 1)
+                ):
+                    ifs.append(body_node.test)
+                    body_node = body_node.body[0]
 
+                if len(ifs) > 1:
+                    ifs = [ast.BoolOp(op=ast.And(), values=ifs)]
+
+                if (
+                    isinstance(body_node, ast.Expr)
+                    and isinstance(body_node.value, ast.Call)
+                    and isinstance(body_node.value.func, ast.Attribute)
+                    and isinstance(body_node.value.func.value, ast.Name)
+                    and (len(body_node.value.args) == 1)
+                    and (body_node.value.func.value.id == n1.targets[0].id)
+                ):
                     if (
-                        isinstance(body_node, ast.Expr)
-                        and isinstance(body_node.value, ast.Call)
-                        and isinstance(body_node.value.func, ast.Attribute)
-                        and isinstance(body_node.value.func.value, ast.Name)
-                        and len(body_node.value.args) == 1
-                        and body_node.value.func.value.id == n1.targets[0].id
+                        isinstance(n1.value, ast.List)
+                        and (not n1.value.elts)
+                        and (body_node.value.func.attr == "append")
                     ):
-                        if (
-                            isinstance(n1.value, ast.List)
-                            and not n1.value.elts
-                            and body_node.value.func.attr == "append"
-                        ):
-                            comp_type = ast.ListComp
-                        elif (
-                            isinstance(n1.value, ast.Call)
-                            and isinstance(n1.value.func, ast.Name)
-                            and n1.value.func.id == "set"
-                            and not n1.value.args
-                            and not n1.value.keywords
-                            and body_node.value.func.attr == "add"
-                        ):
-                            comp_type = ast.SetComp
-                        else:
-                            continue
+                        comp_type = ast.ListComp
+                    elif (
+                        isinstance(n1.value, ast.Call)
+                        and isinstance(n1.value.func, ast.Name)
+                        and (n1.value.func.id == "set")
+                        and (not n1.value.args)
+                        and (not n1.value.keywords)
+                        and (body_node.value.func.attr == "add")
+                    ):
+                        comp_type = ast.SetComp
+                    else:
+                        continue
 
-                        replacements[n1.value] = comp_type(
-                            elt=body_node.value.args[0],
-                            generators=[
-                                ast.comprehension(target=n2.target, iter=n2.iter, ifs=ifs, is_async=0)
-                            ],
-                        )
-                        removals.add(n2)
+                    replacements[n1.value] = comp_type(
+                        elt=body_node.value.args[0],
+                        generators=[
+                            ast.comprehension(target=n2.target, iter=n2.iter, ifs=ifs, is_async=0)
+                        ],
+                    )
+                    removals.add(n2)
 
     content = processing.alter_code(content, root, removals=removals, replacements=replacements)
 
