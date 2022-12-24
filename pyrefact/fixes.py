@@ -1337,6 +1337,11 @@ def replace_for_loops_with_comprehensions(content: str) -> str:
                     while isinstance(body_node, ast.If) and not body_node.orelse and len(body_node.body) == 1:
                         ifs.append(body_node.test)
                         body_node = body_node.body[0]
+
+                    # TODO make this a separate check that can run on anything
+                    if len(ifs) > 1:
+                        ifs = [ast.BoolOp(op=ast.And(), values=ifs)]
+
                     if (
                         isinstance(body_node, ast.Expr)
                         and isinstance(body_node.value, ast.Call)

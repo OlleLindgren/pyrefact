@@ -87,7 +87,7 @@ for i in range(100):
                 x.add(i ** 2)
             """,
             """
-x = {i ** 2 for i in range(100) if i > 3 if i % 8 == 0 if i ** 2 % 5 == 7}
+x = {i ** 2 for i in range(100) if i > 3 and i % 8 == 0 and (i ** 2 % 5 == 7)}
             """,
         ),
         (
