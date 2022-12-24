@@ -64,9 +64,8 @@ def autocomplete(content: str) -> None:
 
             whitespace = re.findall("^ *", line)
             whitespace = whitespace[0] if whitespace else ""
-            completion = []
-            for new_line in ("\n" + whitespace).join(replacement.splitlines()):
-                completion.append(new_line)
+            completion = ("\n" + whitespace).join(replacement.splitlines()).splitlines()
+
             new_lines.extend(completion)
             n_completes += 1
             print(f"Auto-completed {line.strip()} to:\n{''.join(completion)}")

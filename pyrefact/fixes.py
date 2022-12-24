@@ -1310,3 +1310,60 @@ def replace_functions_with_literals(content: str) -> str:
     content = processing.replace_nodes(content, replacements)
 
     return content
+
+
+def replace_for_loops_with_comprehensions(content: str) -> str:
+    replacements = {}
+    removals = set()
+
+    root = parsing.parse(content)
+    for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
+        bodies = [node.body]
+        if isinstance(node, ast.If):
+            bodies.append(node.orelse)
+        for body in bodies:
+            if len(body) <= 1:
+                continue
+            for n1, n2 in zip(body[:-1], body[1:]):
+                if (
+                    isinstance(n1, ast.Assign)
+                    and len(n1.targets) == 1
+                    and isinstance(n1.targets[0], ast.Name)
+                    and isinstance(n2, ast.For)
+                    and len(n2.body) == 1
+                    and isinstance(n2.body[0], ast.Expr)
+                    and isinstance(n2.body[0].value, ast.Call)
+                    and isinstance(n2.body[0].value.func, ast.Attribute)
+                    and isinstance(n2.body[0].value.func.value, ast.Name)
+                    and len(n2.body[0].value.args) == 1
+                    and n2.body[0].value.func.value.id == n1.targets[0].id
+                ):
+                    if (
+                        isinstance(n1.value, ast.List)
+                        and not n1.value.elts
+                        and n2.body[0].value.func.attr == "append"
+                    ):
+                        comp_type = ast.ListComp
+                    elif (
+                        isinstance(n1.value, ast.Call)
+                        and isinstance(n1.value.func, ast.Name)
+                        and n1.value.func.id == "set"
+                        and not n1.value.args
+                        and not n1.value.keywords
+                        and n2.body[0].value.func.attr == "add"
+                    ):
+                        comp_type = ast.SetComp
+                    else:
+                        continue
+
+                    replacements[n1.value] = comp_type(
+                        elt=n2.body[0].value.args[0],
+                        generators=[
+                            ast.comprehension(target=n2.target, iter=n2.iter, ifs=[], is_async=0)
+                        ],
+                    )
+                    removals.add(n2)
+
+    content = processing.alter_code(content, root, removals=removals, replacements=replacements)
+
+    return content
