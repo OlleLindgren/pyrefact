@@ -66,6 +66,52 @@ for i in range(10):
     x.append(i + 2)
             """,
         ),
+        (
+            """
+x = []
+for i in range(10):
+    if i > 3:
+        x.append(i ** 2)
+            """,
+            """
+x = [i ** 2 for i in range(10) if i > 3]
+            """,
+        ),
+        (
+            """
+x = set()
+for i in range(100):
+    if i > 3:
+        if i % 8 == 0:
+            if i ** 2 % 5 == 7:
+                x.add(i ** 2)
+            """,
+            """
+x = {i ** 2 for i in range(100) if i > 3 if i % 8 == 0 if i ** 2 % 5 == 7}
+            """,
+        ),
+        (
+            """
+x = set()
+for i in range(100):
+    if i > 3:
+        if i % 8 == 0:
+            if i ** 2 % 5 == 7:
+                x.add(i ** 2)
+            else:
+                x.add(3)
+            """,
+            """
+x = set()
+for i in range(100):
+    if i > 3:
+        if i % 8 == 0:
+            if i ** 2 % 5 == 7:
+                x.add(i ** 2)
+            else:
+                x.add(3)
+            """,
+        ),
     )
 
     for content, expected_abstraction in test_cases:
