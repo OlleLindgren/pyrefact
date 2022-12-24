@@ -39,9 +39,9 @@ It is strongly recommended that you version control or otherwise backup any code
 ### Restructuring
 
 * Move code into primitive functions.
-* Invert `if`/`else` to put the smaller block first
-* De-indent code with early `continue` and `return` statements
-* Replace loops with comprehensions where that would be equivalent.
+* Invert `if`/`else` to put the smaller block first.
+* De-indent code with early `continue` and `return` statements.
+* Replace loops that only fill up lists or sets with comprehensions.
 
 ### Cleanup
 
