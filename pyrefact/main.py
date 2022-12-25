@@ -2,6 +2,7 @@
 import argparse
 import ast
 import collections
+import io
 import os
 import sys
 from pathlib import Path
@@ -15,7 +16,7 @@ MAX_FILE_PASSES = 25
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("paths", help="Paths to refactor", type=Path, nargs="+", default=())
+    parser.add_argument("paths", help="Paths to refactor", type=Path, nargs="*", default=())
     parser.add_argument(
         "--preserve",
         "-p",
@@ -25,26 +26,11 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
         default=(),
     )
     parser.add_argument("--safe", "-s", help="Don't delete or rename anything", action="store_true")
+    parser.add_argument("--from-stdin", help="Recieve input source code from stdin", action="store_true")
     return parser.parse_args(args)
 
 
-def _run_pyrefact(
-    filename: Path,
-    *,
-    preserve: Collection[str] = frozenset(),
-    safe: bool = False,
-) -> int:
-    """Fix a file.
-
-    Args:
-        filename (Path): File to fix
-
-    Returns:
-        int: Number of passes made
-    """
-    with open(filename, "r", encoding="utf-8") as stream:
-        initial_content = content = stream.read()
-
+def format_str(content: str, *, preserve: Collection[str], safe: bool) -> str:
     if not parsing.is_valid_python(content):
         content = completion.autocomplete(content)
 
@@ -118,6 +104,28 @@ def _run_pyrefact(
     content = fixes.fix_black(content)
     content = fixes.fix_rmspace(content)
 
+    return content
+
+
+def _run_pyrefact(
+    filename: Path,
+    *,
+    preserve: Collection[str] = frozenset(),
+    safe: bool = False,
+) -> int:
+    """Fix a file.
+
+    Args:
+        filename (Path): File to fix
+
+    Returns:
+        int: Number of passes made
+    """
+    with open(filename, "r", encoding="utf-8") as stream:
+        initial_content = stream.read()
+
+    content = format_str(initial_content, preserve=preserve, safe=safe)
+
     if content != initial_content and (
         parsing.is_valid_python(content) or not parsing.is_valid_python(initial_content)
     ):
@@ -173,6 +181,19 @@ def main(args: Sequence[str]) -> int:
             ):
                 used_names[_namespace_name(filename)].add(node.attr)
                 used_names[_namespace_name(filename)].add(node.value.id)
+
+    if args.from_stdin:
+        content = sys.stdin.read()
+        temp_stdout = io.StringIO()
+        sys_stdout = sys.stdout
+        preserve = set.union(*used_names.values()) if used_names else set()
+        try:
+            sys.stdout = temp_stdout
+            content = format_str(content, preserve=preserve, safe=args.safe)
+        finally:
+            sys.stdout = sys_stdout
+        print(content)
+        return 0
 
     folder_contents = collections.defaultdict(list)
     for filename in _iter_python_files(args.paths):

@@ -51,11 +51,13 @@ It is strongly recommended that you version control or otherwise backup any code
 
 The `--preserve` flag lets you define places where code is used. When this is set, pyrefact will try to keep these usages intact.
 The `--safe` flag will entirely prevent pyrefact from renaming or removing code.
+The `--from-stdin` flag will format code recieved from stdin, and output the result to stdout.
 
 ```bash
 pip install pyrefact
 python -m pyrefact /path/to/filename.py --preserve /path/to/module/where/filename/is/used
 python -m pyrefact /path/to/filename.py --safe
+cat /path/to/filename.py | pyrefact --from-stdin
 ```
 
 ## Prerequisites
