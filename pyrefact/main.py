@@ -41,16 +41,32 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
 
 
 def format_code(
-    content: str, *, preserve: Collection[str] = frozenset(), safe: bool = False, keep_imports: bool = False
+    content: str,
+    *,
+    preserve: Collection[str] = frozenset(),
+    safe: bool = False,
+    keep_imports: bool = False,
 ) -> str:
     if not parsing.is_valid_python(content):
         content = completion.autocomplete(content)
 
     content = fixes.fix_rmspace(content)
 
+    if not content.strip():
+        return content
+
+    if parsing.is_valid_python(content):
+        minimum_indent = 0
+    else:
+        lines = content.splitlines()
+        minimum_indent = min(len(line) - len(line.lstrip()) for line in lines if line)
+        content = "".join(
+            line[minimum_indent:] if line else line for line in content.splitlines(keepends=True)
+        )
+
     if not parsing.is_valid_python(content):
         print("Result is not valid python.")
-        return 0
+        return content
 
     if safe:
         # Code may not be deleted from module level
@@ -117,7 +133,7 @@ def format_code(
     content = fixes.fix_black(content)
     content = fixes.fix_rmspace(content)
 
-    return content
+    return "".join(f"{' ' * minimum_indent}{line}" for line in content.splitlines(keepends=True))
 
 
 def format_file(
