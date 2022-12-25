@@ -8,7 +8,15 @@ import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
 
-from pyrefact import abstractions, completion, constants, fixes, object_oriented, parsing, performance
+from pyrefact import (
+    abstractions,
+    completion,
+    constants,
+    fixes,
+    object_oriented,
+    parsing,
+    performance,
+)
 
 MAX_MODULE_PASSES = 5
 MAX_FILE_PASSES = 25
@@ -26,11 +34,15 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
         default=(),
     )
     parser.add_argument("--safe", "-s", help="Don't delete or rename anything", action="store_true")
-    parser.add_argument("--from-stdin", help="Recieve input source code from stdin", action="store_true")
+    parser.add_argument(
+        "--from-stdin", help="Recieve input source code from stdin", action="store_true"
+    )
     return parser.parse_args(args)
 
 
-def format_str(content: str, *, preserve: Collection[str], safe: bool) -> str:
+def format_str(
+    content: str, *, preserve: Collection[str], safe: bool, keep_imports: bool = False
+) -> str:
     if not parsing.is_valid_python(content):
         content = completion.autocomplete(content)
 
@@ -63,7 +75,7 @@ def format_str(content: str, *, preserve: Collection[str], safe: bool) -> str:
     # to a previous version again.
     content_history = {content}
 
-    for passes in range(1, 1 + MAX_FILE_PASSES):
+    for _ in range(1, 1 + MAX_FILE_PASSES):
 
         content = fixes.delete_unreachable_code(content)
         content = fixes.undefine_unused_variables(content, preserve=preserve)
@@ -99,7 +111,8 @@ def format_str(content: str, *, preserve: Collection[str], safe: bool) -> str:
     content = fixes.fix_black(content)
     content = fixes.fix_isort(content, line_length=10_000)
     content = fixes.add_missing_imports(content)
-    content = fixes.remove_unused_imports(content)
+    if not keep_imports:
+        content = fixes.remove_unused_imports(content)
     content = fixes.fix_isort(content)
     content = fixes.fix_black(content)
     content = fixes.fix_rmspace(content)
@@ -119,12 +132,12 @@ def _run_pyrefact(
         filename (Path): File to fix
 
     Returns:
-        int: Number of passes made
+        bool: True if any changes were made
     """
     with open(filename, "r", encoding="utf-8") as stream:
         initial_content = stream.read()
 
-    content = format_str(initial_content, preserve=preserve, safe=safe)
+    content = format_str(initial_content, preserve=preserve, safe=safe, keep_imports=True)
 
     if content != initial_content and (
         parsing.is_valid_python(content) or not parsing.is_valid_python(initial_content)
@@ -132,8 +145,7 @@ def _run_pyrefact(
         with open(filename, "w", encoding="utf-8") as stream:
             stream.write(content)
 
-        print(f"\nPyrefact made {passes+1} passes.\n")
-        return passes
+        return True
 
     return 0
 
@@ -201,19 +213,19 @@ def main(args: Sequence[str]) -> int:
         folder_contents[filename.parent].append(filename)
 
     for folder, filenames in folder_contents.items():
-        passes = 1
+
         module_passes = 0
         for module_passes in range(1, 1 + MAX_MODULE_PASSES):
-            passes = 0
+            changes = False
             for filename in filenames:
                 preserve = set()
                 for name, variables in used_names.items():
                     if name != _namespace_name(filename):
                         preserve.update(variables)
                 print(f"Analyzing {filename}...")
-                passes += _run_pyrefact(filename, preserve=frozenset(preserve), safe=args.safe)
+                changes |= _run_pyrefact(filename, preserve=frozenset(preserve), safe=args.safe)
 
-            if passes == 0:
+            if not changes:
                 break
 
         print(f"\nPyrefact made {module_passes} passes on {folder}.\n")
