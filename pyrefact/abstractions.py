@@ -552,11 +552,8 @@ def create_abstractions(content: str) -> str:
                 function_call = ast.Assign(
                     targets=assign_targets, value=call, lineno=nodes[0].lineno
                 )
-                ifs = []
-                for n in nodes:
-                    for c in ast.walk(n):
-                        if isinstance(c, ast.If):
-                            ifs.append(c)
+                ifs = [c for n in nodes for c in ast.walk(n) if isinstance(c, ast.If)]
+
                 pure_nested_if = len(nodes) == 1 and all(
                     len(n.body) == len(n.orelse) == 1 for n in ifs
                 )

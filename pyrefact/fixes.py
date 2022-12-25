@@ -592,10 +592,10 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
             referenced_names = set()
             starts = []
             ends = []
-            if containing_loop_node is not None:
-                (loop_start, loop_end) = parsing.get_charnos(containing_loop_node, content)
-            else:
+            if containing_loop_node is None:
                 loop_start = loop_end = -1
+            else:
+                (loop_start, loop_end) = parsing.get_charnos(containing_loop_node, content)
             for target_node in target_nodes:
                 (s, e) = parsing.get_charnos(target_node, content)
                 starts.append(s)

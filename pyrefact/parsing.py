@@ -594,10 +594,11 @@ def get_imported_names(ast_tree: ast.Module) -> Collection[str]:
     Returns:
         Collection[str]: All imported names.
     """
-    imports = set()
-    for node in _get_imports(ast_tree):
-        for alias in node.names:
-            imports.add(alias.name if alias.asname is None else alias.asname)
+    imports = {
+        alias.name if alias.asname is None else alias.asname
+        for node in _get_imports(ast_tree)
+        for alias in node.names
+    }
 
     return imports
 
