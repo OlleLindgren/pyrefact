@@ -40,8 +40,8 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def format_str(
-    content: str, *, preserve: Collection[str], safe: bool, keep_imports: bool = False
+def format_code(
+    content: str, *, preserve: Collection[str] = frozenset(), safe: bool = False, keep_imports: bool = False
 ) -> str:
     if not parsing.is_valid_python(content):
         content = completion.autocomplete(content)
@@ -120,7 +120,7 @@ def format_str(
     return content
 
 
-def _run_pyrefact(
+def format_file(
     filename: Path,
     *,
     preserve: Collection[str] = frozenset(),
@@ -137,7 +137,7 @@ def _run_pyrefact(
     with open(filename, "r", encoding="utf-8") as stream:
         initial_content = stream.read()
 
-    content = format_str(initial_content, preserve=preserve, safe=safe, keep_imports=True)
+    content = format_code(initial_content, preserve=preserve, safe=safe, keep_imports=True)
 
     if content != initial_content and (
         parsing.is_valid_python(content) or not parsing.is_valid_python(initial_content)
@@ -201,7 +201,7 @@ def main(args: Sequence[str]) -> int:
         preserve = set.union(*used_names.values()) if used_names else set()
         try:
             sys.stdout = temp_stdout
-            content = format_str(content, preserve=preserve, safe=args.safe)
+            content = format_code(content, preserve=preserve, safe=args.safe)
         finally:
             sys.stdout = sys_stdout
         print(content)
@@ -223,7 +223,7 @@ def main(args: Sequence[str]) -> int:
                     if name != _namespace_name(filename):
                         preserve.update(variables)
                 print(f"Analyzing {filename}...")
-                changes |= _run_pyrefact(filename, preserve=frozenset(preserve), safe=args.safe)
+                changes |= format_file(filename, preserve=frozenset(preserve), safe=args.safe)
 
             if not changes:
                 break

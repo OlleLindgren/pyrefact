@@ -69,7 +69,7 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     chars = []
     for i, char, keep in zip(range(len(content)), content, keep_mask):
         if i == next_pass:
-            chars.extend("pass")
+            chars.extend("pass\n")
         elif next_pass < i < next_pass + 3:
             continue
         else:

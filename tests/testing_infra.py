@@ -9,8 +9,8 @@ def _remove_multi_whitespace(content: str) -> str:
 
 
 def _create_diff_view(processed_content: str, expected_content: str) -> str:
-    proc_lines = processed_content.splitlines()
-    exp_lines = expected_content.splitlines()
+    proc_lines = processed_content.splitlines() or [""]
+    exp_lines = expected_content.splitlines() or [""]
     length = max(max(map(len, proc_lines)), max(map(len, exp_lines)))
     diff_view = [
         f"{p.ljust(length, ' ')} {'=' if p==e else '!'} {e.ljust(length, ' ')}\n"
