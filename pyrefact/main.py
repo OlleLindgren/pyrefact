@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
 
-from . import abstractions, completion, constants, fixes, object_oriented, parsing, performance
+from pyrefact import abstractions, completion, constants, fixes, object_oriented, parsing, performance
 
 MAX_MODULE_PASSES = 5
 MAX_FILE_PASSES = 25

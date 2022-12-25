@@ -3,7 +3,7 @@ import heapq
 from types import MappingProxyType
 from typing import Collection, Iterable, Mapping, Optional
 
-from . import constants, parsing
+from pyrefact import constants, parsing
 
 
 def unparse(node: ast.AST) -> str:

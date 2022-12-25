@@ -3,7 +3,7 @@ import itertools
 import re
 from typing import Collection, Iterable, Sequence, Tuple
 
-from . import constants, parsing, processing
+from pyrefact import constants, parsing, processing
 
 
 class _EverythingContainer:
