@@ -1325,7 +1325,7 @@ def replace_for_loops_with_comprehensions(content: str) -> str:
             if len(body) <= 1:
                 continue
             for n1, n2 in zip(body[:-1], body[1:]):
-                ifs = []
+
                 if not (
                     isinstance(n1, ast.Assign)
                     and len(n1.targets) == 1
@@ -1335,17 +1335,33 @@ def replace_for_loops_with_comprehensions(content: str) -> str:
                 ):
                     continue
 
-                body_node = n2.body[0]
-                while (
+                body_node = n2
+                generators = []
+
+                while (isinstance(body_node, ast.For) and len(body_node.body) == 1) or (
                     isinstance(body_node, ast.If)
-                    and (not body_node.orelse)
-                    and (len(body_node.body) == 1)
+                    and len(body_node.body) == 1
+                    and not body_node.orelse
                 ):
-                    ifs.append(body_node.test)
+                    if isinstance(body_node, ast.If):
+                        generators[-1].ifs.append(body_node.test)
+                    elif isinstance(body_node, ast.For):
+                        generators.append(
+                            ast.comprehension(
+                                target=body_node.target,
+                                iter=body_node.iter,
+                                ifs=[],
+                                is_async=0,
+                            )
+                        )
+                    else:
+                        raise RuntimeError(f"Unexpected type of node: {type(body_node)}")
+
                     body_node = body_node.body[0]
 
-                if len(ifs) > 1:
-                    ifs = [ast.BoolOp(op=ast.And(), values=ifs)]
+                for comprehension in generators:
+                    if len(comprehension.ifs) > 1:
+                        comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
 
                 if (
                     isinstance(body_node, ast.Expr)
@@ -1375,9 +1391,7 @@ def replace_for_loops_with_comprehensions(content: str) -> str:
 
                     replacements[n1.value] = comp_type(
                         elt=body_node.value.args[0],
-                        generators=[
-                            ast.comprehension(target=n2.target, iter=n2.iter, ifs=ifs, is_async=0)
-                        ],
+                        generators=generators,
                     )
                     removals.add(n2)
 

@@ -112,6 +112,44 @@ for i in range(100):
                 x.add(3)
             """,
         ),
+        (
+            """
+values = []
+for i in range(10):
+    for j in range(11):
+        values.append(i * j)
+            """,
+            """
+values = [i * j for i in range(10) for j in range(11)]
+            """,
+        ),
+        (
+            """
+values = []
+for i in range(10):
+    for j in range(11):
+        if i % j:
+            values.append(i * j)
+            """,
+            """
+values = [i * j for i in range(10) for j in range(11) if i % j]
+            """,
+        ),
+        (
+            """
+values = []
+for i in range(10):
+    if i % 3:
+        if not i % 5:
+            for j in range(11):
+                if i % 7 and i % 9:
+                    for k in range(5555):
+                        values.append(i * j + k)
+            """,
+            """
+values = [i * j + k for i in range(10) if i % 3 and (not i % 5) for j in range(11) if i % 7 and i % 9 for k in range(5555)]
+            """,
+        ),
     )
 
     for content, expected_abstraction in test_cases:
