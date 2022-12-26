@@ -5,16 +5,20 @@ It is strongly recommended that you version control or otherwise backup any code
 
 ## Features
 
-### Imports
-
-* Delete unused imports
-* Move safe imports to toplevel
-* Add missing imports by guessing what you probably wanted.
-  * For example, if `Sequence` is used but never defined, it will insert `from typing import Sequence` at the top of the file.
-
 ### Readability
 
+* Invert `if`/`else` to put the smaller block first.
+* De-indent code with early `continue` and `return` statements.
+* Replace loops that only fill up lists or sets with comprehensions.
 * Rename variables, functions and classes with conventions.
+* Move code into primitive functions.
+
+### Performance
+
+* Replace `sum` comprehensions and for loops with constant expressions. The symbolic algebra tool [Sympy](https://github.com/sympy/sympy) is used under the hood.
+* Replace hardcoded inlined collections and comprehensions with set or generator equivalents in places where that would improve performance.
+* Replace `sorted()[:n]` with `heapq.nsmallest`, replace `sorted()[0]` with `min`
+* Use `is` instead of `==` for comparisons to `None`, `True` and `False`.
 
 ### Removing dead and useless code
 
@@ -30,19 +34,12 @@ It is strongly recommended that you version control or otherwise backup any code
 * Remove unused `self` and `cls` function arguments, and add `@staticmethod` or `@classmethod`.
 * Move functions decorated with `@staticmethod` outside of their class namespaces.
 
-### Performance
+### Imports
 
-* Replace hardcoded inlined collections and comprehensions with set or generator equivalents in places where that would improve performance.
-* Replace `sorted()[:n]` with `heapq.nsmallest`, replace `sorted()[0]` with `min`
-* Use is for comparisons to None, True and False instead of ==.
-* Replace math comprehensions and for loops with constant expressions. The symbolic algebra tool [Sympy](https://github.com/sympy/sympy) is used under the hood for this.
-
-### Restructuring
-
-* Move code into primitive functions.
-* Invert `if`/`else` to put the smaller block first.
-* De-indent code with early `continue` and `return` statements.
-* Replace loops that only fill up lists or sets with comprehensions.
+* Delete unused imports
+* Move safe imports to toplevel
+* Add missing imports by guessing what you probably wanted.
+  * For example, if `Sequence` is used but never defined, it will insert `from typing import Sequence` at the top of the file.
 
 ### Cleanup
 
