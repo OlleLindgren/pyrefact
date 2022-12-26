@@ -394,7 +394,9 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
     if code[-1] == " ":
         whitespace = re.findall(r" +$", code)
         end_charno -= len(whitespace[0])
-    if content[start_charno - 1] == "@":
+    if content[start_charno - 1] == "@" and isinstance(
+        node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    ):
         start_charno -= 1
 
     if (

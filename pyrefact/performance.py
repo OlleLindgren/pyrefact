@@ -143,6 +143,7 @@ def remove_redundant_chained_calls(content: str) -> str:
         "iter": {"list", "tuple", "iter"},
         "reversed": {"list", "tuple"},
         "tuple": {"list", "tuple", "iter"},
+        "sum": {"list", "tuple", "iter", "sorted", "reversed"},
     }
 
     replacements = {}

@@ -1,9 +1,10 @@
 import ast
 import collections
 import itertools
+import math
 import queue
 import re
-from typing import Collection, Iterable, List, Mapping, Sequence, Tuple, Union
+from typing import Callable, Collection, Iterable, List, Mapping, Sequence, Tuple, Union
 
 import black
 import isort
@@ -1407,18 +1408,6 @@ def inline_math_comprehensions(content: str) -> str:
     blacklist = set()
 
     # TODO both of these lists should be extended
-    math_functions = {"sum", "len"}
-    iterator_functions = {
-        "iter",
-        "sorted",
-        "list",
-        "range",
-        "map",
-        "filter",
-        "tuple",
-        "reversed",
-        "set",
-    }
 
     for scope in parsing.walk(
         root, (ast.Module, ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)
@@ -1441,7 +1430,7 @@ def inline_math_comprehensions(content: str) -> str:
             if isinstance(assignment.value, (ast.GeneratorExp, ast.ListComp, ast.SetComp)) or (
                 isinstance(assignment.value, ast.Call)
                 and isinstance(assignment.value.func, ast.Name)
-                and assignment.value.func.id in iterator_functions
+                and assignment.value.func.id in constants.ITERATOR_FUNCTIONS
             ):
                 comprehension_assignments.append((assignment, target, assignment.value))
 
@@ -1478,7 +1467,7 @@ def inline_math_comprehensions(content: str) -> str:
             for call in parsing.walk(scope, ast.Call):
                 if (
                     isinstance(call.func, ast.Name)
-                    and call.func.id in math_functions
+                    and call.func.id in constants.MATH_FUNCTIONS
                     and len(call.args) == 1
                     and call.args[0] is use
                 ):

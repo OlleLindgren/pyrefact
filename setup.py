@@ -16,7 +16,7 @@ def _parse_version() -> str:
         return stream.read().strip()
 
 
-REQUIREMENTS = ["black>=22.1.0", "isort==5.10.1", "rmspace==6"]
+REQUIREMENTS = ["black>=22.1.0", "isort==5.10.1", "rmspace==6", "sympy==1.11.1"]
 if tuple(sys.version_info) < (3, 9):
     REQUIREMENTS.append("astunparse==1.6.3")
 

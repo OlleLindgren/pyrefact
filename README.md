@@ -35,6 +35,7 @@ It is strongly recommended that you version control or otherwise backup any code
 * Replace hardcoded inlined collections and comprehensions with set or generator equivalents in places where that would improve performance.
 * Replace `sorted()[:n]` with `heapq.nsmallest`, replace `sorted()[0]` with `min`
 * Use is for comparisons to None, True and False instead of ==.
+* Replace math comprehensions and for loops with constant expressions. The symbolic algebra tool [Sympy](https://github.com/sympy/sympy) is used under the hood for this.
 
 ### Restructuring
 

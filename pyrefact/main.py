@@ -11,11 +11,11 @@ from typing import Collection, Iterable, Sequence
 from pyrefact import (
     abstractions,
     completion,
-    constants,
     fixes,
     object_oriented,
     parsing,
     performance,
+    symbolic_math,
 )
 
 MAX_MODULE_PASSES = 5
@@ -110,6 +110,7 @@ def format_code(
         content = fixes.remove_redundant_comprehensions(content)
         content = fixes.replace_functions_with_literals(content)
         content = fixes.inline_math_comprehensions(content)
+        content = symbolic_math.simplify_math_iterators(content)
         content = performance.replace_with_sets(content)
         content = performance.remove_redundant_chained_calls(content)
         content = performance.remove_redundant_iter(content)

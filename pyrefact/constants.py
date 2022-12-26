@@ -301,3 +301,16 @@ REVERSE_OPERATOR_MAPPING = MappingProxyType(
         ast.LtE: ast.Gt,
     }
 )
+
+MATH_FUNCTIONS = {"sum", "len"}
+ITERATOR_FUNCTIONS = {
+    "iter",
+    "sorted",
+    "list",
+    "range",
+    "map",
+    "filter",
+    "tuple",
+    "reversed",
+    "set",
+}

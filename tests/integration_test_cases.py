@@ -86,12 +86,17 @@ print(X)
     ),
     (
         """
-w = [a ** 2 for a in range(10)]
+q = 3
+w = list()
+for a in range(-1, 10):
+    for k in range(-1, 1):
+        w.append(a ** 2 + q + k ** 2)
 y = sum(w)
 print(y)
             """,
         """
-Y = sum([a**2 for a in range(10)])
+Q = 3
+Y = 22 * Q + 583
 print(Y)
         """,
     ),
