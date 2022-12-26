@@ -1398,3 +1398,100 @@ def replace_for_loops_with_comprehensions(content: str) -> str:
     content = processing.alter_code(content, root, removals=removals, replacements=replacements)
 
     return content
+
+
+def inline_math_comprehensions(content: str) -> str:
+    root = parsing.parse(content)
+
+    replacements = {}
+    blacklist = set()
+
+    # TODO both of these lists should be extended
+    math_functions = {"sum", "len"}
+    iterator_functions = {
+        "iter",
+        "sorted",
+        "list",
+        "range",
+        "map",
+        "filter",
+        "tuple",
+        "reversed",
+        "set",
+    }
+
+    for scope in parsing.walk(
+        root, (ast.Module, ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)
+    ):
+        comprehension_assignments = []
+        for assignment in parsing.walk(root, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            if (
+                isinstance(assignment, ast.Assign)
+                and len(assignment.targets) == 1
+                and isinstance(assignment.targets[0], ast.Name)
+            ):
+                target = assignment.targets[0]
+            elif isinstance(assignment, (ast.AugAssign, ast.AnnAssign)) and isinstance(
+                assignment.target, ast.Name
+            ):
+                target = assignment.target
+            else:
+                continue
+
+            if isinstance(assignment.value, (ast.GeneratorExp, ast.ListComp, ast.SetComp)) or (
+                isinstance(assignment.value, ast.Call)
+                and isinstance(assignment.value.func, ast.Name)
+                and assignment.value.func.id in iterator_functions
+            ):
+                comprehension_assignments.append((assignment, target, assignment.value))
+
+        for assignment, target, value in comprehension_assignments:
+            uses = list(_get_uses_of(target, scope, content))
+            if len(uses) != 1:
+                blacklist.add(assignment)
+                continue
+
+            use = uses.pop()
+
+            _, set_end_charno = parsing.get_charnos(value, content)
+            use_start_charno, _ = parsing.get_charnos(use, content)
+
+            # May be in a loop and the below dependency check won't be reliable.
+            if use_start_charno < set_end_charno:
+                blacklist.add(use)
+                break
+
+            value_dependencies = {node.id for node in parsing.walk(value, ast.Name)}
+
+            # Check for references to any of the iterator's dependencies between set and use.
+            # Perhaps some of these could be skipped, but I'm not sure that's a good idea.
+            for node in parsing.walk(scope, ast.Name):
+                if node.id in value_dependencies:
+                    start, end = parsing.get_charnos(node, content)
+                    if set_end_charno < start <= end < use_start_charno:
+                        blacklist.add(use)
+                        break
+
+            if use in blacklist:
+                break
+
+            for call in parsing.walk(scope, ast.Call):
+                if (
+                    isinstance(call.func, ast.Name)
+                    and call.func.id in math_functions
+                    and len(call.args) == 1
+                    and call.args[0] is use
+                ):
+                    if use in replacements:
+                        blacklist.add(use)
+                    else:
+                        replacements[use] = value
+                    break
+
+    for assignment in blacklist:
+        if assignment in replacements:
+            del replacements[assignment]
+
+    content = processing.replace_nodes(content, replacements)
+
+    return content

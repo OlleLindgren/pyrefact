@@ -109,6 +109,7 @@ def format_code(
         content = fixes.replace_for_loops_with_comprehensions(content)
         content = fixes.remove_redundant_comprehensions(content)
         content = fixes.replace_functions_with_literals(content)
+        content = fixes.inline_math_comprehensions(content)
         content = performance.replace_with_sets(content)
         content = performance.remove_redundant_chained_calls(content)
         content = performance.remove_redundant_iter(content)

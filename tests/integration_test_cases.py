@@ -13,7 +13,7 @@ for x in range(100):
         print(x > 30)
         y = 100 - sum(x, 2, 3)
 print(x)
-            """,
+        """,
         """
 for x in range(100):
     if x <= 10:
@@ -21,7 +21,7 @@ for x in range(100):
         x *= 12
         print(x > 30)
 print(x)
-            """,
+        """,
     ),
     (
         """
@@ -38,7 +38,7 @@ def foo() -> bool:
         else:
             return True
 print(foo())
-            """,
+        """,
         """
 X = 100
 Z = []
@@ -52,7 +52,7 @@ def _foo() -> bool:
 
     return True
 print(_foo())
-            """,
+        """,
     ),
     (
         """
@@ -65,12 +65,34 @@ for a in x:
                 z.append(w ** 3)
 if all(y in [1, 2, 5] for y in sorted(set(list(z)))):
     print(z, x)
-            """,
+        """,
         """
 X = sorted(range(100))[::3]
 Z = [w**3 for a in X if a % 3 == 0 and a % 4 == 2 for w in X if w > len(X) // 2]
 if all(y in {1, 2, 5} for y in sorted(set(Z))):
     print(Z, X)
+        """,
+    ),
+    (
+        """
+z = {a for a in range(10)}
+x = sum(z)
+print(x)
+        """,
+        """
+X = sum(set(range(10)))
+print(X)
+        """,
+    ),
+    (
+        """
+w = [a ** 2 for a in range(10)]
+y = sum(w)
+print(y)
             """,
+        """
+Y = sum([a**2 for a in range(10)])
+print(Y)
+        """,
     ),
 )
