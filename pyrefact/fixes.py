@@ -629,11 +629,12 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         target_nodes = _unique_assignment_targets(node)
         target_names = {x.id for x in target_nodes}
         if target_names == {"_"}:
+            start_charno, end_charno = parsing.get_charnos(node, content)
             code = parsing.get_code(node, content)
             changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
             if code != changed_code:
                 print(f"Removing redundant assignments in {code}")
-                content = content.replace(code, changed_code)
+                content = content[:start_charno] + changed_code + content[end_charno:]
 
     return content
 
