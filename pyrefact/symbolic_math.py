@@ -16,10 +16,10 @@ def _get_range_start_end(rng: ast.Call) -> Tuple[ast.AST, ast.AST]:
         raise ValueError(f"Expected range call, not {rng}")
 
     if len(rng.args) == 1:
-        return ast.Constant(value=0, kind=None), rng.args[0], ast.Constant(value=1)
+        return ast.Constant(value=0, kind=None), rng.args[0], ast.Constant(value=1, kind=None)
 
     if len(rng.args) == 2:
-        return *rng.args, ast.Constant(value=1)
+        return *rng.args, ast.Constant(value=1, kind=None)
 
     if len(rng.args) == 3:
         return tuple(rng.args)
@@ -34,7 +34,7 @@ def _parse_sympy_expr(expression):
 def _simplify_math(f: Callable) -> ast.AST:
     def wrapper(*args, **kwargs):
         expression = f(*args, **kwargs)
-        content = processing.unparse(expression)
+        content = processing.unparse(expression).strip()
 
         # TODO substitute constant calls, attributes and other stuff with variables
 
@@ -48,12 +48,12 @@ def _simplify_math(f: Callable) -> ast.AST:
 def _sum_int_squares_to(value: ast.AST) -> ast.AST:
     return ast.BinOp(
         left=ast.BinOp(
-            left=ast.BinOp(left=value, op=ast.Sub(), right=ast.Constant(value=1)),
+            left=ast.BinOp(left=value, op=ast.Sub(), right=ast.Constant(value=1, kind=None)),
             op=ast.Mult(),
             right=value,
         ),
         op=ast.Div(),
-        right=ast.Constant(value=2),
+        right=ast.Constant(value=2, kind=None),
     )
 
 
@@ -76,21 +76,21 @@ def _sum_range(rng: ast.Call) -> ast.AST:
 
 @_simplify_math
 def _sum_constants(values: Sequence[ast.AST]) -> ast.AST:
-    expr = " + ".join(processing.unparse(node) for node in values)
+    expr = " + ".join(processing.unparse(node).strip() for node in values)
     return parsing.parse(expr)
 
 
 def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> ast.AST:
-    content = processing.unparse(expr)
+    content = processing.unparse(expr).strip()
     content = str(sympy.simplify(content))
     sym_expr = _parse_sympy_expr(content)
     for comprehension in generators:
-        integrand = _parse_sympy_expr(processing.unparse(comprehension.target))
+        integrand = _parse_sympy_expr(processing.unparse(comprehension.target).strip())
         if isinstance(comprehension.iter, ast.Call):
             start, end, step = _get_range_start_end(comprehension.iter)
-            lower = _parse_sympy_expr(processing.unparse(start))
-            upper = _parse_sympy_expr(processing.unparse(end))
-            step = _parse_sympy_expr(processing.unparse(step))
+            lower = _parse_sympy_expr(processing.unparse(start).strip())
+            upper = _parse_sympy_expr(processing.unparse(end).strip())
+            step = _parse_sympy_expr(processing.unparse(step).strip())
 
             if step == 1:
                 upper -= 1
@@ -104,7 +104,7 @@ def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> a
 
         elif isinstance(comprehension.iter, (ast.Tuple, ast.List, ast.Set)):
             values = [
-                _parse_sympy_expr(processing.unparse(value)) for value in comprehension.iter.elts
+                _parse_sympy_expr(processing.unparse(value).strip()) for value in comprehension.iter.elts
             ]
             if isinstance(comprehension.iter, ast.Set):
                 values = set(values)

@@ -88,10 +88,12 @@ def replace_nodes(content: str, replacements: Mapping[ast.AST, Optional[ast.AST]
         start, end = parsing.get_charnos(node, content)
         code = content[start:end]
         new_code = unparse(replacement) if replacement is not None else ""
+        lines = [line for line in new_code.splitlines(keepends=True) if line.strip()]
         indent = " " * node.col_offset
+        start_indent = " " * (len(code) - len(code.lstrip(" ")))
         new_code = "".join(
-            f"{indent * int(i > 0)}{code}"
-            for i, code in enumerate(new_code.splitlines(keepends=True))
+            f"{indent if i > 0 else start_indent}{code}"
+            for i, code in enumerate(lines)
         )
         if new_code:
             print(f"Replacing \n{code}\nWith      \n{new_code}")
