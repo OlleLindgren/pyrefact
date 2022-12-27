@@ -100,4 +100,20 @@ Y = 22 * Q + 583
 print(Y)
         """,
     ),
+    (
+        """
+x = 0
+for i in range(100):
+    x += i**2
+
+print(x)
+            """,
+        """
+X = 0
+for i in range(100):
+    X += i**2
+
+print(X)
+        """,
+    ),
 )

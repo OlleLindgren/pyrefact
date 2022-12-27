@@ -109,16 +109,28 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
             if isinstance(node.ctx, ast.Store) and node.id == name:
                 blacklisted_names.update(parsing.walk(funcdef, ast.Name))
 
-    for refnode in parsing.walk(scope, ast.Name):
-        if refnode in blacklisted_names:
-            continue
-        if isinstance(refnode.ctx, ast.Load) and refnode.id == name:
-            n_start = (refnode.lineno, refnode.col_offset)
-            n_end = (refnode.end_lineno, refnode.end_col_offset)
-            if end < n_start:
-                yield refnode
-            elif is_maybe_unordered_scope and n_end < start:
-                yield refnode
+    augass_candidates = {
+        target
+        for augass in parsing.walk(scope, ast.AugAssign)
+        for target in parsing.walk(augass, ast.Name)
+        if target.id == name
+    }
+
+    ctx_load_candidates = {
+        refnode
+        for refnode in parsing.walk(scope, ast.Name)
+        if refnode not in blacklisted_names
+        and isinstance(refnode.ctx, ast.Load)
+        and refnode.id == name
+    }
+
+    for refnode in augass_candidates | ctx_load_candidates:
+        n_start = (refnode.lineno, refnode.col_offset)
+        n_end = (refnode.end_lineno, refnode.end_col_offset)
+        if end < n_start:
+            yield refnode
+        elif is_maybe_unordered_scope and n_end < start:
+            yield refnode
 
 
 def _get_variable_name_substitutions(
@@ -628,13 +640,15 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
     for node in parsing.walk(ast_tree, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
         target_nodes = _unique_assignment_targets(node)
         target_names = {x.id for x in target_nodes}
-        if target_names == {"_"}:
-            start_charno, end_charno = parsing.get_charnos(node, content)
-            code = parsing.get_code(node, content)
-            changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
-            if code != changed_code:
-                print(f"Removing redundant assignments in {code}")
-                content = content[:start_charno] + changed_code + content[end_charno:]
+        if target_names != {"_"}:
+            continue
+
+        (start_charno, end_charno) = parsing.get_charnos(node, content)
+        code = parsing.get_code(node, content)
+        changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
+        if code != changed_code:
+            print(f"Removing redundant assignments in {code}")
+            content = content[:start_charno] + changed_code + content[end_charno:]
 
     return content
 

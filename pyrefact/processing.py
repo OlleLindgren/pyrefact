@@ -92,8 +92,7 @@ def replace_nodes(content: str, replacements: Mapping[ast.AST, Optional[ast.AST]
         indent = " " * node.col_offset
         start_indent = " " * (len(code) - len(code.lstrip(" ")))
         new_code = "".join(
-            f"{indent if i > 0 else start_indent}{code}"
-            for i, code in enumerate(lines)
+            f"{indent if i > 0 else start_indent}{code}" for i, code in enumerate(lines)
         )
         if new_code:
             print(f"Replacing \n{code}\nWith      \n{new_code}")

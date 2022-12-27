@@ -104,7 +104,8 @@ def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> a
 
         elif isinstance(comprehension.iter, (ast.Tuple, ast.List, ast.Set)):
             values = [
-                _parse_sympy_expr(processing.unparse(value).strip()) for value in comprehension.iter.elts
+                _parse_sympy_expr(processing.unparse(value).strip())
+                for value in comprehension.iter.elts
             ]
             if isinstance(comprehension.iter, ast.Set):
                 values = set(values)
@@ -135,7 +136,9 @@ def simplify_math_iterators(content: str) -> str:
                     and isinstance(arg.func, ast.Name)
                     and arg.func.id == "range"
                 ):
-                    if any(node is not arg for node in parsing.walk(arg, (ast.Attribute, ast.Call))):
+                    if any(
+                        node is not arg for node in parsing.walk(arg, (ast.Attribute, ast.Call))
+                    ):
                         continue
                     if node.func.id == "sum":
                         replacements[node] = _sum_range(arg)
@@ -146,7 +149,10 @@ def simplify_math_iterators(content: str) -> str:
                 ):
                     if any(parsing.walk(arg, (ast.Attribute))):
                         continue
-                    if any(not isinstance(node.func, ast.Name) or node.func.id not in ("range") for node in parsing.walk(arg, (ast.Call))):
+                    if any(
+                        not isinstance(node.func, ast.Name) or node.func.id not in ("range")
+                        for node in parsing.walk(arg, (ast.Call))
+                    ):
                         continue
                     replacements[node] = _sum_constants(arg.elts)
                 elif isinstance(arg, (ast.GeneratorExp, ast.ListComp)) and all(
@@ -174,7 +180,10 @@ def simplify_math_iterators(content: str) -> str:
                 ):
                     if any(parsing.walk(arg, (ast.Attribute))):
                         continue
-                    if any(not isinstance(node.func, ast.Name) or node.func.id not in ("range") for node in parsing.walk(arg, (ast.Call))):
+                    if any(
+                        not isinstance(node.func, ast.Name) or node.func.id not in ("range")
+                        for node in parsing.walk(arg, (ast.Call))
+                    ):
                         continue
                     replacements[node] = _integrate_over(arg.elt, arg.generators)
 
