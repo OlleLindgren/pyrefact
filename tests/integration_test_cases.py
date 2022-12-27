@@ -103,16 +103,48 @@ print(Y)
     (
         """
 x = 0
+a = 1
+for i in range(100):
+    x += i**2
+    a -= i**3
+
+print(x)
+            """,
+        """
+X = 328350
+print(X)
+        """,
+    ),
+    (
+        """
+x = 0
+a = 1
+for i in range(100):
+    x += i**2
+    a -= i**3
+
+print(x, a)
+            """,
+        """
+X = 0
+A = 1
+for i in range(100):
+    X += i**2
+    A -= i**3
+
+print(X, A)
+        """,
+    ),
+    (
+        """
+x = list()
 for i in range(100):
     x += i**2
 
 print(x)
             """,
         """
-X = 0
-for i in range(100):
-    X += i**2
-
+X = [i**2 for i in range(100)]
 print(X)
         """,
     ),

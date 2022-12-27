@@ -1411,6 +1411,40 @@ def replace_for_loops_with_comprehensions(content: str) -> str:
                     )
                     removals.add(n2)
 
+                elif (
+                    isinstance(body_node, ast.AugAssign)
+                    and isinstance(body_node.op, (ast.Add, ast.Sub))
+                    and (body_node.target.id == n1.targets[0].id)
+                ):
+                    if isinstance(n1.value, ast.List):
+                        replacement = ast.ListComp(
+                            elt=body_node.value,
+                            generators=generators,
+                        )
+                    else:
+                        comprehension = ast.GeneratorExp(
+                            elt=body_node.value,
+                            generators=generators,
+                        )
+                        replacement = ast.Call(
+                            func=ast.Name(id="sum"), args=[comprehension], keywords=[]
+                        )
+
+                    try:
+                        if not parsing.literal_value(n1.value):
+                            if isinstance(body_node.op, ast.Sub):
+                                replacement = ast.UnaryOp(op=body_node.op, operand=replacement)
+                            replacements[n1.value] = replacement
+                            removals.add(n2)
+                            continue
+
+                    except ValueError:
+                        pass
+
+                    replacement = ast.BinOp(left=n1.value, op=body_node.op, right=replacement)
+                    replacements[n1.value] = replacement
+                    removals.add(n2)
+
     content = processing.alter_code(content, root, removals=removals, replacements=replacements)
 
     return content

@@ -150,6 +150,56 @@ for i in range(10):
 values = [i * j + k for i in range(10) if i % 3 and (not i % 5) for j in range(11) if i % 7 and i % 9 for k in range(5555)]
             """,
         ),
+        (
+            """
+x = 0
+for i in range(10):
+    x += 1
+            """,
+            """
+x = sum((1 for i in range(10)))
+            """,
+        ),
+        (
+            """
+x = []
+for i in range(10):
+    x += 1
+            """,
+            """
+x = [1 for i in range(10)]
+            """,
+        ),
+        (
+            """
+x = 777
+for i in range(10):
+    x += 1
+            """,
+            """
+x = 777 + sum((1 for i in range(10)))
+            """,
+        ),
+        (
+            """
+x = -777
+for i in range(10):
+    x -= 1
+            """,
+            """
+x = -777 - sum((1 for i in range(10)))
+            """,
+        ),
+        (
+            """
+x = [1, 2, 3]
+for i in range(10):
+    x += 1
+            """,
+            """
+x = [1, 2, 3] + [1 for i in range(10)]
+            """,
+        ),
     )
 
     for content, expected_abstraction in test_cases:
