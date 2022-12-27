@@ -12,12 +12,12 @@ def main() -> int:
         int: Always returns 0. If unsuccessful, raises exceptions.
     """
     for filename in Path(__file__).parent.rglob("*.py"):
-        if filename.resolve().absolute() == Path(__file__).resolve().absolute():
-            continue
-        if filename.name == "testing_infra.py":
+        if filename.name in {"testing_infra.py", "integration_test_cases.py", Path(__file__).name}:
             continue
         print(f"Testing {filename.name}...")
-        subprocess.check_call([sys.executable, filename], cwd=Path(__file__).parents[1])
+        subprocess.check_call(
+            [sys.executable, Path.cwd() / filename], cwd=Path(__file__).parents[1]
+        )
         print("PASSED")
 
     print("PASSED")

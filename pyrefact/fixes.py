@@ -9,7 +9,6 @@ from typing import Callable, Collection, Iterable, List, Mapping, Sequence, Tupl
 import black
 import isort
 import rmspace
-
 from pyrefact import abstractions, constants, parsing, processing
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"

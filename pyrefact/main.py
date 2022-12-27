@@ -170,6 +170,7 @@ def format_file(
 
 def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:
     for path in paths:
+        path = path.resolve().absolute()
         if path.is_file():
             yield path
         elif path.is_dir():

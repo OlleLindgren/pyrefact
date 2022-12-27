@@ -7,7 +7,6 @@ from typing import Callable, Sequence, Tuple
 
 import sympy
 import sympy.parsing
-
 from pyrefact import constants, parsing, processing
 
 
