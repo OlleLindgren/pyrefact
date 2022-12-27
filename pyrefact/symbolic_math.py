@@ -81,7 +81,6 @@ def _sum_constants(values: Sequence[ast.AST]) -> ast.AST:
 
 def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> ast.AST:
     content = processing.unparse(expr).strip()
-    content = str(sympy.simplify(content))
     sym_expr = _parse_sympy_expr(content)
     for comprehension in generators:
         integrand = _parse_sympy_expr(processing.unparse(comprehension.target).strip())
@@ -114,8 +113,8 @@ def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> a
         else:
             raise NotImplementedError(f"Cannot parse iterator: {comprehension.iter}")
 
-    sym_expr = sympy.simplify(sym_expr)
     sym_expr = sym_expr.doit()
+    sym_expr = sympy.simplify(sym_expr)
 
     return parsing.parse(str(sym_expr))
 
@@ -124,7 +123,7 @@ def simplify_math_iterators(content: str) -> str:
 
     replacements = {}
 
-    root = ast.parse(content)
+    root = parsing.parse(content)
 
     for node in parsing.walk(root, ast.Call):
         if isinstance(node.func, ast.Name) and node.func.id in constants.MATH_FUNCTIONS:
