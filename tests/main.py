@@ -20,7 +20,7 @@ def main() -> int:
         }:
             continue
         module = __import__(filename.stem)
-        relpath = str(filename.relative_to(Path.cwd()))
+        relpath = str(filename.absolute().relative_to(Path.cwd()))
         try:
             return_codes[relpath] = module.main()
         except Exception as error:
