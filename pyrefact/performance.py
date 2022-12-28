@@ -213,10 +213,7 @@ def replace_sorted_heapq(content: str) -> str:
             continue
         if len(keywords) > 1 or any(kw.arg != "key" for kw in keywords):
             continue
-        if constants.PYTHON_VERSION < (3, 9) and isinstance(node.slice, ast.Index):
-            node_slice = node.slice.value
-        else:
-            node_slice = node.slice
+        node_slice = parsing.slice_of(node)
         if isinstance(node_slice, ast.Constant):
             value = node_slice.value
             if value != 0:
@@ -322,15 +319,24 @@ def replace_subscript_looping(content: str) -> str:
             and subscript.value.id == subscripted_name
             and (
                 (
-                    isinstance(subscript.slice, ast.Tuple)
-                    and len(subscript.slice.elts) == 2
+                    isinstance(parsing.slice_of(subscript), ast.Tuple)
+                    and len(parsing.slice_of(subscript).elts) == 2
                     and all(
                         isinstance(elt, ast.Slice)
                         or (isinstance(elt, ast.Name) and elt.id == subscript_name)
-                        for elt in subscript.slice.elts
+                        or (
+                            constants.PYTHON_VERSION < (3, 9)
+                            and isinstance(elt, ast.Index)
+                            and isinstance(elt.value, ast.Name)
+                            and elt.value.id == subscript_name
+                        )
+                        for elt in parsing.slice_of(subscript).elts
                     )
                 )
-                or (isinstance(subscript.slice, ast.Name) and subscript.slice.id == subscript_name)
+                or (
+                    isinstance(parsing.slice_of(subscript), ast.Name)
+                    and parsing.slice_of(subscript).id == subscript_name
+                )
             )
             for subscript in elt_subscripts
         ):
@@ -341,7 +347,7 @@ def replace_subscript_looping(content: str) -> str:
             name for name in parsing.walk(comp.elt, ast.Name) if name.id == subscript_name
         }
         for subscript in parsing.walk(comp.elt, ast.Subscript):
-            for value in parsing.walk(subscript.slice, ast.Name):
+            for value in parsing.walk(parsing.slice_of(subscript), ast.Name):
                 uses_of_subscript_name.discard(value)
 
         if uses_of_subscript_name:
@@ -374,7 +380,7 @@ def replace_subscript_looping(content: str) -> str:
                 args=[ast.Name(id=subscripted_name)],
                 keywords=[],
             )
-            continue
+            break
 
         if not (
             len(iterated_node.args) == 1
@@ -387,8 +393,8 @@ def replace_subscript_looping(content: str) -> str:
             continue
 
         if (
-            isinstance(iterated_node.args[0].slice, ast.Constant)
-            and iterated_node.args[0].slice.value == 1
+            isinstance(parsing.slice_of(iterated_node.args[0]), ast.Constant)
+            and parsing.slice_of(iterated_node.args[0]).value == 1
             and performance_numpy.uses_numpy(root)
         ):
             replacements[comp.generators[0].iter] = performance_numpy.wrap_transpose(
@@ -398,11 +404,11 @@ def replace_subscript_looping(content: str) -> str:
             replacements[comp.generators[0].target] = target_name
             for subscript in elt_subscripts:
                 replacements[subscript] = target_name
-            continue
+            break
 
         if not (
-            isinstance(iterated_node.args[0].slice, ast.Constant)
-            and iterated_node.args[0].slice.value == 0
+            isinstance(parsing.slice_of(iterated_node.args[0]), ast.Constant)
+            and parsing.slice_of(iterated_node.args[0]).value == 0
         ):
             continue
 
@@ -411,8 +417,11 @@ def replace_subscript_looping(content: str) -> str:
         replacements[comp.generators[0].target] = target_name
         for subscript in elt_subscripts:
             replacements[subscript] = target_name
-        continue
+        break
 
     content = processing.replace_nodes(content, replacements)
+
+    if replacements:
+        return replace_subscript_looping(content)
 
     return content

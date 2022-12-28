@@ -166,6 +166,17 @@ def iter_typedefs(ast_tree: ast.Module) -> Iterable[ast.Name]:
                     break
 
 
+def slice_of(node: ast.Subscript) -> ast.AST:
+    node_slice = node.slice
+    if constants.PYTHON_VERSION < (3, 9):
+        if isinstance(node_slice, ast.Index):
+            return node_slice.value
+        if isinstance(node_slice, ast.ExtSlice):
+            return ast.Tuple(elts=node_slice.dims)
+
+    return node_slice
+
+
 def has_side_effect(
     node: ast.AST,
     safe_callable_whitelist: Collection[str] = frozenset(),
