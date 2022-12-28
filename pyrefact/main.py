@@ -15,6 +15,7 @@ from pyrefact import (
     object_oriented,
     parsing,
     performance,
+    performance_numpy,
     symbolic_math,
 )
 
@@ -108,6 +109,8 @@ def format_code(
         content = fixes.remove_redundant_else(content)
         content = fixes.replace_functions_with_literals(content)
         content = fixes.replace_for_loops_with_comprehensions(content)
+        content = performance_numpy.replace_implicit_dot(content)
+        content = performance_numpy.replace_implicit_matmul(content)
         content = fixes.remove_redundant_comprehensions(content)
         content = fixes.inline_math_comprehensions(content)
         content = symbolic_math.simplify_math_iterators(content)

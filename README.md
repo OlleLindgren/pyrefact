@@ -18,6 +18,7 @@ It is strongly recommended that you version control or otherwise backup any code
 * Replace `sum` comprehensions and for loops with constant expressions. The symbolic algebra tool [Sympy](https://github.com/sympy/sympy) is used under the hood.
 * Replace hardcoded inlined collections and comprehensions with set or generator equivalents in places where that would improve performance.
 * Replace `sorted()[:n]` with `heapq.nsmallest`, replace `sorted()[0]` with `min`
+* Replace matrix operation comprehensions with equivalent `np.matmul()` and `np.dot()` calls, for code that already depends on numpy.
 * Use `is` instead of `==` for comparisons to `None`, `True` and `False`.
 
 ### Removing dead and useless code

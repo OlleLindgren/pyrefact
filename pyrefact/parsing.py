@@ -656,3 +656,12 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
             safe_callables.add(node.name)
 
     return safe_callables
+
+def module_dependencies(root: ast.Module) -> Iterable[str]:
+    """Iterate over all packages that a module depends on."""
+    for node in walk(root, ast.Import):
+        for alias in node.names:
+            yield alias.name
+
+    for node in walk(root, ast.ImportFrom):
+        yield node.module

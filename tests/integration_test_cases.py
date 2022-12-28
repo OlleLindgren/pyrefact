@@ -148,4 +148,41 @@ X = [i**2 for i in range(100)]
 print(X)
         """,
     ),
+    (
+        """
+import numpy as np
+
+i, j, k = 10, 11, 12
+
+a = np.random.random((i, j))
+b = np.random.random((j, k))
+
+u = np.array(
+    [
+        [
+            np.sum(
+                a__ * b__
+                for a__, b__ in zip(a_, b_)
+            )
+            for a_ in a
+        ]
+        for b_ in b.T
+    ]
+).T
+
+print(u)
+            """,
+        """
+import numpy as np
+
+I, J, K = 10, 11, 12
+
+A = np.random.random((I, J))
+B = np.random.random((J, K))
+
+U = np.matmul(A, B)
+
+print(U)
+        """,
+    ),
 )
