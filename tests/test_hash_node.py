@@ -61,7 +61,8 @@ def qz(aaa, bbb, ccc):
         right_hash = abstractions.hash_node(right_node, preserved_names)
         assert left_hash != right_hash, _error_message(left_node, right_node, positive=False)
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
-    sys.exit(0)
+    sys.exit(main())
