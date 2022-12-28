@@ -185,4 +185,38 @@ U = np.matmul(A, B)
 print(U)
         """,
     ),
+    (
+        """
+import numpy as np
+
+i, j, k = 10, 11, 12
+
+a = np.random.random((i, j))
+b = np.random.random((j, k))
+
+u = np.array(
+    [
+        [
+            np.dot(b[:, i], a[j, :])
+            for i in range(b.shape[1])
+        ]
+        for j in range(a.shape[0])
+    ]
+)
+
+print(u)
+            """,
+        """
+import numpy as np
+
+I, J, K = 10, 11, 12
+
+A = np.random.random((I, J))
+B = np.random.random((J, K))
+
+U = np.matmul(B.T, A.T).T
+
+print(U)
+        """,
+    ),
 )

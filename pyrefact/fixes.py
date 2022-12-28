@@ -1228,26 +1228,13 @@ def early_continue(content: str) -> str:
     return content
 
 
-def _get_comp_wrapper_func_equivalent(node: ast.AST) -> str:
-    if isinstance(node, ast.DictComp):
-        return "dict"
-    if isinstance(node, ast.ListComp):
-        return "list"
-    if isinstance(node, ast.SetComp):
-        return "set"
-    if isinstance(node, ast.GeneratorExp):
-        return "iter"
-
-    raise ValueError(f"Unexpected type of node: {type(node)}")
-
-
 def remove_redundant_comprehensions(content: str) -> str:
     root = parsing.parse(content)
 
     replacements = {}
 
     for node in parsing.walk(root, (ast.DictComp, ast.ListComp, ast.SetComp, ast.GeneratorExp)):
-        wrapper = _get_comp_wrapper_func_equivalent(node)
+        wrapper = parsing.get_comp_wrapper_func_equivalent(node)
 
         if not isinstance(node, ast.DictComp):
             elt_generator_equal = (

@@ -22,8 +22,12 @@ a = np.random.random((i, j))
 b = np.random.random((j, k))
 
 u = np.array([[np.dot(a_, b_) for a_ in a] for b_ in b.T]).T
+v = np.array([[np.dot(b_, a_) for b_ in b.T] for a_ in a])
+w = np.array([[np.dot(b[:, i], a[j, :]) for i in range(b.shape[1])] for j in range(a.shape[0])])
 
 print(np.sum((u - np.matmul(a, b)).ravel()))
+print(np.sum((v - np.matmul(a, b)).ravel()))
+print(np.sum((w - np.matmul(a, b)).ravel()))
             """,
             """
 import numpy as np
@@ -34,8 +38,12 @@ a = np.random.random((i, j))
 b = np.random.random((j, k))
 
 u = np.matmul(a, b)
+v = np.matmul(b.T, a.T).T
+w = np.array([[np.dot(b[:, i], a[j, :]) for i in range(b.shape[1])] for j in range(a.shape[0])])
 
 print(np.sum((u - np.matmul(a, b)).ravel()))
+print(np.sum((v - np.matmul(a, b)).ravel()))
+print(np.sum((w - np.matmul(a, b)).ravel()))
             """,
         ),
     )
@@ -43,6 +51,7 @@ print(np.sum((u - np.matmul(a, b)).ravel()))
     for content, expected_abstraction in test_cases:
 
         processed_content = performance_numpy.replace_implicit_matmul(content)
+        processed_content = performance_numpy.simplify_transposes(processed_content)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

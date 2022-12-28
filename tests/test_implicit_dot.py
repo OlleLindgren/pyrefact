@@ -58,8 +58,8 @@ c = _mysterious_function(a, b)
 print(c, np.dot(a, b))
             """,
         ),
-    (
-        """
+        (
+            """
 import numpy as np
 
 i, j, k = 10, 11, 12
@@ -82,7 +82,7 @@ u = np.array(
 
 print(u)
             """,
-        """
+            """
 import numpy as np
 
 i, j, k = 10, 11, 12
@@ -102,12 +102,13 @@ u = np.array(
 
 print(u)
         """,
-    ),
+        ),
     )
 
     for content, expected_abstraction in test_cases:
 
         processed_content = performance_numpy.replace_implicit_dot(content)
+        processed_content = performance_numpy.simplify_transposes(processed_content)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

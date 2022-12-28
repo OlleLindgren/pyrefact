@@ -3,7 +3,7 @@
 import ast
 from typing import Collection
 
-from pyrefact import constants, parsing, processing
+from pyrefact import constants, parsing, performance_numpy, processing
 
 
 def _is_contains_comparison(node) -> bool:
@@ -269,5 +269,150 @@ def replace_sorted_heapq(content: str) -> str:
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
+
+    return content
+
+
+def replace_subscript_looping(content: str) -> str:
+    root = parsing.parse(content)
+
+    replacements = {}
+
+    for comp in parsing.walk(root, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+        wrapper_function = parsing.get_comp_wrapper_func_equivalent(comp)
+
+        if len(comp.generators) != 1:
+            continue
+
+        if not isinstance(comp.generators[0].target, ast.Name):
+            continue
+
+        elt_subscripts = {
+            node
+            for node in parsing.walk(comp.elt, ast.Subscript)
+            if isinstance(node.value, (ast.Attribute, ast.Name))
+            and any(
+                {name.id for name in parsing.walk(node, ast.Name)}
+                & {name.id for name in parsing.walk(comp.generators[0], ast.Name)}
+            )
+        }
+        if not all(
+            isinstance(subscript.value, ast.Name)
+            or (
+                isinstance(subscript.value, ast.Attribute)
+                and isinstance(subscript.value.value, ast.Name)
+            )
+            for subscript in elt_subscripts
+        ):
+            continue
+
+        subscript_name = comp.generators[0].target.id
+        subscripted_names = {
+            subscript.value.id
+            if isinstance(subscript.value, ast.Name)
+            else subscript.value.value.id
+            for subscript in elt_subscripts
+        }
+        if len(subscripted_names) != 1:
+            continue
+        subscripted_name = subscripted_names.pop()
+
+        if not all(
+            isinstance(subscript.value, ast.Name)
+            and subscript.value.id == subscripted_name
+            and (
+                (
+                    isinstance(subscript.slice, ast.Tuple)
+                    and len(subscript.slice.elts) == 2
+                    and all(
+                        isinstance(elt, ast.Slice)
+                        or (isinstance(elt, ast.Name) and elt.id == subscript_name)
+                        for elt in subscript.slice.elts
+                    )
+                )
+                or (isinstance(subscript.slice, ast.Name) and subscript.slice.id == subscript_name)
+            )
+            for subscript in elt_subscripts
+        ):
+            # All subscripts are not a[i, :], a[:, i] or a[i]
+            continue
+
+        uses_of_subscript_name = {
+            name for name in parsing.walk(comp.elt, ast.Name) if name.id == subscript_name
+        }
+        for subscript in parsing.walk(comp.elt, ast.Subscript):
+            for value in parsing.walk(subscript.slice, ast.Name):
+                uses_of_subscript_name.discard(value)
+
+        if uses_of_subscript_name:
+            # i is used for something other than subscripting a
+            continue
+
+        if len(comp.generators) != 1:
+            continue
+
+        iterated_node = comp.generators[0].iter
+
+        if not (
+            isinstance(iterated_node, ast.Call)
+            and isinstance(iterated_node.func, ast.Name)
+            and iterated_node.func.id == "range"
+        ):
+            continue
+
+        if (
+            len(iterated_node.args) == 1
+            and isinstance(iterated_node.args[0], ast.Call)
+            and isinstance(iterated_node.args[0].func, ast.Name)
+            and iterated_node.args[0].func.id == "len"
+            and len(iterated_node.args[0].args) == 1
+            and isinstance(iterated_node.args[0].args[0], ast.Name)
+            and iterated_node.args[0].args[0].id == subscripted_name
+        ):
+            replacements[comp] = ast.Call(
+                func=ast.Name(id=wrapper_function),
+                args=[ast.Name(id=subscripted_name)],
+                keywords=[],
+            )
+            continue
+
+        if not (
+            len(iterated_node.args) == 1
+            and isinstance(iterated_node.args[0], ast.Subscript)
+            and isinstance(iterated_node.args[0].value, ast.Attribute)
+            and isinstance(iterated_node.args[0].value.value, ast.Name)
+            and iterated_node.args[0].value.value.id == subscripted_name
+            and iterated_node.args[0].value.attr == "shape"
+        ):
+            continue
+
+        if (
+            isinstance(iterated_node.args[0].slice, ast.Constant)
+            and iterated_node.args[0].slice.value == 1
+            and performance_numpy.uses_numpy(root)
+        ):
+            replacements[comp.generators[0].iter] = performance_numpy.wrap_transpose(
+                ast.Name(id=subscripted_name)
+            )
+            target_name = ast.Name(id=f"{subscripted_name}_")
+            replacements[comp.generators[0].target] = target_name
+            for subscript in elt_subscripts:
+                replacements[subscript] = target_name
+            continue
+
+        if not (
+            isinstance(iterated_node.args[0].slice, ast.Constant)
+            and iterated_node.args[0].slice.value == 0
+        ):
+            continue
+
+        replacements[comp.generators[0].iter] = ast.Name(id=subscripted_name)
+        target_name = ast.Name(id=f"{subscripted_name}_")
+        replacements[comp.generators[0].target] = target_name
+        for subscript in elt_subscripts:
+            replacements[subscript] = target_name
+        continue
+
+    content = processing.replace_nodes(content, replacements)
 
     return content

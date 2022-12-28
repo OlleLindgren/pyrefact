@@ -657,6 +657,7 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
 
     return safe_callables
 
+
 def module_dependencies(root: ast.Module) -> Iterable[str]:
     """Iterate over all packages that a module depends on."""
     for node in walk(root, ast.Import):
@@ -665,3 +666,16 @@ def module_dependencies(root: ast.Module) -> Iterable[str]:
 
     for node in walk(root, ast.ImportFrom):
         yield node.module
+
+
+def get_comp_wrapper_func_equivalent(node: ast.AST) -> str:
+    if isinstance(node, ast.DictComp):
+        return "dict"
+    if isinstance(node, ast.ListComp):
+        return "list"
+    if isinstance(node, ast.SetComp):
+        return "set"
+    if isinstance(node, ast.GeneratorExp):
+        return "iter"
+
+    raise ValueError(f"Unexpected type of node: {type(node)}")
