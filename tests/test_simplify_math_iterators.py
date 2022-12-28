@@ -130,7 +130,7 @@ x = sum([exp(x) for x in range(11)])
 x = sum([a + b + c + d for _ in range(k, w)])
             """,
             """
-x = (-k + w) * (a + b + c + d)
+x = -(k - w) * (a + b + c + d)
             """,
         ),
     )
