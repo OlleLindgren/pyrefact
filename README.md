@@ -66,4 +66,4 @@ Pyrefact requires `python>=3.8`, and is tested on CPython 3.8, 3.9, 3.10 and 3.1
 
 ### Pypy
 
-Pyrefact is tested on Pypy3.9, but is significantly slower than on CPython. Pyrefact is not tested on Pypy3.8, and did not work the last time I tried.
+Pyrefact is supported and tested on Pypy3.9. Pypy3.8 is not supported. Pyrefact is slightly faster on Pypy3.9 than on CPython3.9, but only for large repos as the JIT compile overhead is otherwise too large to make up.
