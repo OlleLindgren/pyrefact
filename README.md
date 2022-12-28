@@ -60,4 +60,10 @@ cat /path/to/filename.py | pyrefact --from-stdin
 
 ## Prerequisites
 
-Pyrefact requires `python>=3.8`, and is tested on 3.8, 3.9, 3.10 and 3.11. Pyrefact works best on `python>=3.9`.
+### CPython
+
+Pyrefact requires `python>=3.8`, and is tested on CPython 3.8, 3.9, 3.10 and 3.11. Pyrefact works best on `python>=3.9`.
+
+### Pypy
+
+Pyrefact is tested on Pypy3.9, but is significantly slower than on CPython. Pyrefact is not tested on Pypy3.8, and did not work the last time I tried.
