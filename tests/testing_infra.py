@@ -2,6 +2,8 @@
 import itertools
 import re
 import sys
+from pathlib import Path
+from typing import Iterable
 
 
 def _remove_multi_whitespace(content: str) -> str:
@@ -40,3 +42,12 @@ def check_fixes_equal(processed_content: str, expected_abstraction: str) -> int:
         return False
 
     return True
+
+
+def iter_unit_tests() -> Iterable[Path]:
+    """Iterate over all unit test files"""
+    return sorted((Path(__file__).parent / "unit").rglob("test_*.py"))
+
+
+def iter_integration_tests() -> Iterable[Path]:
+    return sorted((Path(__file__).parent / "integration").rglob("test_*.py"))

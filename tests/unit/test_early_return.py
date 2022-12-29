@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pyrefact import fixes
 
-sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).parents[1]))
 import testing_infra
 
 
@@ -18,39 +18,52 @@ def f(x) -> int:
         x += 1
         x *= 12
         print(x > 30)
-        return 100 - sum(x, 2, 3)
+        y = 100 - sum(x, 2, 3)
     else:
-        return 13
+        y = 13
+    return y
             """,
             """
 def f(x) -> int:
-    if x <= 10:
-        return 13
-    else:
+    if x > 10:
         x += 1
         x *= 12
         print(x > 30)
         return 100 - sum(x, 2, 3)
+    else:
+        return 13
             """,
         ),
         (
             """
-def f(x):
+def f(x) -> int:
     if x > 10:
-        pass
+        x += 1
+        x *= 12
+        print(x > 30)
+        y = 100 - sum(x, 2, 3)
     else:
-        print(2)
+        y = 13
+    print(3)
+    return y
             """,
             """
-def f(x):
-    if x <= 10:
-        print(2)
+def f(x) -> int:
+    if x > 10:
+        x += 1
+        x *= 12
+        print(x > 30)
+        y = 100 - sum(x, 2, 3)
+    else:
+        y = 13
+    print(3)
+    return y
             """,
         ),
     )
 
     for content, expected_abstraction in test_cases:
-        processed_content = fixes.swap_if_else(content)
+        processed_content = fixes.early_return(content)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

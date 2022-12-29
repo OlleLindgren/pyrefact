@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pyrefact import abstractions
 
-sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).parents[1]))
 import testing_infra
 
 

@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
-
 import sys
+import tempfile
 from pathlib import Path
 
 import pyrefact
 
-sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).parents[1]))
 import testing_infra
 from integration_test_cases import INTEGRATION_TEST_CASES
 
 
 def main() -> int:
     for content, expected_abstraction in INTEGRATION_TEST_CASES:
-        processed_content = pyrefact.format_code(content)
-        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
-            return 1
+        with tempfile.NamedTemporaryFile() as temp:
+            temp = temp.name
+            with open(temp, "w", encoding="utf-8") as stream:
+                stream.write(content)
 
-    for content, expected_abstraction in INTEGRATION_TEST_CASES:
-        processed_content = pyrefact.format_code(content)
+            pyrefact.format_file(temp)
+
+            with open(temp, "r", encoding="utf-8") as stream:
+                processed_content = stream.read()
+
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 
