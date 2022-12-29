@@ -45,7 +45,7 @@ jobs:
     - uses: technote-space/get-diff-action@v6
       with:
         FILES: |
-          version.txt
+          pyproject.toml
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
