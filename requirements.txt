@@ -1,4 +1,0 @@
-black>=22.1.0
-isort==5.10.1
-rmspace>=6
-sympy==1.11.1
