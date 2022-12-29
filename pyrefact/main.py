@@ -139,7 +139,7 @@ def format_code(
     if minimum_indent == 0:
         content = fixes.fix_isort(content, line_length=10_000)
         content = fixes.add_missing_imports(content)
-        if keep_imports:
+        if not keep_imports:
             content = fixes.remove_unused_imports(content)
 
         content = fixes.fix_isort(content)
@@ -164,10 +164,12 @@ def format_file(
     Returns:
         bool: True if any changes were made
     """
+    filename = Path(filename).resolve().absolute()
     with open(filename, "r", encoding="utf-8") as stream:
         initial_content = stream.read()
 
-    content = format_code(initial_content, preserve=preserve, safe=safe, keep_imports=True)
+    keep_imports = filename.name == "__init__.py"
+    content = format_code(initial_content, preserve=preserve, safe=safe, keep_imports=keep_imports)
 
     if content != initial_content and (
         parsing.is_valid_python(content) or not parsing.is_valid_python(initial_content)

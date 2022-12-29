@@ -1,7 +1,7 @@
 import ast
 from typing import Callable, Union
 
-from pyrefact import fixes, parsing, processing
+from pyrefact import parsing, processing
 
 
 def uses_numpy(root: ast.Module) -> bool:

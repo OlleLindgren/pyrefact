@@ -1,10 +1,9 @@
 import ast
 import collections
 import itertools
-import math
 import queue
 import re
-from typing import Callable, Collection, Iterable, List, Mapping, Sequence, Tuple, Union
+from typing import Collection, Iterable, List, Mapping, Sequence, Tuple, Union
 
 import black
 import isort

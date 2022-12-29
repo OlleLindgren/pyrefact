@@ -10,10 +10,6 @@ import testing_infra
 from integration_test_cases import INTEGRATION_TEST_CASES
 
 
-def _add_indent(content: str, indent: int) -> str:
-    return "".join(f"{' ' * indent}{line}" for line in content.splitlines(keepends=True))
-
-
 def main() -> int:
     for content, expected_abstraction in INTEGRATION_TEST_CASES:
         processed_content = pyrefact.format_code(content)
