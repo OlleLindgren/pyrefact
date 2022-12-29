@@ -219,4 +219,46 @@ U = np.matmul(A, B)
 print(U)
         """,
     ),
+    (
+        """
+a = np.random.random(100)
+b = np.random.random(100)
+
+u = 0
+for a_, b_ in zip(a, b):
+    u += a_ * b_
+
+print(u)
+            """,
+        """
+import numpy as np
+
+A = np.random.random(100)
+B = np.random.random(100)
+
+U = np.dot(A, B)
+
+print(U)
+        """,
+    ),
+    (
+        """
+    a = np.random.random(100)
+    b = np.random.random(100)
+
+    u = 0
+    for a_, b_ in zip(a, b):
+        u += a_ * b_
+
+    print(u)
+            """,
+        """
+    a = np.random.random(100)
+    b = np.random.random(100)
+
+    u = np.dot(a, b)
+
+    print(u)
+        """,
+    ),
 )

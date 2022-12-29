@@ -5,7 +5,9 @@ import sys
 
 
 def _remove_multi_whitespace(content: str) -> str:
-    return re.sub(r"(?<![^\n]) *\n", "", f"\n{content}\n").strip()
+    content = re.sub(r"(?<![^\n]) *\n", "", f"\n{content}\n")
+    content = "".join(line for line in content.splitlines(keepends=True) if line.strip())
+    return content
 
 
 def _create_diff_view(processed_content: str, expected_content: str) -> str:
