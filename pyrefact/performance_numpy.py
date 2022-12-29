@@ -1,7 +1,7 @@
 import ast
 from typing import Callable, Union
 
-from pyrefact import parsing, processing
+from pyrefact import fixes, parsing, processing
 
 
 def uses_numpy(root: ast.Module) -> bool:
@@ -53,6 +53,15 @@ def _is_np_dot_call(call: ast.Call) -> bool:
     )
 
 
+def _is_np_matmul_call(call: ast.Call) -> bool:
+    return (
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr == "matmul"
+        and isinstance(call.func.value, ast.Name)
+        and call.func.value.id in {"np", "numpy"}
+    )
+
+
 def _is_zip_call(call: ast.Call):
     return isinstance(call.func, ast.Name) and call.func.id == "zip"
 
@@ -92,14 +101,26 @@ def wrap_transpose(node: ast.AST) -> ast.Attribute:
     return ast.Attribute(value=node, attr="T")
 
 
-def simplify_transposes(content: str) -> str:
-    root = parsing.parse(content)
+def simplify_matmul_transposes(content: str) -> str:
+    """Replace np.matmul(a.T, b.T).T with np.matmul(b, a), if found."""
 
+    root = parsing.parse(content)
     replacements = {}
 
     for node in parsing.walk(root, ast.Attribute):
-        if node.attr == "T" and isinstance(node.value, ast.Attribute) and node.value.attr == "T":
-            replacements[node] = node.value.value
+        if parsing.is_transpose_operation(node):
+            target = parsing.transpose_target(node)
+            if isinstance(target, ast.Call) and _is_np_matmul_call(target):
+                if (
+                    len(target.args) == 2
+                    and not any(isinstance(arg, ast.Starred) for arg in target.args)
+                    and all(parsing.is_transpose_operation(arg) for arg in target.args)
+                ):
+                    left, right = target.args
+                    matmul = _wrap_np_matmul(wrap_transpose(right), wrap_transpose(left))
+                    matmul.func = target.func
+                    matmul.keywords = target.keywords
+                    replacements[node] = matmul
 
     content = processing.replace_nodes(content, replacements)
 

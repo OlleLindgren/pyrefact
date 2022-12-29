@@ -690,3 +690,29 @@ def get_comp_wrapper_func_equivalent(node: ast.AST) -> str:
         return "iter"
 
     raise ValueError(f"Unexpected type of node: {type(node)}")
+
+
+def is_transpose_operation(node: ast.AST) -> bool:
+    if isinstance(node, ast.Attribute) and node.attr == "T":
+        return True
+
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "zip"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Starred)
+    ):
+        return True
+
+    return False
+
+
+def transpose_target(node: ast.AST) -> ast.AST:
+    if isinstance(node, ast.Attribute):
+        return node.value
+
+    if isinstance(node, ast.Call):
+        return node.args[0].value
+
+    raise ValueError(f"Node {node} is not a transpose operation.")

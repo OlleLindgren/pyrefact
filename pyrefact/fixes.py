@@ -1520,3 +1520,23 @@ def inline_math_comprehensions(content: str) -> str:
     content = processing.replace_nodes(content, replacements)
 
     return content
+
+
+def simplify_transposes(content: str) -> str:
+    root = parsing.parse(content)
+
+    replacements = {}
+
+    for node in itertools.chain(parsing.walk(root, ast.Call), parsing.walk(root, ast.Attribute)):
+        if parsing.is_transpose_operation(node):
+            first_transpose_target = parsing.transpose_target(node)
+            if parsing.is_transpose_operation(first_transpose_target):
+                second_transpose_target = parsing.transpose_target(first_transpose_target)
+                replacements[node] = second_transpose_target
+                break
+
+    content = processing.replace_nodes(content, replacements)
+    if replacements:
+        return simplify_transposes(content)
+
+    return content

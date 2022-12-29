@@ -270,6 +270,10 @@ def replace_sorted_heapq(content: str) -> str:
     return content
 
 
+def _wrap_transpose(node: ast.AST) -> ast.Call:
+    return ast.Call(func=ast.Name(id="zip"), args=[ast.Starred(value=node)], keywords=[])
+
+
 def replace_subscript_looping(content: str) -> str:
     root = parsing.parse(content)
 
@@ -395,11 +399,12 @@ def replace_subscript_looping(content: str) -> str:
         if (
             isinstance(parsing.slice_of(iterated_node.args[0]), ast.Constant)
             and parsing.slice_of(iterated_node.args[0]).value == 1
-            and performance_numpy.uses_numpy(root)
         ):
-            replacements[comp.generators[0].iter] = performance_numpy.wrap_transpose(
-                ast.Name(id=subscripted_name)
-            )
+            if performance_numpy.uses_numpy(root):
+                transposed_name = performance_numpy.wrap_transpose(ast.Name(id=subscripted_name))
+            else:
+                transposed_name = _wrap_transpose(ast.Name(id=subscripted_name))
+            replacements[comp.generators[0].iter] = transposed_name
             target_name = ast.Name(id=f"{subscripted_name}_")
             replacements[comp.generators[0].target] = target_name
             for subscript in elt_subscripts:

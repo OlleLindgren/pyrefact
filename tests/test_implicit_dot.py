@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-from pyrefact import performance_numpy
+from pyrefact import fixes, performance_numpy
 
 sys.path.append(str(Path(__file__).parent))
 import testing_infra
@@ -108,7 +108,7 @@ print(u)
     for content, expected_abstraction in test_cases:
 
         processed_content = performance_numpy.replace_implicit_dot(content)
-        processed_content = performance_numpy.simplify_transposes(processed_content)
+        processed_content = fixes.simplify_transposes(processed_content)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

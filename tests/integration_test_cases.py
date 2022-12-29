@@ -214,7 +214,7 @@ I, J, K = 10, 11, 12
 A = np.random.random((I, J))
 B = np.random.random((J, K))
 
-U = np.matmul(B.T, A.T).T
+U = np.matmul(A, B)
 
 print(U)
         """,
