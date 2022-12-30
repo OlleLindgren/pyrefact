@@ -59,6 +59,14 @@ python -m pyrefact /path/to/filename.py --safe
 cat /path/to/filename.py | pyrefact --from-stdin
 ```
 
+## VS Code Extension
+
+Pyrefact is also available as a VS Code extension, simply named `Pyrefact`. The extension allows you to use pyrefact as your formatter, similar to how the Black or Autopep8 extensions work.
+
+You can also use pyrefact as your default formatter and use the configurations for format on save etc. Pyrefact always runs with the `--safe` flag when used through the VS Code extension.
+
+The repository for the extension can be found at [pyrefact-vscode-extension](https://github.com/OlleLindgren/pyrefact-vscode-extension).
+
 ## Prerequisites
 
 ### CPython
