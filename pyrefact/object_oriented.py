@@ -138,10 +138,13 @@ def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> s
     for classdef in sorted(parsing.iter_classdefs(root), key=lambda cd: cd.lineno, reverse=True):
 
         for funcdef in parsing.iter_funcdefs(classdef):
-            if funcdef.name in attributes_to_preserve or parsing.is_magic_method(funcdef):
+            if funcdef.name in attributes_to_preserve:
                 continue
-            staticmethod_decorators = set(_decorators_of_type(funcdef, "staticmethod"))
-            if not staticmethod_decorators:
+            if f"{classdef.name}.{funcdef.name}" in preserve:
+                continue
+            if parsing.is_magic_method(funcdef):
+                continue
+            if not set(_decorators_of_type(funcdef, "staticmethod")):
                 continue
             new_name = funcdef.name
             if not parsing.is_private(new_name):

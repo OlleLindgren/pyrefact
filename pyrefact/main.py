@@ -78,7 +78,7 @@ def format_code(
             (node.name for node in module.body if isinstance(node, ast.AsyncFunctionDef)),
             (node.name for node in module.body if isinstance(node, ast.ClassDef)),
             (  # Function definitions directly under a class definition in module scope
-                funcdef.name
+                f"{node.name}.{funcdef.name}"
                 for node in module.body
                 if isinstance(node, ast.ClassDef)
                 for funcdef in node.body
