@@ -700,12 +700,21 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
     classdefs = []
     name_usages = collections.defaultdict(set)
 
+    preserved_class_funcdefs = set()
+    for node in parsing.walk(root, ast.ClassDef):
+        for funcdef in node.body:
+            if isinstance(funcdef, ast.FunctionDef):
+                if f"{node.name}.{funcdef.name}" in preserve:
+                    preserved_class_funcdefs.add(funcdef)
+
     for node in parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        if node.name not in preserve:
+        if node.name not in preserve and node not in preserved_class_funcdefs:
             funcdefs.append(node)
+
     for node in parsing.walk(root, ast.ClassDef):
         if node.name not in preserve:
             classdefs.append(node)
+
     for node in parsing.walk(root, ast.Name):
         if isinstance(node.ctx, ast.Load):
             name_usages[node.id].add(node)

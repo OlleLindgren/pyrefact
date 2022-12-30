@@ -330,6 +330,7 @@ def has_side_effect(
             )
             or any(has_side_effect(item, safe_callable_whitelist) for item in node.args)
             or any(has_side_effect(item.value, safe_callable_whitelist) for item in node.keywords)
+            or not all(child.attr in safe_callable_whitelist for child in walk(node, ast.Attribute))
         )
 
     if isinstance(node, ast.Starred):

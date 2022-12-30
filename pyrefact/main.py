@@ -97,6 +97,7 @@ def format_code(
         content = fixes.delete_unreachable_code(content)
         content = fixes.undefine_unused_variables(content, preserve=preserve)
         content = fixes.delete_pointless_statements(content)
+
         content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
 
         content = object_oriented.remove_unused_self_cls(content)
