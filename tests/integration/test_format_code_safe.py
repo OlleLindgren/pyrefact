@@ -10,7 +10,7 @@ import testing_infra
 
 
 def main() -> int:
-    
+
     test_cases = (
         (
             """
