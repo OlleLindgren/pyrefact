@@ -269,15 +269,16 @@ def f(x) -> int:
     else:
         if x == 3:
             x = 7
-        elif x == 8:
-            x = 99
         else:
-            if x >= 912:
-                x = -2
-            elif x ** x > x ** 3:
-                x = -1
+            if x != 8:
+                if x >= 912:
+                    x = -2
+                elif x ** x > x ** 3:
+                    x = -1
+                else:
+                    x = 14
             else:
-                x = 14
+                x = 99
 
     return x
 
