@@ -803,19 +803,6 @@ def delete_unreachable_code(content: str) -> str:
     """
     root = parsing.parse(content)
 
-    replacements = {}
-    for node in parsing.walk(root, ast.IfExp):
-        try:
-            test_value = parsing.literal_value(node.test)
-        except ValueError:
-            pass
-        else:
-            replacements[node] = node.body if test_value else node.orelse
-
-    if replacements:
-        content = processing.replace_nodes(content, replacements)
-        root = parsing.parse(content)
-
     delete = set()
     for node in parsing.iter_bodies_recursive(root):
         if not isinstance(node, (ast.If, ast.While)):
@@ -998,6 +985,33 @@ def remove_duplicate_functions(content: str, preserve: Collection[str]) -> str:
     return content
 
 
+def de_indent_from_else(content: str, orelse: Sequence[ast.AST]) -> str:
+    ranges = [parsing.get_charnos(child, content) for child in orelse]
+    start = min((s for (s, _) in ranges))
+    end = max((e for (_, e) in ranges))
+    last_else = list(re.finditer("(?<![^\\n]) *else: *\\n?", content[:start]))[-1]
+    indent = len(re.findall("^ *", last_else.group())[0])
+    modified_pre_else = content[: last_else.start()].rstrip() + "\n\n"
+    modified_orelse = " " * indent + re.sub("(?<![^\\n])    ", "", content[start:end]).lstrip()
+    content = modified_pre_else + modified_orelse + content[end:]
+
+    return content
+
+
+def de_indent_body(content: str, node: ast.AST, body: Sequence[ast.AST]) -> str:
+    ranges = [parsing.get_charnos(child, content) for child in body]
+    start = min((s for (s, _) in ranges))
+    end = max((e for (_, e) in ranges))
+    indent = node.col_offset
+    node_start, node_end = parsing.get_charnos(node, content)
+    modified_pre = content[:node_start].rstrip() + "\n\n"
+    modified_body = " " * indent + re.sub("(?<![^\\n])    ", "", content[start:end]).lstrip()
+    modified_post = "\n\n" + content[node_end:]
+    content = modified_pre + modified_body + modified_post
+
+    return content
+
+
 def remove_redundant_else(content: str) -> str:
     """Remove redundante else and elif statements in code.
 
@@ -1031,19 +1045,11 @@ def remove_redundant_else(content: str) -> str:
 
                 # Otherwise it's an else: if:, which is handled below
 
-            # else:
-            ranges = [parsing.get_charnos(child, content) for child in node.orelse]
-            start = min((s for (s, _) in ranges))
-            end = max((e for (_, e) in ranges))
-            last_else = list(re.finditer("(?<![^\\n]) *else: *\\n?", content[:start]))[-1]
-            indent = len(re.findall("^ *", last_else.group())[0])
-            modified_pre_else = content[: last_else.start()].rstrip() + "\n\n"
-            modified_orelse = (
-                " " * indent + re.sub("(?<![^\\n])    ", "", content[start:end]).lstrip()
-            )
+            # else
             print("Found redundant else:")
             print(parsing.get_code(node, content))
-            content = modified_pre_else + modified_orelse + content[end:]
+
+            content = de_indent_from_else(content, node.orelse)
 
     return content
 
@@ -1546,5 +1552,44 @@ def simplify_transposes(content: str) -> str:
     content = processing.replace_nodes(content, replacements)
     if replacements:
         return simplify_transposes(content)
+
+    return content
+
+
+def remove_dead_ifs(content: str) -> str:
+    root = parsing.parse(content)
+
+    removals = set()
+    replacements = {}
+
+    for node in parsing.walk(root, (ast.If, ast.While, ast.IfExp)):
+        try:
+            value = parsing.literal_value(node.test)
+        except ValueError:
+            continue
+
+        if isinstance(node, ast.If):
+            if value and node.body:
+                # Replace node with node.body, node.orelse is dead if exists
+                content = de_indent_body(content, node, node.body)
+                return remove_dead_ifs(content)
+            if not value and node.orelse:
+                # Replace node with node.orelse, node.body is dead
+                content = de_indent_body(content, node, node.orelse)
+                return remove_dead_ifs(content)
+
+            # Both body and orelse are dead => node is dead
+            if value and not node.body:
+                removals.add(node)
+            elif not value and not node.orelse:
+                removals.add(node)
+
+        if isinstance(node, ast.While) and not value:
+            removals.add(node)
+
+        if isinstance(node, ast.IfExp):
+            replacements[node] = node.body if value else node.orelse
+
+    content = processing.alter_code(content, root, replacements=replacements, removals=removals)
 
     return content

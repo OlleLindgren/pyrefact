@@ -94,6 +94,7 @@ def format_code(
 
     for _ in range(1, 1 + MAX_FILE_PASSES):
 
+        content = fixes.remove_dead_ifs(content)
         content = fixes.delete_unreachable_code(content)
         content = fixes.undefine_unused_variables(content, preserve=preserve)
         content = fixes.delete_pointless_statements(content)

@@ -261,4 +261,73 @@ print(U)
     print(u)
         """,
     ),
+    (
+        """
+def f(x) -> int:
+    if x == 1:
+        x = 2
+    else:
+        if x == 3:
+            x = 7
+        elif x == 8:
+            x = 99
+        else:
+            if x >= 912:
+                x = -2
+            elif x ** x > x ** 3:
+                x = -1
+            else:
+                x = 14
+
+    return x
+
+print(f(11))
+            """,
+        """
+def _f(x) -> int:
+    if x == 1:
+        return 2
+    if x == 3:
+        return 7
+    if x == 8:
+        return 99
+    if x >= 912:
+        return -2
+    if x**x > x**3:
+        return -1
+
+    return 14
+
+print(_f(11))
+            """,
+    ),
+    (
+        """
+import random
+import sys
+def f(x: int) -> int:
+    import heapq
+    y = e = 112
+    if x >= 2:
+        d = 12
+    if []:
+        x *= 99
+    if x == 3:
+        y = x ** 13
+        return 8
+    else:
+        return 19
+print(f(12))
+while False:
+    sys.exit(0)
+            """,
+        """
+def _f(x: int) -> int:
+    if x == 3:
+        return 8
+
+    return 19
+print(_f(12))
+            """,
+    ),
 )
