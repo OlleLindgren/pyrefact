@@ -1590,3 +1590,16 @@ def remove_dead_ifs(content: str) -> str:
     content = processing.alter_code(content, root, replacements=replacements, removals=removals)
 
     return content
+
+def delete_commented_code(content: str) -> str:
+    for commented_block in re.finditer(r"(?<![^\n])(\s*(#.*))+", content):
+        uncommented_block = re.sub(r"(?<![^\n])(\s*#)", "", commented_block.group())
+        indentation_lengths = [x.end() - x.start() for x in re.finditer("(?<![^\n]) +", uncommented_block)]
+        indent = min(indentation_lengths or [0])
+        uncommented_block = re.sub(r"(?<![^\n]) {" + str(indent) + "}", "", uncommented_block)
+
+        if parsing.is_valid_python(uncommented_block):
+            content = content.replace(commented_block.group(), "")
+            return delete_commented_code(content)
+
+    return content
