@@ -331,4 +331,28 @@ def _f(x: int) -> int:
 print(_f(12))
             """,
     ),
+    (
+        """
+class Foo:
+    def asdf(self):
+        x = None
+        if 2 in {1, 2, 3}:
+            print(3)
+def wsdf():
+    z = ()
+    if 2 in {1, 2, 3}:
+        print(3)
+wsdf()
+Foo().asdf()
+Foo.asdf()
+        """,
+        """
+def _asdf():
+    if 2 in {1, 2, 3}:
+        print(3)
+_asdf()
+_asdf()
+_asdf()
+        """,
+    ),
 )

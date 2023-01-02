@@ -719,6 +719,11 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
         if isinstance(node.ctx, ast.Load):
             name_usages[node.id].add(node)
 
+    for node in parsing.walk(root, ast.Attribute):
+        name_usages[node.attr].add(node)
+        for name in parsing.walk(node, ast.Name):
+            name_usages[name.id].add(node)
+
     constructors = collections.defaultdict(set)
     for node in classdefs:
         for child in node.body:
@@ -985,7 +990,7 @@ def remove_duplicate_functions(content: str, preserve: Collection[str]) -> str:
     return content
 
 
-def de_indent_from_else(content: str, orelse: Sequence[ast.AST]) -> str:
+def _de_indent_from_else(content: str, orelse: Sequence[ast.AST]) -> str:
     ranges = [parsing.get_charnos(child, content) for child in orelse]
     start = min((s for (s, _) in ranges))
     end = max((e for (_, e) in ranges))
@@ -998,7 +1003,7 @@ def de_indent_from_else(content: str, orelse: Sequence[ast.AST]) -> str:
     return content
 
 
-def de_indent_body(content: str, node: ast.AST, body: Sequence[ast.AST]) -> str:
+def _de_indent_body(content: str, node: ast.AST, body: Sequence[ast.AST]) -> str:
     ranges = [parsing.get_charnos(child, content) for child in body]
     start = min((s for (s, _) in ranges))
     end = max((e for (_, e) in ranges))
@@ -1049,7 +1054,7 @@ def remove_redundant_else(content: str) -> str:
             print("Found redundant else:")
             print(parsing.get_code(node, content))
 
-            content = de_indent_from_else(content, node.orelse)
+            content = _de_indent_from_else(content, node.orelse)
 
     return content
 
@@ -1571,11 +1576,11 @@ def remove_dead_ifs(content: str) -> str:
         if isinstance(node, ast.If):
             if value and node.body:
                 # Replace node with node.body, node.orelse is dead if exists
-                content = de_indent_body(content, node, node.body)
+                content = _de_indent_body(content, node, node.body)
                 return remove_dead_ifs(content)
             if not value and node.orelse:
                 # Replace node with node.orelse, node.body is dead
-                content = de_indent_body(content, node, node.orelse)
+                content = _de_indent_body(content, node, node.orelse)
                 return remove_dead_ifs(content)
 
             # Both body and orelse are dead => node is dead

@@ -1,5 +1,6 @@
 """Fixes related to improving classes and object-oriented code."""
 import ast
+import copy
 import re
 from typing import Collection, Iterable
 
@@ -66,13 +67,14 @@ def remove_unused_self_cls(content: str) -> str:
                     continue
                 decorator = "staticmethod"
                 delete_decorators.add("classmethod")
-            funcdef.lineno = min(x.lineno for x in ast.walk(funcdef) if hasattr(x, "lineno"))
-            funcdef.decorator_list = [
+            funcdef_copy = copy.copy(funcdef)
+            funcdef_copy.lineno = min(x.lineno for x in ast.walk(funcdef) if hasattr(x, "lineno"))
+            funcdef_copy.decorator_list = [
                 dec
                 for dec in funcdef.decorator_list
                 if not (isinstance(dec, ast.Name) and dec.id in delete_decorators)
             ]
-            funcdef.decorator_list.insert(
+            funcdef_copy.decorator_list.insert(
                 0,
                 ast.Name(
                     id=decorator,
@@ -82,17 +84,18 @@ def remove_unused_self_cls(content: str) -> str:
                 ),
             )
             args = funcdef.args.posonlyargs or funcdef.args.args
-            del args[0]
+            if args:
+                del args[0]
             if decorator == "classmethod":
                 args.insert(0, ast.arg(arg="cls", annotation=None))
 
             if decorator == "classmethod":
-                for node in funcdef.body:
+                for node in funcdef_copy.body:
                     for child in ast.walk(node):
                         if isinstance(child, ast.Name) and child.id == first_arg_name:
                             child.id = "cls"
 
-            replacements[funcdef] = funcdef
+            replacements[funcdef] = funcdef_copy
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
@@ -122,7 +125,13 @@ def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> s
             class_function_names.add((classdef.name, funcdef.name))
 
     for node in parsing.walk(root, ast.Attribute):
-        if isinstance(node.value, ast.Name):
+        if isinstance(node.value, ast.Call):
+            if (
+                isinstance(node.value.func, ast.Name)
+                and (node.value.func.id, node.attr) in class_function_names
+            ):
+                class_attribute_accesses.add(node)
+        elif isinstance(node.value, ast.Name):
             if (
                 node.value.id in {"self", "cls"}
                 or (node.value.id, node.attr) in class_function_names
@@ -157,10 +166,22 @@ def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> s
 
         moved_function_names = {fname: name for ((_, fname), name) in name_replacements.items()}
         for node in class_attribute_accesses:
-            if (node.value.id == classdef.name and node.attr in moved_function_names) or (
-                classdef.lineno < node.lineno < classdef.end_lineno
-                and node.value.id in {"self", "cls"}
-                and node.attr in moved_function_names
+            if (
+                (
+                    isinstance(node.value, ast.Name)
+                    and node.value.id == classdef.name
+                    and node.attr in moved_function_names
+                )
+                or (
+                    isinstance(node.value, ast.Call)
+                    and node.value.func.id == classdef.name
+                    and node.attr in moved_function_names
+                )
+                or (
+                    classdef.lineno < node.lineno < classdef.end_lineno
+                    and node.value.id in {"self", "cls"}
+                    and node.attr in moved_function_names
+                )
             ):
                 replacements[node] = ast.Name(
                     id=moved_function_names[node.attr], ctx=node.ctx, lineno=node.lineno
