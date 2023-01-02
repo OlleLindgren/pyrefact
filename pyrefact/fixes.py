@@ -1659,3 +1659,71 @@ def delete_commented_code(content: str) -> str:
                 return delete_commented_code(content)
 
     return content
+
+
+def replace_with_filter(content: str) -> str:
+    root = parsing.parse(content)
+
+    replacements = {}
+    removals = set()
+
+    for node in parsing.walk(root, ast.For):
+        if isinstance(node.iter, ast.Call) and (
+            (
+                isinstance(node.iter.func, ast.Name)
+                and node.iter.func.id in {"filter", "filterfalse"}
+            )
+            or (isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "filterfalse")
+        ):
+            continue
+        if len(node.body) == 1 and isinstance(node.body[0], ast.If):
+            test = node.body[0].test
+            if (
+                isinstance(test, ast.Call)
+                and len(test.args) == 1
+                and not test.keywords
+                and isinstance(test.args[0], ast.Name)
+                and isinstance(node.target, ast.Name)
+                and test.args[0].id == node.target.id
+            ):
+                replacements[node.iter] = ast.Call(
+                    func=ast.Name(id="filter"),
+                    args=[test.func, node.iter],
+                    keywords=[],
+                )
+                replacements[test] = ast.Constant(value=True, kind=None)
+            continue
+        if len(node.body) < 2:
+            continue
+        first_node, second_node, *_ = node.body
+        if isinstance(first_node, ast.If) and isinstance(first_node.body[0], ast.Continue):
+            test = first_node.test
+
+            if (
+                isinstance(test, ast.UnaryOp)
+                and isinstance(test.op, ast.Not)
+                and isinstance(test.operand, ast.Call)
+                and len(node.body) >= 2
+                and not (
+                    isinstance(second_node, ast.If)
+                    and isinstance(second_node.body[0], ast.Continue)
+                    and isinstance(second_node.test, ast.UnaryOp)
+                    and isinstance(second_node.test.op, ast.Not)
+                    and isinstance(second_node.test.operand, ast.Call)
+                )
+                and not test.operand.keywords
+                and len(test.operand.args) == 1
+                and isinstance(node.target, ast.Name)
+                and isinstance(test.operand.args[0], ast.Name)
+                and test.operand.args[0].id == node.target.id
+            ):
+                replacements[node.iter] = ast.Call(
+                    func=ast.Name(id="filter"),
+                    args=[test.operand.func, node.iter],
+                    keywords=[],
+                )
+                removals.add(first_node)
+
+    content = processing.alter_code(content, root, replacements=replacements, removals=removals)
+
+    return content

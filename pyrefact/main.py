@@ -109,6 +109,7 @@ def format_code(
         content = fixes.swap_if_else(content)
         content = fixes.early_return(content)
         content = fixes.early_continue(content)
+        content = fixes.replace_with_filter(content)
         content = fixes.remove_redundant_else(content)
         content = fixes.replace_functions_with_literals(content)
         content = fixes.replace_for_loops_with_comprehensions(content)
