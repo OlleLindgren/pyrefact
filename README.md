@@ -12,6 +12,8 @@ It is strongly recommended that you version control or otherwise backup any code
 * Replace loops that only fill up lists or sets with comprehensions.
 * Rename variables, functions and classes with conventions.
 * Move code into primitive functions.
+* Replace for loops with immediate `if` conditions with `filter`
+* Remove commented code
 
 ### Performance
 
