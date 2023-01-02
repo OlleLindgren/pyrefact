@@ -1593,6 +1593,8 @@ def remove_dead_ifs(content: str) -> str:
 
 def delete_commented_code(content: str) -> str:
     matches = list(re.finditer(r"(?<![^\n])(\s*(#.*))+", content))
+    root = parsing.parse(content)
+    code_constant_ranges = {parsing.get_charnos(node, content) for node in parsing.walk(root, ast.Constant)}
     for commented_block in matches:
         start = commented_block.start()
         end = commented_block.end()
@@ -1608,6 +1610,16 @@ def delete_commented_code(content: str) -> str:
 
                 start_offset = sum(line_lengths[:si]) if si > 0 else 0
                 end_offset = sum(line_lengths[-se:]) if se > 0 else 0
+
+                selection_end = end - end_offset
+                selection_start = start + start_offset
+
+                if any(
+                    node_start <= selection_end
+                    and selection_start <= node_end
+                    for node_start, node_end in code_constant_ranges
+                ):
+                    continue
 
                 uncommented_block = re.sub(r"(?<![^\n])(\s*#)", "", content[start + start_offset:end - end_offset])
                 indentation_lengths = [x.end() - x.start() for x in re.finditer("(?<![^\n]) +", uncommented_block)]

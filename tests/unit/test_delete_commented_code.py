@@ -85,6 +85,53 @@ def f() -> int:
         ),
         (
             """
+print('''
+# x = 3
+# y = z
+'''
+)
+
+# true comment
+# x = 3 > y  # this should be removed
+
+z = 2
+print(f'''
+# x = {3}
+# y = {z}
+'''
+)
+
+print('''
+# x = {x}
+# y = {z}
+'''.format(x=z, z=z)
+)
+            """,
+            """
+print('''
+# x = 3
+# y = z
+'''
+)
+
+# true comment
+
+z = 2
+print(f'''
+# x = {3}
+# y = {z}
+'''
+)
+
+print('''
+# x = {x}
+# y = {z}
+'''.format(x=z, z=z)
+)
+            """,
+        ),
+        (
+            """
 #import ast
 from typing import Callable, Union
 
@@ -445,7 +492,7 @@ def replace_implicit_matmul(content: str) -> str:
     return content
 
             """,
-        )
+        ),
     )
 
     for content, expected_abstraction in test_cases:
