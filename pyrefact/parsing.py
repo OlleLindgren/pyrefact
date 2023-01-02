@@ -46,7 +46,9 @@ def walk(scope: ast.AST, node_type: Union[ast.AST, Sequence[ast.AST]]) -> Sequen
             yield from nodes
 
 
-def filter_nodes(nodes: Iterable[ast.AST], node_type: Union[ast.AST, Sequence[ast.AST]]) -> Sequence[ast.AST]:
+def filter_nodes(
+    nodes: Iterable[ast.AST], node_type: Union[ast.AST, Sequence[ast.AST]]
+) -> Sequence[ast.AST]:
     for node in nodes:
         if isinstance(node, node_type):
             yield node
@@ -374,7 +376,7 @@ def has_side_effect(
 
 
 @functools.lru_cache(maxsize=1)
-def get_line_start_charnos(content: str) -> Sequence[int]:
+def _get_line_start_charnos(content: str) -> Sequence[int]:
     start = 0
     charnos = []
     for line in content.splitlines(keepends=True):
@@ -393,7 +395,7 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
     Returns:
         Tuple[int, int]: start, end
     """
-    line_start_charnos = get_line_start_charnos(content)
+    line_start_charnos = _get_line_start_charnos(content)
     if (
         isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
         and node.decorator_list

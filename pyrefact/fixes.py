@@ -739,9 +739,7 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
         else:
             constructor_usages = set()
         recursive_usages = {
-            node
-            for node in parsing.walk(def_node, ast.Name)
-            if node.id == def_node.name
+            node for node in parsing.walk(def_node, ast.Name) if node.id == def_node.name
         }
         if not (usages | constructor_usages) - recursive_usages:
             print(f"{def_node.name} is never used")
@@ -752,8 +750,7 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
         internal_usages = {
             node
             for node in parsing.walk(def_node, ast.Name)
-            if isinstance(node.ctx, ast.Load)
-            and node.id in {def_node.name, "self", "cls"}
+            if isinstance(node.ctx, ast.Load) and node.id in {def_node.name, "self", "cls"}
         }
         if not usages - internal_usages:
             print(f"{def_node.name} is never used")
@@ -858,7 +855,9 @@ def move_imports_to_toplevel(content: str) -> str:
         )
     }
 
-    if defs := set(parsing.filter_nodes(root.body, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))):
+    if defs := set(
+        parsing.filter_nodes(root.body, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    ):
         first_def_lineno = min(node.lineno for node in defs)
         imports_movable_to_toplevel.update(
             node for node in toplevel_imports if node.lineno > first_def_lineno
@@ -1589,10 +1588,13 @@ def remove_dead_ifs(content: str) -> str:
 
     return content
 
+
 def delete_commented_code(content: str) -> str:
     matches = list(re.finditer(r"(?<![^\n])(\s*(#.*))+", content))
     root = parsing.parse(content)
-    code_constant_ranges = {parsing.get_charnos(node, content) for node in parsing.walk(root, ast.Constant)}
+    code_constant_ranges = {
+        parsing.get_charnos(node, content) for node in parsing.walk(root, ast.Constant)
+    }
     for commented_block in matches:
         start = commented_block.start()
         end = commented_block.end()
@@ -1613,30 +1615,37 @@ def delete_commented_code(content: str) -> str:
                 selection_start = start + start_offset
 
                 if any(
-                    node_start <= selection_end
-                    and selection_start <= node_end
+                    node_start <= selection_end and selection_start <= node_end
                     for node_start, node_end in code_constant_ranges
                 ):
                     continue
 
-                uncommented_block = re.sub(r"(?<![^\n])(\s*#)", "", content[start + start_offset:end - end_offset])
-                indentation_lengths = [x.end() - x.start() for x in re.finditer("(?<![^\n]) +", uncommented_block)]
+                uncommented_block = re.sub(
+                    r"(?<![^\n])(\s*#)", "", content[start + start_offset : end - end_offset]
+                )
+                indentation_lengths = [
+                    x.end() - x.start() for x in re.finditer("(?<![^\n]) +", uncommented_block)
+                ]
                 indent = min(indentation_lengths or [0])
-                uncommented_block = re.sub(r"(?<![^\n]) {" + str(indent) + "}", "", uncommented_block)
-                
-                if uncommented_block.strip() and parsing.is_valid_python(uncommented_block):
-                    parsed_content = parsing.parse(uncommented_block)
-                    if len(parsed_content.body) == 1:
-                        if isinstance(parsed_content.body[0], (ast.Expr)) and len(uncommented_block) < 20:
-                            continue
-                        if isinstance(parsed_content.body[0], ast.Name):
-                            continue
+                uncommented_block = re.sub(
+                    r"(?<![^\n]) {" + str(indent) + "}", "", uncommented_block
+                )
 
-                    print("Deleting commented code")
-                    print(content[start + start_offset:end - end_offset])
-                    content = content[:start + start_offset] + "\n" + content[end - end_offset:]
+                if not (uncommented_block.strip() and parsing.is_valid_python(uncommented_block)):
+                    continue
 
-                    # Recursion due to likely race conditions
-                    return delete_commented_code(content)
+                parsed_content = parsing.parse(uncommented_block)
+                if len(parsed_content.body) == 1:
+                    if isinstance(parsed_content.body[0], ast.Expr) and len(uncommented_block) < 20:
+                        continue
+                    if isinstance(parsed_content.body[0], ast.Name):
+                        continue
+
+                print("Deleting commented code")
+                print(content[start + start_offset : end - end_offset])
+                content = content[: start + start_offset] + "\n" + content[end - end_offset :]
+
+                # Recursion due to likely race conditions
+                return delete_commented_code(content)
 
     return content
