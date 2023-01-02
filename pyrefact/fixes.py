@@ -1592,14 +1592,32 @@ def remove_dead_ifs(content: str) -> str:
     return content
 
 def delete_commented_code(content: str) -> str:
-    for commented_block in re.finditer(r"(?<![^\n])(\s*(#.*))+", content):
-        uncommented_block = re.sub(r"(?<![^\n])(\s*#)", "", commented_block.group())
-        indentation_lengths = [x.end() - x.start() for x in re.finditer("(?<![^\n]) +", uncommented_block)]
-        indent = min(indentation_lengths or [0])
-        uncommented_block = re.sub(r"(?<![^\n]) {" + str(indent) + "}", "", uncommented_block)
+    matches = list(re.finditer(r"(?<![^\n])(\s*(#.*))+", content))
+    for commented_block in matches:
+        start = commented_block.start()
+        end = commented_block.end()
+        start_offset = 0
+        end_offset = 0
 
-        if parsing.is_valid_python(uncommented_block):
-            content = content.replace(commented_block.group(), "")
-            return delete_commented_code(content)
+        line_lengths = [len(line) for line in commented_block.group().splitlines(keepends=True)]
+
+        for si in range(len(line_lengths)):
+            for se in range(len(line_lengths)):
+                if si + se >= len(line_lengths):
+                    continue
+
+                start_offset = sum(line_lengths[:si]) if si > 0 else 0
+                end_offset = sum(line_lengths[-se:]) if se > 0 else 0
+
+                uncommented_block = re.sub(r"(?<![^\n])(\s*#)", "", content[start + start_offset:end - end_offset])
+                indentation_lengths = [x.end() - x.start() for x in re.finditer("(?<![^\n]) +", uncommented_block)]
+                indent = min(indentation_lengths or [0])
+                uncommented_block = re.sub(r"(?<![^\n]) {" + str(indent) + "}", "", uncommented_block)
+                
+                if uncommented_block.strip() and parsing.is_valid_python(uncommented_block):
+                    print("Deleting commented code")
+                    print(content[start + start_offset:end - end_offset])
+                    content = content[:start + start_offset] + "\n" + content[end - end_offset:]
+                    return delete_commented_code(content)
 
     return content
