@@ -1627,9 +1627,18 @@ def delete_commented_code(content: str) -> str:
                 uncommented_block = re.sub(r"(?<![^\n]) {" + str(indent) + "}", "", uncommented_block)
                 
                 if uncommented_block.strip() and parsing.is_valid_python(uncommented_block):
+                    parsed_content = parsing.parse(uncommented_block)
+                    if len(parsed_content.body) == 1:
+                        if isinstance(parsed_content.body[0], (ast.Expr)) and len(uncommented_block) < 20:
+                            continue
+                        if isinstance(parsed_content.body[0], ast.Name):
+                            continue
+
                     print("Deleting commented code")
                     print(content[start + start_offset:end - end_offset])
                     content = content[:start + start_offset] + "\n" + content[end - end_offset:]
+
+                    # Recursion due to likely race conditions
                     return delete_commented_code(content)
 
     return content

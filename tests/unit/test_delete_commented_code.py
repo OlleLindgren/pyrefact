@@ -51,7 +51,7 @@ def f() -> int:
 # Normal comment
 def h() -> int:
     return 2  # Normal comment
-# lambda: 3
+# z = lambda: 3
             """,
             """
 def f() -> int:
@@ -73,6 +73,7 @@ def f() -> int:
 # def h() -> int:
 #     return 2  # Normal comment
 # This is not valid python
+# z = lambda: 3
 # lambda: 3
             """,
             """
@@ -81,6 +82,23 @@ def f() -> int:
     return 2
 # Normal comment
 # This is not valid python
+            """,
+        ),
+        (
+            """
+# Comment about something interesting
+# lambda: 2
+# Another comment about something interesting
+# lambda: 1 if x > y else z < 100
+# comment comment comment
+# name_of_thing
+            """,
+            """
+# Comment about something interesting
+# lambda: 2
+# Another comment about something interesting
+# comment comment comment
+# name_of_thing
             """,
         ),
         (
