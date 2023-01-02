@@ -46,6 +46,12 @@ def walk(scope: ast.AST, node_type: Union[ast.AST, Sequence[ast.AST]]) -> Sequen
             yield from nodes
 
 
+def filter_nodes(nodes: Iterable[ast.AST], node_type: Union[ast.AST, Sequence[ast.AST]]) -> Sequence[ast.AST]:
+    for node in nodes:
+        if isinstance(node, node_type):
+            yield node
+
+
 def is_valid_python(content: str) -> bool:
     """Determine if source code is valid python.
 

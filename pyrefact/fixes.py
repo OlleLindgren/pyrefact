@@ -700,8 +700,8 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
     preserved_class_funcdefs = {
         funcdef
         for node in parsing.walk(root, ast.ClassDef)
-        for funcdef in node.body
-        if isinstance(funcdef, ast.FunctionDef) and f"{node.name}.{funcdef.name}" in preserve
+        for funcdef in parsing.filter_nodes(node.body, (ast.FunctionDef, ast.AsyncFunctionDef))
+        if f"{node.name}.{funcdef.name}" in preserve
     }
 
     for node in parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -740,8 +740,8 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
             constructor_usages = set()
         recursive_usages = {
             node
-            for node in ast.walk(def_node)
-            if isinstance(node, ast.Name) and node.id == def_node.name
+            for node in parsing.walk(def_node, ast.Name)
+            if node.id == def_node.name
         }
         if not (usages | constructor_usages) - recursive_usages:
             print(f"{def_node.name} is never used")
@@ -751,9 +751,8 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
         usages = name_usages[def_node.name]
         internal_usages = {
             node
-            for node in ast.walk(def_node)
-            if isinstance(node, ast.Name)
-            and isinstance(node.ctx, ast.Load)
+            for node in parsing.walk(def_node, ast.Name)
+            if isinstance(node.ctx, ast.Load)
             and node.id in {def_node.name, "self", "cls"}
         }
         if not usages - internal_usages:
@@ -814,18 +813,19 @@ def delete_unreachable_code(content: str) -> str:
         try:
             test_value = parsing.literal_value(node.test)
         except ValueError:
-            pass
-        else:
-            if isinstance(node, ast.While) and not test_value:
+            continue
+
+        if isinstance(node, ast.While) and not test_value:
+            delete.add(node)
+            continue
+
+        if isinstance(node, ast.If):
+            if test_value and node.body:
+                delete.update(node.orelse)
+            elif not test_value and node.orelse:
+                delete.update(node.body)
+            else:
                 delete.add(node)
-                continue
-            if not isinstance(node, ast.If):
-                if test_value and node.body:
-                    delete.update(node.orelse)
-                elif not test_value and node.orelse:
-                    delete.update(node.body)
-                else:
-                    delete.add(node)
 
     if delete:
         print("Removing unreachable code")
@@ -843,9 +843,7 @@ def _get_package_names(node: Union[ast.Import, ast.ImportFrom]):
 
 def move_imports_to_toplevel(content: str) -> str:
     root = parsing.parse(content)
-    toplevel_imports = {
-        node for node in root.body if isinstance(node, (ast.Import, ast.ImportFrom))
-    }
+    toplevel_imports = set(parsing.filter_nodes(root.body, (ast.Import, ast.ImportFrom)))
     all_imports = set(parsing.walk(root, (ast.Import, ast.ImportFrom)))
     toplevel_packages = set()
     for node in toplevel_imports:
@@ -860,13 +858,7 @@ def move_imports_to_toplevel(content: str) -> str:
         )
     }
 
-    defs = {
-        node
-        for node in root.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-    }
-
-    if defs:
+    if defs := set(parsing.filter_nodes(root.body, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))):
         first_def_lineno = min(node.lineno for node in defs)
         imports_movable_to_toplevel.update(
             node for node in toplevel_imports if node.lineno > first_def_lineno
@@ -899,24 +891,27 @@ def move_imports_to_toplevel(content: str) -> str:
         removals.append(node)
         if isinstance(node, ast.Import):
             new_node = ast.Import(names=node.names, lineno=lineno)
+            additions.append(new_node)
+            continue
+
+        if node.module in constants.PYTHON_311_STDLIB:
+            safe_position_lineno = lineno
         else:
-            if node.module in constants.PYTHON_311_STDLIB:
-                safe_position_lineno = lineno
-            else:
-                module_import_linenos = [
-                    candidate.lineno
-                    for candidate in toplevel_imports
-                    if node.module in _get_package_names(candidate)
-                ]
-                if not module_import_linenos:
-                    continue
-                safe_position_lineno = min(module_import_linenos)
-            new_node = ast.ImportFrom(
-                module=node.module,
-                names=node.names,
-                level=node.level,
-                lineno=safe_position_lineno,
-            )
+            module_import_linenos = [
+                candidate.lineno
+                for candidate in toplevel_imports
+                if node.module in _get_package_names(candidate)
+            ]
+            if not module_import_linenos:
+                continue
+            safe_position_lineno = min(module_import_linenos)
+
+        new_node = ast.ImportFrom(
+            module=node.module,
+            names=node.names,
+            level=node.level,
+            lineno=safe_position_lineno,
+        )
         additions.append(new_node)
 
     if removals:
