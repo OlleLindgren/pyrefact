@@ -163,8 +163,7 @@ def foo() -> bool:
         return True
     if z:
         return False
-    else:
-        return True
+    return True
             """,
         ),  # First pass
         (

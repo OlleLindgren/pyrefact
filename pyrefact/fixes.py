@@ -1018,35 +1018,33 @@ def remove_redundant_else(content: str) -> str:
     Returns:
         str: Code with no redundant else/elifs.
     """
-    changes = True
-    while changes:
-        changes = False
-        root = parsing.parse(content)
-        for node in parsing.walk(root, ast.If):
-            if not node.orelse:
+    root = parsing.parse(content)
+    for node in parsing.walk(root, ast.If):
+        if not node.orelse:
+            continue
+        if not parsing.get_code(node, content).startswith("if"):  # Otherwise we get FPs on elif
+            continue
+        if not any((parsing.is_blocking(child) for child in node.body)):
+            continue
+
+        if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
+            (start, end) = parsing.get_charnos(node.orelse[0], content)
+            orelse = content[start:end]
+            if orelse.startswith("elif"):  # Regular elif
+                modified_orelse = re.sub("^elif", "if", orelse)
+                print("Found redundant elif:")
+                print(parsing.get_code(node, content))
+                content = content[:start] + modified_orelse + content[end:]
                 continue
-            if not parsing.get_code(node, content).startswith("if"):  # Otherwise we get FPs on elif
-                continue
-            if not any((parsing.is_blocking(child) for child in node.body)):
-                continue
 
-            if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
-                (start, end) = parsing.get_charnos(node.orelse[0], content)
-                orelse = content[start:end]
-                if orelse.startswith("elif"):  # Regular elif
-                    modified_orelse = re.sub("^elif", "if", orelse)
-                    print("Found redundant elif:")
-                    print(parsing.get_code(node, content))
-                    content = content[:start] + modified_orelse + content[end:]
-                    continue
+            # Otherwise it's an else: if:, which is handled below
 
-                # Otherwise it's an else: if:, which is handled below
+        # else
+        print("Found redundant else:")
+        print(parsing.get_code(node, content))
 
-            # else
-            print("Found redundant else:")
-            print(parsing.get_code(node, content))
-
-            content = _de_indent_from_else(content, node.orelse)
+        content = _de_indent_from_else(content, node.orelse)
+        return remove_redundant_else(content)
 
     return content
 
