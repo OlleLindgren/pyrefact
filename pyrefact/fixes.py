@@ -1103,6 +1103,16 @@ def _negate_condition(node: ast.AST) -> ast.AST:
             left=node.left, ops=[opposite_operator_type()], comparators=node.comparators
         )
 
+    if isinstance(node, ast.BinOp) and isinstance(node.operand, ast.And):
+        return ast.BinOp(
+            left=_negate_condition(node.left), right=_negate_condition(node.right), op=ast.Or()
+        )
+
+    if isinstance(node, ast.BinOp) and isinstance(node.operand, ast.Or):
+        return ast.BinOp(
+            left=_negate_condition(node.left), right=_negate_condition(node.right), op=ast.And()
+        )
+
     return ast.UnaryOp(op=ast.Not(), operand=node)
 
 
