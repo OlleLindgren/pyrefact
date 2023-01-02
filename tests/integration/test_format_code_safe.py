@@ -60,6 +60,32 @@ class Foo:
         print(3)
             """,
         ),
+        (
+            """
+def asdf():
+    x = None
+    if 2 in {1, 2, 3}:
+        print(3)
+class Foo:
+    @staticmethod
+    def asdf():
+        x = None
+        if 2 in {1, 2, 3}:
+            y = x is not None
+            z = y or not y
+            print(3)
+            """,
+            """
+def asdf():
+    if 2 in {1, 2, 3}:
+        print(3)
+class Foo:
+    @staticmethod
+    def asdf():
+        if 2 in {1, 2, 3}:
+            print(3)
+            """,
+        ),
     )
 
     for content, expected_abstraction in test_cases:

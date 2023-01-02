@@ -574,10 +574,7 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
     for node in parsing.walk(ast_tree, (ast.Import, ast.ImportFrom)):
         imports.update(alias.name for alias in node.names)
 
-    for def_node in itertools.chain(
-        [ast_tree],
-        parsing.iter_funcdefs(ast_tree),
-    ):
+    for def_node in parsing.walk(ast_tree, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef)):
         reference_nodes = {
             node for node in parsing.walk(def_node, ast.Name) if isinstance(node.ctx, ast.Load)
         }
