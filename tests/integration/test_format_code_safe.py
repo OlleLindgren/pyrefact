@@ -86,6 +86,42 @@ class Foo:
             print(3)
             """,
         ),
+        (
+            """
+class TestSomeStuff(unittest.TestCase):
+    def test_important_stuff(self):
+        assert 1 == 3
+    @classmethod
+    def test_important_stuff2(cls):
+        assert 1 == 3
+    def test_nonsense(self):
+        self.assertEqual(1, 3)
+            """,
+            """
+import unittest
+class TestSomeStuff(unittest.TestCase):
+    @staticmethod
+    def test_important_stuff():
+        assert 1 == 3
+    @staticmethod
+    def test_important_stuff2():
+        assert 1 == 3
+    def test_nonsense(self):
+        self.assertEqual(1, 3)
+            """,
+        ),
+        (
+            """
+def foo() -> int:
+    '''This seems useless, but pyrefact shouldn't remove it with --safe'''
+    return 10
+            """,
+            '''
+def foo() -> int:
+    """This seems useless, but pyrefact shouldn't remove it with --safe"""
+    return 10
+            '''
+        ),
     )
 
     for content, expected_abstraction in test_cases:
