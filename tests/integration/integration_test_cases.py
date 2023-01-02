@@ -33,6 +33,8 @@ def foo() -> bool:
     elif x == 2:
         return True
     else:
+        # if x > 0:
+        #     return 100 * x < 1000
         if z:
             return False
         else:
