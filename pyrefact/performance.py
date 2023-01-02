@@ -70,9 +70,7 @@ def replace_with_sets(content: str) -> str:
 
     replacements = {}
 
-    for node in parsing.walk(root, ast.Compare):
-        if not _is_contains_comparison(node):
-            continue
+    for node in filter(_is_contains_comparison, parsing.walk(root, ast.Compare)):
 
         for comp in node.comparators:
             if isinstance(comp, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
@@ -203,9 +201,7 @@ def replace_sorted_heapq(content: str) -> str:
     builtin_list = ast.Name(id="list", ctx=ast.Load())
     builtin_reversed = ast.Name(id="reversed", ctx=ast.Load())
 
-    for node in parsing.walk(root, ast.Subscript):
-        if not _is_sorted_subscript(node):
-            continue
+    for node in filter(_is_sorted_subscript, parsing.walk(root, ast.Subscript)):
 
         args = node.value.args
         keywords = node.value.keywords

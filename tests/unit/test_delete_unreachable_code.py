@@ -18,11 +18,11 @@ if False:
     print(2)
 if True:
     print(3)
-            """, 
+            """,
             """
 if True:
     print(3)
-            """, 
+            """,
         ),
         (
             """
@@ -30,11 +30,11 @@ if (1, 2, 3):
     print(2)
 if ():
     print(3)
-            """, 
+            """,
             """
 if (1, 2, 3):
     print(2)
-            """, 
+            """,
         ),
         (
             """
@@ -43,12 +43,12 @@ for i in range(10):
     continue
     import os
     print(os.getcwd())
-            """, 
+            """,
             """
 for i in range(10):
     print(2)
     continue
-            """, 
+            """,
         ),
         (
             """
@@ -58,13 +58,13 @@ for i in range(10):
         break
     import os
     print(os.getcwd())
-            """, 
+            """,
             """
 for i in range(10):
     print(2)
     if [1]:
         break
-            """, 
+            """,
         ),
         (
             """
@@ -80,7 +80,7 @@ for i in range(10):
         continue
     import os
     print(os.getcwd())
-            """, 
+            """,
             """
 def foo():
     import random
@@ -91,7 +91,7 @@ for i in range(10):
         break
     else:
         continue
-            """, 
+            """,
         ),
         (
             """
@@ -99,11 +99,11 @@ while 0:
     print(0)
 while 3:
     print(3)
-            """, 
+            """,
             """
 while 3:
     print(3)
-            """, 
+            """,
         ),
     )
 

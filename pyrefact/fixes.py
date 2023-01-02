@@ -723,9 +723,9 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
 
     constructors = collections.defaultdict(set)
     for node in classdefs:
-        for child in node.body:
-            if parsing.is_magic_method(child):
-                constructors[node].add(child)
+        for child in filter(parsing.is_magic_method, node.body):
+
+            constructors[node].add(child)
 
     constructor_classes = {}
     for classdef, magics in constructors.items():
@@ -1545,13 +1545,16 @@ def simplify_transposes(content: str) -> str:
 
     replacements = {}
 
-    for node in itertools.chain(parsing.walk(root, ast.Call), parsing.walk(root, ast.Attribute)):
-        if parsing.is_transpose_operation(node):
-            first_transpose_target = parsing.transpose_target(node)
-            if parsing.is_transpose_operation(first_transpose_target):
-                second_transpose_target = parsing.transpose_target(first_transpose_target)
-                replacements[node] = second_transpose_target
-                break
+    for node in filter(
+        parsing.is_transpose_operation,
+        itertools.chain(parsing.walk(root, ast.Call), parsing.walk(root, ast.Attribute)),
+    ):
+
+        first_transpose_target = parsing.transpose_target(node)
+        if parsing.is_transpose_operation(first_transpose_target):
+            second_transpose_target = parsing.transpose_target(first_transpose_target)
+            replacements[node] = second_transpose_target
+            break
 
     content = processing.replace_nodes(content, replacements)
     if replacements:

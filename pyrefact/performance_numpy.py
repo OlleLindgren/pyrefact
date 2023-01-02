@@ -107,20 +107,20 @@ def simplify_matmul_transposes(content: str) -> str:
     root = parsing.parse(content)
     replacements = {}
 
-    for node in parsing.walk(root, ast.Attribute):
-        if parsing.is_transpose_operation(node):
-            target = parsing.transpose_target(node)
-            if isinstance(target, ast.Call) and _is_np_matmul_call(target):
-                if (
-                    len(target.args) == 2
-                    and not any(isinstance(arg, ast.Starred) for arg in target.args)
-                    and all(parsing.is_transpose_operation(arg) for arg in target.args)
-                ):
-                    left, right = target.args
-                    matmul = _wrap_np_matmul(wrap_transpose(right), wrap_transpose(left))
-                    matmul.func = target.func
-                    matmul.keywords = target.keywords
-                    replacements[node] = matmul
+    for node in filter(parsing.is_transpose_operation, parsing.walk(root, ast.Attribute)):
+
+        target = parsing.transpose_target(node)
+        if isinstance(target, ast.Call) and _is_np_matmul_call(target):
+            if (
+                len(target.args) == 2
+                and not any(isinstance(arg, ast.Starred) for arg in target.args)
+                and all(parsing.is_transpose_operation(arg) for arg in target.args)
+            ):
+                left, right = target.args
+                matmul = _wrap_np_matmul(wrap_transpose(right), wrap_transpose(left))
+                matmul.func = target.func
+                matmul.keywords = target.keywords
+                replacements[node] = matmul
 
     content = processing.replace_nodes(content, replacements)
 
