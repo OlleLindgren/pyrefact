@@ -14,7 +14,7 @@ It is strongly recommended that you version control or otherwise backup any code
 * Replace loops that only fill up lists or sets with comprehensions.
 * Invert `if`/`else` to put the smaller block first.
 * Rename variables, functions and classes with conventions.
-* Rewrite defaultdict-like use of dictionaries with collections.defaultdict()
+* Rewrite defaultdict-like use of dictionaries with `collections.defaultdict()`
 
 ### Performance
 
