@@ -1761,12 +1761,18 @@ def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
         and isinstance(node.value.func, ast.Attribute)
         and isinstance(node.value.func.value, ast.Subscript)
         and isinstance(node.value.func.value.value, ast.Name)
-        and isinstance(node.value.func.value.slice, ast.Name)
+        and (
+            isinstance(node.value.func.value.slice, ast.Name)
+            or (
+                constants.PYTHON_VERSION < (3, 9)
+                and isinstance(node.value.func.value.slice.value, ast.Name)
+            )
+        )
         and len(node.value.args) == 1
     ):
         call = node.value.func.attr
         value = node.value.args[0]
-        key = node.value.func.value.slice.id
+        key = node.value.func.value.slice.id if constants.PYTHON_VERSION >= (3, 9) else node.value.func.value.slice.value.id
         obj = node.value.func.value.value.id
         return obj, call, key, value
 
@@ -1779,7 +1785,8 @@ def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
         and len(node.targets) == 1
         and isinstance(node.targets[0], ast.Subscript)
     ):
-        key = node.targets[0].slice.id
+        key = node.targets[0].slice.id if constants.PYTHON_VERSION >= (3, 9) else node.targets[0].slice.value.id
+
         obj = node.targets[0].value.id
         value = node.value
         return obj, key, value
