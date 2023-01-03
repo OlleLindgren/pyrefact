@@ -1,5 +1,5 @@
 # pyrefact
-Automatic python refactoring, with the goal of simplifying complicated code, deleting dead code, and to some extent improve performance.
+Pyrefact does advanced python refactoring, with the goal of simplifying complicated code, deleting dead code, and improving performance.
 
 It is strongly recommended that you version control or otherwise backup any code you run pyrefact on.
 
@@ -7,13 +7,14 @@ It is strongly recommended that you version control or otherwise backup any code
 
 ### Readability
 
-* Invert `if`/`else` to put the smaller block first.
 * De-indent code with early `continue` and `return` statements.
-* Replace loops that only fill up lists or sets with comprehensions.
-* Rename variables, functions and classes with conventions.
-* Move code into primitive functions.
 * Replace for loops with immediate `if` conditions with `filter`
 * Remove commented code
+* Move code into primitive functions.
+* Replace loops that only fill up lists or sets with comprehensions.
+* Invert `if`/`else` to put the smaller block first.
+* Rename variables, functions and classes with conventions.
+* Rewrite defaultdict-like use of dictionaries with collections.defaultdict()
 
 ### Performance
 
@@ -36,11 +37,12 @@ It is strongly recommended that you version control or otherwise backup any code
 * Remove redundant elif and else.
 * Remove unused `self` and `cls` function arguments, and add `@staticmethod` or `@classmethod`.
 * Move functions decorated with `@staticmethod` outside of their class namespaces.
+* Simplify deterministic `if`, `elif` and `else` statements.
 
 ### Imports
 
 * Delete unused imports
-* Move safe imports to toplevel
+* Move builtin and otherwise safe imports to toplevel
 * Add missing imports by guessing what you probably wanted.
   * For example, if `Sequence` is used but never defined, it will insert `from typing import Sequence` at the top of the file.
 
@@ -65,7 +67,7 @@ cat /path/to/filename.py | pyrefact --from-stdin
 
 Pyrefact is also available as a VS Code extension, simply named [Pyrefact](https://marketplace.visualstudio.com/items?itemName=olleln.pyrefact). The extension allows you to use pyrefact as your formatter, similar to how the Black or Autopep8 extensions work.
 
-You can also use pyrefact as your default formatter and use the configurations for format on save etc. Pyrefact always runs with the `--safe` flag when used through the VS Code extension.
+You can also use pyrefact as your default formatter and use the configurations for format on save etc. Pyrefact always runs with the `--safe` flag when used through the VS Code extension, and works with format on save, letting you refactor snippets of code with great granularity.
 
 The repository for the extension can be found at [pyrefact-vscode-extension](https://github.com/OlleLindgren/pyrefact-vscode-extension).
 
