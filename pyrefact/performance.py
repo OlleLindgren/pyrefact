@@ -1,7 +1,6 @@
 """Fixes that aim to improve performance"""
 
 import ast
-from typing import Collection
 
 from pyrefact import constants, parsing, performance_numpy, processing
 
@@ -33,29 +32,6 @@ def _can_be_evaluated_safe(node: ast.AST) -> bool:
     return True
 
 
-def _can_be_evaluated(node: ast.AST, safe_callables: Collection[str]) -> bool:
-    """Determine if a node can be evaluated.
-
-    Args:
-        node (ast.AST): Node to check
-
-    Raises:
-        ValueError: If the node has a side effect
-
-    Returns:
-        bool: True if the node can be evaluated
-    """
-    safe_callables = parsing.safe_callable_names(node)
-    if parsing.has_side_effect(node, safe_callables):
-        raise ValueError("Cannot evaluate node with side effects.")
-    try:
-        eval(processing.unparse(node))  # pylint: disable=eval-used
-    except Exception:  # pylint: disable=broad-except
-        return False
-
-    return True
-
-
 def optimize_contains_types(content: str) -> str:
     """Replace inlined lists with sets.
 
@@ -66,7 +42,6 @@ def optimize_contains_types(content: str) -> str:
         str: Modified python source code
     """
     root = parsing.parse(content)
-    safe_callables = parsing.safe_callable_names(root)
 
     replacements = {}
 
@@ -79,9 +54,7 @@ def optimize_contains_types(content: str) -> str:
                 replacement = ast.SetComp(elt=comp.key, generators=comp.generators)
             elif isinstance(comp, (ast.List, ast.Tuple)):
                 preferred_type = (
-                    ast.Set
-                    if _can_be_evaluated_safe(ast.Set(elts=comp.elts))
-                    else ast.Tuple
+                    ast.Set if _can_be_evaluated_safe(ast.Set(elts=comp.elts)) else ast.Tuple
                 )
                 if isinstance(comp, preferred_type):
                     continue
@@ -91,7 +64,8 @@ def optimize_contains_types(content: str) -> str:
                 and isinstance(comp.func, ast.Name)
                 and isinstance(comp.func.ctx, ast.Load)
                 and comp.func.id in {"sorted", "list", "tuple"}
-                and len(comp.args) == 1 and not comp.keywords
+                and len(comp.args) == 1
+                and not comp.keywords
             ):
                 replacement = comp.args[0]
             else:

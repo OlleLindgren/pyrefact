@@ -1772,7 +1772,11 @@ def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
     ):
         call = node.value.func.attr
         value = node.value.args[0]
-        key = node.value.func.value.slice.id if constants.PYTHON_VERSION >= (3, 9) else node.value.func.value.slice.value.id
+        key = (
+            node.value.func.value.slice.id
+            if constants.PYTHON_VERSION >= (3, 9)
+            else node.value.func.value.slice.value.id
+        )
         obj = node.value.func.value.value.id
         return obj, call, key, value
 
@@ -1785,7 +1789,11 @@ def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
         and len(node.targets) == 1
         and isinstance(node.targets[0], ast.Subscript)
     ):
-        key = node.targets[0].slice.id if constants.PYTHON_VERSION >= (3, 9) else node.targets[0].slice.value.id
+        key = (
+            node.targets[0].slice.id
+            if constants.PYTHON_VERSION >= (3, 9)
+            else node.targets[0].slice.value.id
+        )
 
         obj = node.targets[0].value.id
         value = node.value
@@ -1953,8 +1961,6 @@ def implicit_defaultdict(content: str) -> str:
 
     return content
 
-import ast
-
 
 def simplify_redundant_lambda(content: str) -> str:
     root = parsing.parse(content)
@@ -1972,26 +1978,13 @@ def simplify_redundant_lambda(content: str) -> str:
             and not lambda_args.posonlyargs
             and not lambda_args.vararg
         ):
-            if (
-                isinstance(node.body, ast.Call)
-                and not node.body.args
-                and not node.body.keywords
-            ):
+            if isinstance(node.body, ast.Call) and not node.body.args and not node.body.keywords:
                 replacements[node] = node.body.func
-            elif (
-                isinstance(node.body, ast.List)
-                and not node.body.elts
-            ):
+            elif isinstance(node.body, ast.List) and not node.body.elts:
                 replacements[node] = ast.Name(id="list")
-            elif (
-                isinstance(node.body, ast.Tuple)
-                and not node.body.elts
-            ):
+            elif isinstance(node.body, ast.Tuple) and not node.body.elts:
                 replacements[node] = ast.Name(id="tuple")
-            elif (
-                isinstance(node.body, ast.Dict)
-                and not node.body.keys and not node.body.values
-            ):
+            elif isinstance(node.body, ast.Dict) and not node.body.keys and not node.body.values:
                 replacements[node] = ast.Name(id="dict")
 
     content = processing.replace_nodes(content, replacements)
