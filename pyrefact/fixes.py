@@ -1730,3 +1730,206 @@ def replace_with_filter(content: str) -> str:
     content = processing.alter_code(content, root, replacements=replacements, removals=removals)
 
     return content
+
+
+def _get_contains_args(node: ast.Compare) -> Tuple[str, str, bool]:
+    negative = isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not)
+    if negative:
+        node = node.operand
+
+    if isinstance(node, ast.Compare) and isinstance(node.left, ast.Name) and len(node.ops) == 1 and len(node.comparators) == 1 and isinstance(node.comparators[0], ast.Name):
+        key = node.left.id
+        value = node.comparators[0].id
+        if isinstance(node.ops[0], ast.In):
+            return key, value, negative
+        if isinstance(node.ops[0], ast.NotIn):
+            return key, value, not negative
+
+    raise ValueError(f"Node is not a pure compare node: {node}")
+
+
+def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
+    if (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Attribute)
+        and isinstance(node.value.func.value, ast.Subscript)
+        and isinstance(node.value.func.value.value, ast.Name)
+        and isinstance(node.value.func.value.slice, ast.Name)
+        and len(node.value.args) == 1
+    ):
+        call = node.value.func.attr
+        value = node.value.args[0]
+        key = node.value.func.value.slice.id
+        obj = node.value.func.value.value.id
+        return obj, call, key, value
+
+    raise ValueError(f"Node {node} is not a subscript call")
+
+
+import ast
+from typing import Tuple
+
+
+def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
+    if (
+        isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Subscript)
+    ):
+        key = node.targets[0].slice.id
+        obj = node.targets[0].value.id
+        value = node.value
+        return obj, key, value
+
+    raise ValueError(f"Node {node} is not a subscript assignment")
+
+
+def _preferred_comprehension_type(node: ast.AST) -> Union[ast.AST, ast.SetComp, ast.GeneratorExp]:
+    if isinstance(node, ast.ListComp):
+        return ast.GeneratorExp(
+            elt=node.elt,
+            generators=node.generators
+        )
+    
+    return node
+
+
+def implicit_defaultdict(content: str) -> str:
+    replacements = {}
+    removals = set()
+
+    root = parsing.parse(content)
+    for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
+        bodies = [node.body]
+        if isinstance(node, ast.If):
+            bodies.append(node.orelse)
+        for body in bodies:
+            if len(body) <= 1:
+                continue
+
+            for n1, n2 in zip(body[:-1], body[1:]):
+                if not (
+                    isinstance(n1, ast.Assign)
+                    and len(n1.targets) == 1
+                    and isinstance(n1.targets[0], ast.Name)
+                    and isinstance(n1.value, ast.Dict)
+                    and not n1.value.keys
+                    and not n1.value.values
+                    and isinstance(n2, ast.For)
+                ):
+                    continue
+
+                target = n1.targets[0]
+
+                loop_replacements = {}
+                loop_removals = set()
+                subscript_calls = set()
+                consistent = True
+
+                for subscope in itertools.chain([n2], parsing.iter_bodies_recursive(n2)):
+                    subscope_bodies = [subscope.body]
+                    if isinstance(subscope, ast.If):
+                        subscope_bodies.append(subscope.orelse)
+                    for subscope_body in subscope_bodies:
+                        if len(subscope_body) <= 1:
+                            continue
+
+                    for condition, append in zip(subscope_body[:-1], subscope_body[1:]):
+                        if isinstance(condition, ast.If) and len(condition.body) == 1 and not condition.orelse and isinstance(append, ast.Expr):
+                            try:
+                                key, obj, negative = _get_contains_args(condition.test)
+                                f_obj, f_key, f_value = _get_assign_functions(condition.body[0])
+                                t_obj, t_call, t_key, _ = _get_subscript_functions(append)
+                            except ValueError:
+                                continue
+
+                            if obj != target.id:
+                                continue
+                            if not negative:
+                                continue
+
+                            if t_obj == f_obj == obj and t_key == f_key == key:
+                                subscript_calls.add(t_call)
+                                if isinstance(f_value, ast.List) and not f_value.elts and t_call in {"append", "extend"}:
+                                    loop_removals.add(condition)
+                                    continue
+                                if (
+                                    isinstance(f_value, ast.Call)
+                                    and not f_value.args
+                                    and isinstance(f_value.func, ast.Name)
+                                    and f_value.func.id == "set"
+                                    and t_call in {"add", "update"}
+                                ):
+                                    loop_removals.add(condition)
+                                    continue
+
+                                consistent = False
+                                break
+
+                for condition in parsing.walk(ast.Module(body=n2.body), ast.If):
+                    if condition not in loop_replacements:
+                        if len(condition.body) == len(condition.orelse) == 1:
+                            try:
+                                key, obj, negative = _get_contains_args(condition.test)
+                            except ValueError:
+                                continue
+
+                            if obj != target.id:
+                                continue
+
+                            on_true = condition.body[0]
+                            on_false = condition.orelse[0]
+                            if negative:
+                                on_true, on_false = on_false, on_true
+
+                            try:
+                                t_obj, t_call, t_key, t_value = _get_subscript_functions(on_true)
+                                f_obj, f_key, f_value = _get_assign_functions(on_false)
+                            except ValueError:
+                                continue
+
+                            if t_obj == f_obj == obj and t_key == f_key == key:
+                                subscript_calls.add(t_call)
+                                if (
+                                    t_call in {"add", "append"}
+                                    and isinstance(f_value, (ast.List, ast.Set))
+                                    and len(f_value.elts) == 1
+                                    and processing.unparse(t_value) == processing.unparse(f_value.elts[0])
+                                ):
+                                    if isinstance(f_value, (ast.List)) == (t_call == "append"):
+                                        loop_replacements[condition] = on_true
+                                        continue
+                                    
+                                    consistent = False
+                                    break
+                                t_value_preferred = _preferred_comprehension_type(t_value)
+                                f_value_preferred = _preferred_comprehension_type(f_value)
+                                if t_call in {"update", "extend"} and processing.unparse(t_value_preferred) == processing.unparse(f_value_preferred):
+                                    loop_replacements[condition] = on_true
+                                    continue
+
+                if not consistent:
+                    continue
+
+                if subscript_calls and subscript_calls <= {"add", "update"}:
+                    replacements.update(loop_replacements)
+                    removals.update(loop_removals)
+                    replacements[n1.value] = ast.Call(
+                        func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
+                        args=[ast.Name(id="set")],
+                        keywords=[],
+                    )
+
+                if subscript_calls and subscript_calls <= {"append", "extend"}:
+                    replacements.update(loop_replacements)
+                    removals.update(loop_removals)
+                    replacements[n1.value] = ast.Call(
+                        func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
+                        args=[ast.Name(id="list")],
+                        keywords=[],
+                    )
+
+    content = processing.alter_code(content, root, replacements=replacements, removals=removals)
+
+    return content

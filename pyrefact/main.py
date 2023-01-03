@@ -119,6 +119,7 @@ def format_code(
         content = fixes.simplify_transposes(content)
         content = performance_numpy.simplify_matmul_transposes(content)
         content = fixes.simplify_transposes(content)
+        content = fixes.implicit_defaultdict(content)
         content = fixes.remove_redundant_comprehensions(content)
         content = fixes.inline_math_comprehensions(content)
         content = symbolic_math.simplify_math_iterators(content)
