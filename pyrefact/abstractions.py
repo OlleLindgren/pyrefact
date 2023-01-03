@@ -506,6 +506,10 @@ def create_abstractions(content: str) -> str:
                 required_names
                 - (global_names - _scoped_dependencies(root) if node is root else global_names)
             )
+            # Abstractions with too many arguments are bad
+            if len(args) > 4:
+                continue
+
             call_args = [ast.Name(id=arg, ctx=ast.Load()) for arg in args]
             signature_args = ast.arguments(
                 posonlyargs=[],
