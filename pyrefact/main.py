@@ -123,7 +123,7 @@ def format_code(
         content = fixes.remove_redundant_comprehensions(content)
         content = fixes.inline_math_comprehensions(content)
         content = symbolic_math.simplify_math_iterators(content)
-        content = performance.replace_with_sets(content)
+        content = performance.optimize_contains_types(content)
         content = performance.remove_redundant_chained_calls(content)
         content = performance.remove_redundant_iter(content)
         content = performance.replace_sorted_heapq(content)

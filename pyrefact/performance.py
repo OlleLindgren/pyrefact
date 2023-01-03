@@ -27,7 +27,7 @@ def _can_be_evaluated_safe(node: ast.AST) -> bool:
     """
     try:
         ast.literal_eval(node)
-    except (ValueError, SyntaxError):
+    except (ValueError, SyntaxError, TypeError):
         return False
 
     return True
@@ -56,7 +56,7 @@ def _can_be_evaluated(node: ast.AST, safe_callables: Collection[str]) -> bool:
     return True
 
 
-def replace_with_sets(content: str) -> str:
+def optimize_contains_types(content: str) -> str:
     """Replace inlined lists with sets.
 
     Args:
@@ -73,39 +73,31 @@ def replace_with_sets(content: str) -> str:
     for node in filter(_is_contains_comparison, parsing.walk(root, ast.Compare)):
 
         for comp in node.comparators:
-            if isinstance(comp, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+            if isinstance(comp, (ast.ListComp, ast.SetComp)):
+                replacement = ast.GeneratorExp(elt=comp.elt, generators=comp.generators)
+            elif isinstance(comp, ast.DictComp):
+                replacement = ast.SetComp(elt=comp.key, generators=comp.generators)
+            elif isinstance(comp, (ast.List, ast.Tuple, ast.Set)):
                 preferred_type = (
-                    ast.SetComp
-                    if _can_be_evaluated_safe(ast.Expression(body=comp))
-                    else ast.GeneratorExp
+                    ast.Set
+                    if _can_be_evaluated_safe(ast.Set(elts=comp.elts))
+                    else ast.Tuple
                 )
                 if isinstance(node, preferred_type):
                     continue
-                replacement = preferred_type(elt=comp.elt, generators=comp.generators)
-            elif isinstance(comp, ast.DictComp):
-                replacement = ast.SetComp(elt=comp.key, generators=comp.generators)
-            elif isinstance(comp, (ast.List, ast.Tuple)):
-                replacement = ast.Set(elts=comp.elts)
+                replacement = preferred_type(elts=comp.elts)
             elif (
                 isinstance(comp, ast.Call)
                 and isinstance(comp.func, ast.Name)
                 and isinstance(comp.func.ctx, ast.Load)
                 and comp.func.id in {"sorted", "list", "tuple"}
+                and len(comp.args) == 1 and not comp.keywords
             ):
-                replacement = ast.Call(
-                    func=ast.Name(id="set", ctx=ast.Load()),
-                    args=comp.args,
-                    keywords=comp.keywords,
-                )
+                replacement = comp.args[0]
             else:
                 continue
 
-            if (
-                not parsing.has_side_effect(comp, safe_callables)
-                and not parsing.has_side_effect(replacement, safe_callables)
-                and _can_be_evaluated(replacement, safe_callables)
-            ):
-                replacements[comp] = replacement
+            replacements[comp] = replacement
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
