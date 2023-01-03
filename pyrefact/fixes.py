@@ -1737,7 +1737,13 @@ def _get_contains_args(node: ast.Compare) -> Tuple[str, str, bool]:
     if negative:
         node = node.operand
 
-    if isinstance(node, ast.Compare) and isinstance(node.left, ast.Name) and len(node.ops) == 1 and len(node.comparators) == 1 and isinstance(node.comparators[0], ast.Name):
+    if (
+        isinstance(node, ast.Compare)
+        and isinstance(node.left, ast.Name)
+        and len(node.ops) == 1
+        and len(node.comparators) == 1
+        and isinstance(node.comparators[0], ast.Name)
+    ):
         key = node.left.id
         value = node.comparators[0].id
         if isinstance(node.ops[0], ast.In):
@@ -1767,10 +1773,6 @@ def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
     raise ValueError(f"Node {node} is not a subscript call")
 
 
-import ast
-from typing import Tuple
-
-
 def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
     if (
         isinstance(node, ast.Assign)
@@ -1787,11 +1789,8 @@ def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
 
 def _preferred_comprehension_type(node: ast.AST) -> Union[ast.AST, ast.SetComp, ast.GeneratorExp]:
     if isinstance(node, ast.ListComp):
-        return ast.GeneratorExp(
-            elt=node.elt,
-            generators=node.generators
-        )
-    
+        return ast.GeneratorExp(elt=node.elt, generators=node.generators)
+
     return node
 
 
@@ -1836,36 +1835,46 @@ def implicit_defaultdict(content: str) -> str:
                             continue
 
                     for condition, append in zip(subscope_body[:-1], subscope_body[1:]):
-                        if isinstance(condition, ast.If) and len(condition.body) == 1 and not condition.orelse and isinstance(append, ast.Expr):
-                            try:
-                                key, obj, negative = _get_contains_args(condition.test)
-                                f_obj, f_key, f_value = _get_assign_functions(condition.body[0])
-                                t_obj, t_call, t_key, _ = _get_subscript_functions(append)
-                            except ValueError:
-                                continue
+                        if not (
+                            isinstance(condition, ast.If)
+                            and len(condition.body) == 1
+                            and (not condition.orelse)
+                            and isinstance(append, ast.Expr)
+                        ):
+                            continue
 
-                            if obj != target.id:
-                                continue
-                            if not negative:
-                                continue
+                        try:
+                            (key, obj, negative) = _get_contains_args(condition.test)
+                            (f_obj, f_key, f_value) = _get_assign_functions(condition.body[0])
+                            (t_obj, t_call, t_key, _) = _get_subscript_functions(append)
+                        except ValueError:
+                            continue
+                        if obj != target.id:
+                            continue
+                        if not negative:
+                            continue
+                        if not (t_obj == f_obj == obj and t_key == f_key == key):
+                            continue
 
-                            if t_obj == f_obj == obj and t_key == f_key == key:
-                                subscript_calls.add(t_call)
-                                if isinstance(f_value, ast.List) and not f_value.elts and t_call in {"append", "extend"}:
-                                    loop_removals.add(condition)
-                                    continue
-                                if (
-                                    isinstance(f_value, ast.Call)
-                                    and not f_value.args
-                                    and isinstance(f_value.func, ast.Name)
-                                    and f_value.func.id == "set"
-                                    and t_call in {"add", "update"}
-                                ):
-                                    loop_removals.add(condition)
-                                    continue
-
-                                consistent = False
-                                break
+                        subscript_calls.add(t_call)
+                        if (
+                            isinstance(f_value, ast.List)
+                            and (not f_value.elts)
+                            and (t_call in {"append", "extend"})
+                        ):
+                            loop_removals.add(condition)
+                            continue
+                        if (
+                            isinstance(f_value, ast.Call)
+                            and (not f_value.args)
+                            and isinstance(f_value.func, ast.Name)
+                            and (f_value.func.id == "set")
+                            and (t_call in {"add", "update"})
+                        ):
+                            loop_removals.add(condition)
+                            continue
+                        consistent = False
+                        break
 
                 for condition in parsing.walk(ast.Module(body=n2.body), ast.If):
                     if condition not in loop_replacements:
@@ -1895,17 +1904,20 @@ def implicit_defaultdict(content: str) -> str:
                                     t_call in {"add", "append"}
                                     and isinstance(f_value, (ast.List, ast.Set))
                                     and len(f_value.elts) == 1
-                                    and processing.unparse(t_value) == processing.unparse(f_value.elts[0])
+                                    and processing.unparse(t_value)
+                                    == processing.unparse(f_value.elts[0])
                                 ):
                                     if isinstance(f_value, (ast.List)) == (t_call == "append"):
                                         loop_replacements[condition] = on_true
                                         continue
-                                    
+
                                     consistent = False
                                     break
                                 t_value_preferred = _preferred_comprehension_type(t_value)
                                 f_value_preferred = _preferred_comprehension_type(f_value)
-                                if t_call in {"update", "extend"} and processing.unparse(t_value_preferred) == processing.unparse(f_value_preferred):
+                                if processing.unparse(t_value_preferred) == processing.unparse(
+                                    f_value_preferred
+                                ) and t_call in {"update", "extend"}:
                                     loop_replacements[condition] = on_true
                                     continue
 
