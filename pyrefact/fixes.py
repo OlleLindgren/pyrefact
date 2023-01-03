@@ -1952,3 +1952,48 @@ def implicit_defaultdict(content: str) -> str:
     content = processing.alter_code(content, root, replacements=replacements, removals=removals)
 
     return content
+
+import ast
+
+
+def simplify_redundant_lambda(content: str) -> str:
+    root = parsing.parse(content)
+
+    replacements = {}
+
+    for node in parsing.walk(root, ast.Lambda):
+        lambda_args = node.args
+        if (
+            not lambda_args.args
+            and not lambda_args.defaults
+            and not lambda_args.kw_defaults
+            and not lambda_args.kwarg
+            and not lambda_args.kwonlyargs
+            and not lambda_args.posonlyargs
+            and not lambda_args.vararg
+        ):
+            if (
+                isinstance(node.body, ast.Call)
+                and not node.body.args
+                and not node.body.keywords
+            ):
+                replacements[node] = node.body.func
+            elif (
+                isinstance(node.body, ast.List)
+                and not node.body.elts
+            ):
+                replacements[node] = ast.Name(id="list")
+            elif (
+                isinstance(node.body, ast.Tuple)
+                and not node.body.elts
+            ):
+                replacements[node] = ast.Name(id="tuple")
+            elif (
+                isinstance(node.body, ast.Dict)
+                and not node.body.keys and not node.body.values
+            ):
+                replacements[node] = ast.Name(id="dict")
+
+    content = processing.replace_nodes(content, replacements)
+
+    return content
