@@ -73,17 +73,17 @@ def optimize_contains_types(content: str) -> str:
     for node in filter(_is_contains_comparison, parsing.walk(root, ast.Compare)):
 
         for comp in node.comparators:
-            if isinstance(comp, (ast.ListComp, ast.SetComp)):
+            if isinstance(comp, (ast.ListComp)):
                 replacement = ast.GeneratorExp(elt=comp.elt, generators=comp.generators)
             elif isinstance(comp, ast.DictComp):
                 replacement = ast.SetComp(elt=comp.key, generators=comp.generators)
-            elif isinstance(comp, (ast.List, ast.Tuple, ast.Set)):
+            elif isinstance(comp, (ast.List, ast.Tuple)):
                 preferred_type = (
                     ast.Set
                     if _can_be_evaluated_safe(ast.Set(elts=comp.elts))
                     else ast.Tuple
                 )
-                if isinstance(node, preferred_type):
+                if isinstance(comp, preferred_type):
                     continue
                 replacement = preferred_type(elts=comp.elts)
             elif (
