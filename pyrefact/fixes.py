@@ -1419,7 +1419,90 @@ def replace_functions_with_literals(content: str) -> str:
     return content
 
 
-def replace_for_loops_with_comprehensions(content: str) -> str:
+def replace_for_loops_with_dict_comp(content: str) -> str:
+    replacements = {}
+    removals = set()
+
+    root = parsing.parse(content)
+    for n1, n2 in parsing.walk_sequence(root, ast.Assign, ast.For):
+        if not (isinstance(n1.value, (ast.Dict, ast.DictComp))):
+            continue
+        if len(n1.targets) != 1:
+            continue
+        target = n1.targets[0]
+        if not (isinstance(target, ast.Name)):
+            continue
+
+        body_node = n2
+        generators = []
+
+        while (isinstance(body_node, ast.For) and len(body_node.body) == 1) or (
+            isinstance(body_node, ast.If) and len(body_node.body) == 1 and not body_node.orelse
+        ):
+            if isinstance(body_node, ast.If):
+                generators[-1].ifs.append(body_node.test)
+            elif isinstance(body_node, ast.For):
+                generators.append(
+                    ast.comprehension(
+                        target=body_node.target,
+                        iter=body_node.iter,
+                        ifs=[],
+                        is_async=0,
+                    )
+                )
+            else:
+                raise RuntimeError(f"Unexpected type of node: {type(body_node)}")
+
+            body_node = body_node.body[0]
+
+        for comprehension in generators:
+            if len(comprehension.ifs) > 1:
+                comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
+
+        if (
+            isinstance(body_node, ast.Assign)
+            and len(body_node.targets) == 1
+            and isinstance(body_node.targets[0], ast.Subscript)
+            and isinstance(body_node.targets[0].value, ast.Name)
+            and body_node.targets[0].value.id == target.id
+        ):
+            comp = ast.DictComp(
+                key=body_node.targets[0].slice,
+                value=body_node.value,
+                generators=generators,
+            )
+            if isinstance(n1.value, ast.Dict) and not n1.value.values and not n1.value.keys:
+                # Empty dict {}
+                replacements[n1.value] = comp
+                removals.add(n2)
+            elif isinstance(n1.value, ast.Dict) and n1.value.values and all(key is None for key in n1.value.keys):
+                # Existing union of other dicts {**a, **b}
+                replacements[n1.value] = ast.Dict(
+                    keys=n1.value.keys + [None],
+                    values=n1.value.values + [comp]
+                )
+                removals.add(n2)
+            elif isinstance(n1.value, ast.Dict) and n1.value.values and not any(key is None for key in n1.value.keys):
+                # Non-empty dict {a: 1, b: 2}
+                replacements[n1.value] = ast.Dict(
+                    keys=[None, None],
+                    values=[n1.value, comp]
+                )
+                removals.add(n2)
+            elif isinstance(n1.value, ast.DictComp):
+                # Comprehension {i: i ** 2 for i in range(10)}
+                replacements[n1.value] = ast.Dict(
+                    keys=[None, None],
+                    values=[n1.value, comp]
+                )
+                removals.add(n2)
+
+    content = processing.alter_code(content, root, removals=removals, replacements=replacements)
+
+    return content
+
+
+def replace_for_loops_with_set_list_comp(content: str) -> str:
     replacements = {}
     removals = set()
 

@@ -204,7 +204,7 @@ x = [1, 2, 3] + [1 for i in range(10)]
 
     for content, expected_abstraction in test_cases:
 
-        processed_content = fixes.replace_for_loops_with_comprehensions(content)
+        processed_content = fixes.replace_for_loops_with_set_list_comp(content)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
