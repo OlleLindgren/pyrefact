@@ -1142,13 +1142,13 @@ def _orelse_preferred_as_body(body: Sequence[ast.AST], orelse: Sequence[ast.AST]
     for body_node, orelse_node in zip(body, orelse):
         body_strictly_blocking = isinstance(body_node, (ast.Continue, ast.Break, ast.Return))
         orelse_strictly_blocking = isinstance(orelse_node, (ast.Continue, ast.Break, ast.Return))
-        if body_strictly_blocking and not orelse_strictly_blocking:
+        if body_strictly_blocking:
             return False
-        if orelse_strictly_blocking and not body_strictly_blocking:
+        if orelse_strictly_blocking:
             return True
 
-    max_body_if_indentation = max([node.col_offset for node in parsing.walk(ast.Module(body=body), ast.If)] + [0])
-    max_orelse_if_indentation = max([node.col_offset for node in parsing.walk(ast.Module(body=orelse), ast.If)] + [0])
+    max_body_if_indentation = max([node.col_offset - body[0].col_offset for node in parsing.walk(ast.Module(body=body), ast.If)] + [0])
+    max_orelse_if_indentation = max([node.col_offset - orelse[0].col_offset for node in parsing.walk(ast.Module(body=orelse), ast.If)] + [0])
     if max_orelse_if_indentation > max_body_if_indentation:
         return False
     if max_body_if_indentation > max_orelse_if_indentation:
@@ -1157,7 +1157,12 @@ def _orelse_preferred_as_body(body: Sequence[ast.AST], orelse: Sequence[ast.AST]
     body_chars = sum(len(re.sub(r"\s", "", parsing.get_code(node, content))) for node in body if not isinstance(node, ast.Pass))
     orelse_chars = sum(len(re.sub(r"\s", "", parsing.get_code(node, content))) for node in orelse if not isinstance(node, ast.Pass))
 
-    return body_chars == 0 or body_chars > 2 * orelse_chars
+    if orelse_chars == 0:
+        return False
+    if body_chars == 0:
+        return True
+
+    return body_chars > 2 * orelse_chars
 
 
 def swap_explicit_if_else(content: str) -> str:
