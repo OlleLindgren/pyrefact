@@ -38,6 +38,46 @@ x = {i: 10 for i in range(10) if i % 3 == 0 and i % 2 == 0}
             """
 x = {}
 for i in range(10):
+    if i % 3 == 0:
+        if i % 2 == 0:
+            x[i] = 10
+        else:
+            x[i] = 2
+            """,
+            """
+x = {}
+for i in range(10):
+    if i % 3 == 0:
+        if i % 2 == 0:
+            x[i] = 10
+        else:
+            x[i] = 2
+            """,
+        ),
+        (
+            """
+x = {}
+for i in range(10):
+    if i % 3 == 0:
+        if i % 2 == 0:
+            x[i] = 10
+    else:
+        x[i] = 2
+            """,
+            """
+x = {}
+for i in range(10):
+    if i % 3 == 0:
+        if i % 2 == 0:
+            x[i] = 10
+    else:
+        x[i] = 2
+            """,
+        ),
+        (
+            """
+x = {}
+for i in range(10):
     x[i] = 10 ** i - 1
             """,
             """
