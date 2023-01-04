@@ -75,7 +75,7 @@ The repository for the extension can be found at [pyrefact-vscode-extension](htt
 
 ### CPython
 
-Pyrefact requires `python>=3.8`, and is tested on CPython 3.8, 3.9, 3.10 and 3.11. Pyrefact works best on `python>=3.9`.
+Pyrefact requires `python>=3.8`, and is tested on CPython 3.8, 3.9, 3.10, 3.11 and 3.12.0 alpha03. Pyrefact works best on `python>=3.9`.
 
 ### Pypy
 
