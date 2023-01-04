@@ -28,31 +28,83 @@ print(x)
 x = 100
 z = list()
 def foo() -> bool:
-    if x == 1:
-        return False
+    if x <= 1:
+        if x < -500:
+            if x < -600:
+                return 0
+            elif x >= -550:
+                return -2
+            elif x % 3 == 0:
+                if x % 2 == 0:
+                    if x % 5 == 0:
+                        if x % 61 == 0:
+                            if x % (x - 4) == 0:
+                                return 61
+                    return 21
+                return 33
+            elif x % 7 == 0:
+                return -33
+            elif x % 18 == 0:
+                if x % 66 == 0:
+                    return -8
+                return 3
+            return 222
+        elif x > -400:
+            return 3
+        elif x > -300 and x % 2 == 0:
+            if x % 3 == 0:
+                return -3
+            else:
+                return -2
+        return 2
     elif x == 2:
-        return True
+        return 3
     else:
         # if x > 0:
         #     return 100 * x < 1000
         if z:
-            return False
+            return -3
         else:
-            return True
+            return 2
 print(foo())
         """,
         """
 X = 100
 Z = []
 def _foo() -> bool:
-    if X == 1:
-        return False
-    if X == 2:
-        return True
-    if Z:
-        return False
-
-    return True
+    if X > 1:
+        if X == 2:
+            return 3
+        if Z:
+            return -3
+        return 2
+    if X >= -500:
+        if X > -400:
+            return 3
+        if not (X > -300 and X % 2 == 0):
+            return 2
+        if X % 3 == 0:
+            return -3
+        return -2
+    if X < -600:
+        return 0
+    if X >= -550:
+        return -2
+    if X % 3 == 0:
+        if X % 2 != 0:
+            return 33
+        if X % 5 == 0:
+            if X % 61 == 0:
+                if X % (X - 4) == 0:
+                    return 61
+        return 21
+    if X % 7 == 0:
+        return -33
+    if X % 18 != 0:
+        return 222
+    if X % 66 == 0:
+        return -8
+    return 3
 print(_foo())
         """,
     ),

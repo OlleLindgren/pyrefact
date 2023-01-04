@@ -1116,48 +1116,138 @@ def _negate_condition(node: ast.AST) -> ast.AST:
     return ast.UnaryOp(op=ast.Not(), operand=node)
 
 
-def swap_if_else(content: str) -> str:
+def iter_implicit_if_elses(root: ast.AST) -> Iterable[Tuple[ast.If, Sequence[ast.AST], Sequence[ast.AST]]]:
+    for condition, *implicit_orelse in parsing.walk_sequence(
+        root, ast.If, ast.AST, expand_last=True
+    ):
+        if any(parsing.is_blocking(child) for child in condition.body) and not condition.orelse:
+            yield condition, condition.body, implicit_orelse
 
+
+def iter_explicit_if_elses(root: ast.AST) -> Iterable[Tuple[ast.If, Sequence[ast.AST], Sequence[ast.AST]]]:
+    for condition in parsing.walk(root, ast.If):
+        if condition.body and condition.orelse:
+            yield condition, condition.body, condition.orelse
+
+
+def _orelse_preferred_as_body(body: Sequence[ast.AST], orelse: Sequence[ast.AST], content: str) -> bool:
+    body_blocking = any(parsing.is_blocking(node) for node in body)
+    orelse_blocking = any(parsing.is_blocking(node) for node in orelse)
+    if body_blocking and not orelse_blocking:
+        return False
+    if orelse_blocking and not body_blocking:
+        return True
+
+    # They are equally blocking
+    for body_node, orelse_node in zip(body, orelse):
+        body_strictly_blocking = isinstance(body_node, (ast.Continue, ast.Break, ast.Return))
+        orelse_strictly_blocking = isinstance(orelse_node, (ast.Continue, ast.Break, ast.Return))
+        if body_strictly_blocking and not orelse_strictly_blocking:
+            return False
+        if orelse_strictly_blocking and not body_strictly_blocking:
+            return True
+
+    max_body_if_indentation = max([node.col_offset for node in parsing.walk(ast.Module(body=body), ast.If)] + [0])
+    max_orelse_if_indentation = max([node.col_offset for node in parsing.walk(ast.Module(body=orelse), ast.If)] + [0])
+    if max_orelse_if_indentation > max_body_if_indentation:
+        return False
+    if max_body_if_indentation > max_orelse_if_indentation:
+        return True
+
+    body_chars = sum(len(re.sub(r"\s", "", parsing.get_code(node, content))) for node in body if not isinstance(node, ast.Pass))
+    orelse_chars = sum(len(re.sub(r"\s", "", parsing.get_code(node, content))) for node in orelse if not isinstance(node, ast.Pass))
+
+    return body_chars == 0 or body_chars > 2 * orelse_chars
+
+
+def swap_explicit_if_else(content: str) -> str:
     replacements = {}
 
     root = parsing.parse(content)
     loops = list(parsing.walk(root, (ast.For, ast.While)))
 
-    for stmt in parsing.walk(root, ast.If):
+    for stmt, body, orelse in iter_explicit_if_elses(root):
         if (
-            stmt.orelse
-            and any(parsing.is_blocking(node) for node in stmt.body)
-            and not any(parsing.is_blocking(node) for node in stmt.orelse)
+            orelse
+            and any(parsing.is_blocking(node) for node in body)
+            and not any(parsing.is_blocking(node) for node in orelse)
         ):
             continue  # Redundant else
         if parsing.get_code(stmt, content).startswith("elif"):
             continue
-        body_lines = stmt.body[-1].end_lineno - stmt.body[0].lineno
-        orelse_lines = stmt.orelse[-1].end_lineno - stmt.orelse[0].lineno if stmt.orelse else 0
-        if all((isinstance(node, ast.Pass) for node in stmt.body)) or body_lines > 2 * orelse_lines:
-            if stmt.orelse:
+        body_lines = body[-1].end_lineno - body[0].lineno
+        orelse_lines = orelse[-1].end_lineno - orelse[0].lineno if orelse else 0
+        if _orelse_preferred_as_body(body, orelse, content):
+            if orelse:
                 replacements[stmt] = ast.If(
                     test=_negate_condition(stmt.test),
-                    body=stmt.orelse,
-                    orelse=[node for node in stmt.body if not isinstance(node, ast.Pass)],
+                    body=orelse,
+                    orelse=[node for node in body if not isinstance(node, ast.Pass)],
                     lineno=stmt.lineno,
                 )
-            elif len(stmt.body) > 3 and any(stmt is loop.body[-1] for loop in loops):
+                break
+            if len(body) > 3 and any(stmt is loop.body[-1] for loop in loops):
                 replacements[stmt] = ast.If(
                     test=_negate_condition(stmt.test),
                     body=[ast.Continue()],
-                    orelse=[node for node in stmt.body if not isinstance(node, ast.Pass)],
+                    orelse=[node for node in body if not isinstance(node, ast.Pass)],
                     lineno=stmt.lineno,
                 )
+                break
 
-    last_end = -1
-    for node, _ in sorted(replacements.items(), key=lambda t: (t[0].lineno, t[0].end_lineno)):
-        if node.lineno <= last_end:
-            del replacements[node]
-        else:
-            last_end = node.end_lineno
+    if replacements:
+        content = processing.replace_nodes(content, replacements)
+        return swap_explicit_if_else(content)
 
-    content = processing.replace_nodes(content, replacements)
+    return content
+
+
+def swap_implicit_if_else(content: str) -> str:
+    replacements = {}
+    removals = set()
+
+    root = parsing.parse(content)
+    for stmt, body, orelse in iter_implicit_if_elses(root):
+        if (
+            orelse
+            and any(parsing.is_blocking(node) for node in body)
+            and not any(parsing.is_blocking(node) for node in orelse)
+        ):
+            continue  # body is blocking but orelse is not
+        if parsing.get_code(stmt, content).startswith("elif"):
+            continue
+        body_lines = body[-1].end_lineno - body[0].lineno
+        orelse_lines = orelse[-1].end_lineno - orelse[0].lineno if orelse else 0
+        if _orelse_preferred_as_body(body, orelse, content):
+            if orelse:
+                replacements[stmt] = ast.If(
+                    test=_negate_condition(stmt.test),
+                    body=orelse,
+                    orelse=[node for node in body if not isinstance(node, ast.Pass)],
+                    lineno=stmt.lineno,
+                )
+                removals.update(orelse)
+                break
+            if len(body) > 3 and any(stmt is loop.body[-1] for loop in loops):
+                replacements[stmt] = ast.If(
+                    test=_negate_condition(stmt.test),
+                    body=[ast.Continue()],
+                    orelse=[node for node in body if not isinstance(node, ast.Pass)],
+                    lineno=stmt.lineno,
+                )
+                removals.update(orelse)
+                break
+
+    if replacements or removals:
+        content = processing.alter_code(content, root, replacements=replacements, removals=removals)
+        return swap_explicit_if_else(content)
+
+    return content
+
+
+def swap_if_else(content: str) -> str:
+    content = swap_implicit_if_else(content)
+    content = swap_explicit_if_else(content)
 
     return content
 
@@ -1333,122 +1423,112 @@ def replace_functions_with_literals(content: str) -> str:
     return content
 
 
+import ast
+import itertools
+
+
 def replace_for_loops_with_comprehensions(content: str) -> str:
     replacements = {}
     removals = set()
 
     root = parsing.parse(content)
-    for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
-        bodies = [node.body]
-        if isinstance(node, ast.If):
-            bodies.append(node.orelse)
-        for body in bodies:
-            if len(body) <= 1:
-                continue
-            for n1, n2 in zip(body[:-1], body[1:]):
+    for n1, n2 in parsing.walk_sequence(root, ast.Assign, ast.For):
+        if not (
+            len(n1.targets) == 1 and isinstance(n1.targets[0], ast.Name) and (len(n2.body) == 1)
+        ):
+            continue
 
-                if not (
-                    isinstance(n1, ast.Assign)
-                    and len(n1.targets) == 1
-                    and isinstance(n1.targets[0], ast.Name)
-                    and isinstance(n2, ast.For)
-                    and (len(n2.body) == 1)
-                ):
-                    continue
+        body_node = n2
+        generators = []
 
-                body_node = n2
-                generators = []
-
-                while (isinstance(body_node, ast.For) and len(body_node.body) == 1) or (
-                    isinstance(body_node, ast.If)
-                    and len(body_node.body) == 1
-                    and not body_node.orelse
-                ):
-                    if isinstance(body_node, ast.If):
-                        generators[-1].ifs.append(body_node.test)
-                    elif isinstance(body_node, ast.For):
-                        generators.append(
-                            ast.comprehension(
-                                target=body_node.target,
-                                iter=body_node.iter,
-                                ifs=[],
-                                is_async=0,
-                            )
-                        )
-                    else:
-                        raise RuntimeError(f"Unexpected type of node: {type(body_node)}")
-
-                    body_node = body_node.body[0]
-
-                for comprehension in generators:
-                    if len(comprehension.ifs) > 1:
-                        comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
-
-                if (
-                    isinstance(body_node, ast.Expr)
-                    and isinstance(body_node.value, ast.Call)
-                    and isinstance(body_node.value.func, ast.Attribute)
-                    and isinstance(body_node.value.func.value, ast.Name)
-                    and (len(body_node.value.args) == 1)
-                    and (body_node.value.func.value.id == n1.targets[0].id)
-                ):
-                    if (
-                        isinstance(n1.value, ast.List)
-                        and (not n1.value.elts)
-                        and (body_node.value.func.attr == "append")
-                    ):
-                        comp_type = ast.ListComp
-                    elif (
-                        isinstance(n1.value, ast.Call)
-                        and isinstance(n1.value.func, ast.Name)
-                        and (n1.value.func.id == "set")
-                        and (not n1.value.args)
-                        and (not n1.value.keywords)
-                        and (body_node.value.func.attr == "add")
-                    ):
-                        comp_type = ast.SetComp
-                    else:
-                        continue
-
-                    replacements[n1.value] = comp_type(
-                        elt=body_node.value.args[0],
-                        generators=generators,
+        while (isinstance(body_node, ast.For) and len(body_node.body) == 1) or (
+            isinstance(body_node, ast.If) and len(body_node.body) == 1 and not body_node.orelse
+        ):
+            if isinstance(body_node, ast.If):
+                generators[-1].ifs.append(body_node.test)
+            elif isinstance(body_node, ast.For):
+                generators.append(
+                    ast.comprehension(
+                        target=body_node.target,
+                        iter=body_node.iter,
+                        ifs=[],
+                        is_async=0,
                     )
-                    removals.add(n2)
+                )
+            else:
+                raise RuntimeError(f"Unexpected type of node: {type(body_node)}")
 
-                elif (
-                    isinstance(body_node, ast.AugAssign)
-                    and isinstance(body_node.op, (ast.Add, ast.Sub))
-                    and (body_node.target.id == n1.targets[0].id)
-                ):
-                    if isinstance(n1.value, ast.List):
-                        replacement = ast.ListComp(
-                            elt=body_node.value,
-                            generators=generators,
-                        )
-                    else:
-                        comprehension = ast.GeneratorExp(
-                            elt=body_node.value,
-                            generators=generators,
-                        )
-                        replacement = ast.Call(
-                            func=ast.Name(id="sum"), args=[comprehension], keywords=[]
-                        )
+            body_node = body_node.body[0]
 
-                    try:
-                        if not parsing.literal_value(n1.value):
-                            if isinstance(body_node.op, ast.Sub):
-                                replacement = ast.UnaryOp(op=body_node.op, operand=replacement)
-                            replacements[n1.value] = replacement
-                            removals.add(n2)
-                            continue
+        for comprehension in generators:
+            if len(comprehension.ifs) > 1:
+                comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
 
-                    except ValueError:
-                        pass
+        if (
+            isinstance(body_node, ast.Expr)
+            and isinstance(body_node.value, ast.Call)
+            and isinstance(body_node.value.func, ast.Attribute)
+            and isinstance(body_node.value.func.value, ast.Name)
+            and (len(body_node.value.args) == 1)
+            and (body_node.value.func.value.id == n1.targets[0].id)
+        ):
+            if (
+                isinstance(n1.value, ast.List)
+                and (not n1.value.elts)
+                and (body_node.value.func.attr == "append")
+            ):
+                comp_type = ast.ListComp
+            elif (
+                isinstance(n1.value, ast.Call)
+                and isinstance(n1.value.func, ast.Name)
+                and (n1.value.func.id == "set")
+                and (not n1.value.args)
+                and (not n1.value.keywords)
+                and (body_node.value.func.attr == "add")
+            ):
+                comp_type = ast.SetComp
+            else:
+                continue
 
-                    replacement = ast.BinOp(left=n1.value, op=body_node.op, right=replacement)
+            replacements[n1.value] = comp_type(
+                elt=body_node.value.args[0],
+                generators=generators,
+            )
+            removals.add(n2)
+
+        elif (
+            isinstance(body_node, ast.AugAssign)
+            and isinstance(body_node.op, (ast.Add, ast.Sub))
+            and (body_node.target.id == n1.targets[0].id)
+        ):
+            if isinstance(n1.value, ast.List):
+                replacement = ast.ListComp(
+                    elt=body_node.value,
+                    generators=generators,
+                )
+            else:
+                comprehension = ast.GeneratorExp(
+                    elt=body_node.value,
+                    generators=generators,
+                )
+                replacement = ast.Call(
+                    func=ast.Name(id="sum"), args=[comprehension], keywords=[]
+                )
+
+            try:
+                if not parsing.literal_value(n1.value):
+                    if isinstance(body_node.op, ast.Sub):
+                        replacement = ast.UnaryOp(op=body_node.op, operand=replacement)
                     replacements[n1.value] = replacement
                     removals.add(n2)
+                    continue
+
+            except ValueError:
+                pass
+
+            replacement = ast.BinOp(left=n1.value, op=body_node.op, right=replacement)
+            replacements[n1.value] = replacement
+            removals.add(n2)
 
     content = processing.alter_code(content, root, removals=removals, replacements=replacements)
 
@@ -1832,148 +1912,125 @@ def implicit_defaultdict(content: str) -> str:
     removals = set()
 
     root = parsing.parse(content)
-    for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
-        bodies = [node.body]
-        if isinstance(node, ast.If):
-            bodies.append(node.orelse)
-        for body in bodies:
-            if len(body) <= 1:
+    for n1, n2 in parsing.walk_sequence(root, ast.Assign, ast.For):
+        if not (
+            len(n1.targets) == 1
+            and isinstance(n1.targets[0], ast.Name)
+            and isinstance(n1.value, ast.Dict)
+            and not n1.value.keys
+            and not n1.value.values
+        ):
+            continue
+
+        target = n1.targets[0]
+
+        loop_replacements = {}
+        loop_removals = set()
+        subscript_calls = set()
+        consistent = True
+
+        for condition, append in parsing.walk_sequence(n2, ast.If, ast.Expr):
+            if not (len(condition.body) == 1 and (not condition.orelse)):
                 continue
 
-            for n1, n2 in zip(body[:-1], body[1:]):
-                if not (
-                    isinstance(n1, ast.Assign)
-                    and len(n1.targets) == 1
-                    and isinstance(n1.targets[0], ast.Name)
-                    and isinstance(n1.value, ast.Dict)
-                    and not n1.value.keys
-                    and not n1.value.values
-                    and isinstance(n2, ast.For)
-                ):
-                    continue
+            try:
+                (key, obj, negative) = _get_contains_args(condition.test)
+                (f_obj, f_key, f_value) = _get_assign_functions(condition.body[0])
+                (t_obj, t_call, t_key, _) = _get_subscript_functions(append)
+            except ValueError:
+                continue
+            if obj != target.id:
+                continue
+            if not negative:
+                continue
+            if not (t_obj == f_obj == obj and t_key == f_key == key):
+                continue
 
-                target = n1.targets[0]
+            subscript_calls.add(t_call)
+            if (
+                isinstance(f_value, ast.List)
+                and (not f_value.elts)
+                and (t_call in {"append", "extend"})
+            ):
+                loop_removals.add(condition)
+                continue
+            if (
+                isinstance(f_value, ast.Call)
+                and (not f_value.args)
+                and isinstance(f_value.func, ast.Name)
+                and (f_value.func.id == "set")
+                and (t_call in {"add", "update"})
+            ):
+                loop_removals.add(condition)
+                continue
+            consistent = False
+            break
 
-                loop_replacements = {}
-                loop_removals = set()
-                subscript_calls = set()
-                consistent = True
+        for condition in parsing.walk(ast.Module(body=n2.body), ast.If):
+            if condition not in loop_replacements:
+                if len(condition.body) == len(condition.orelse) == 1:
+                    try:
+                        key, obj, negative = _get_contains_args(condition.test)
+                    except ValueError:
+                        continue
 
-                for subscope in itertools.chain([n2], parsing.iter_bodies_recursive(n2)):
-                    subscope_bodies = [subscope.body]
-                    if isinstance(subscope, ast.If):
-                        subscope_bodies.append(subscope.orelse)
-                    for subscope_body in subscope_bodies:
-                        if len(subscope_body) <= 1:
-                            continue
+                    if obj != target.id:
+                        continue
 
-                    for condition, append in zip(subscope_body[:-1], subscope_body[1:]):
-                        if not (
-                            isinstance(condition, ast.If)
-                            and len(condition.body) == 1
-                            and (not condition.orelse)
-                            and isinstance(append, ast.Expr)
-                        ):
-                            continue
+                    on_true = condition.body[0]
+                    on_false = condition.orelse[0]
+                    if negative:
+                        on_true, on_false = on_false, on_true
 
-                        try:
-                            (key, obj, negative) = _get_contains_args(condition.test)
-                            (f_obj, f_key, f_value) = _get_assign_functions(condition.body[0])
-                            (t_obj, t_call, t_key, _) = _get_subscript_functions(append)
-                        except ValueError:
-                            continue
-                        if obj != target.id:
-                            continue
-                        if not negative:
-                            continue
-                        if not (t_obj == f_obj == obj and t_key == f_key == key):
-                            continue
+                    try:
+                        t_obj, t_call, t_key, t_value = _get_subscript_functions(on_true)
+                        f_obj, f_key, f_value = _get_assign_functions(on_false)
+                    except ValueError:
+                        continue
 
+                    if t_obj == f_obj == obj and t_key == f_key == key:
                         subscript_calls.add(t_call)
                         if (
-                            isinstance(f_value, ast.List)
-                            and (not f_value.elts)
-                            and (t_call in {"append", "extend"})
+                            t_call in {"add", "append"}
+                            and isinstance(f_value, (ast.List, ast.Set))
+                            and len(f_value.elts) == 1
+                            and processing.unparse(t_value)
+                            == processing.unparse(f_value.elts[0])
                         ):
-                            loop_removals.add(condition)
+                            if isinstance(f_value, (ast.List)) == (t_call == "append"):
+                                loop_replacements[condition] = on_true
+                                continue
+
+                            consistent = False
+                            break
+                        t_value_preferred = _preferred_comprehension_type(t_value)
+                        f_value_preferred = _preferred_comprehension_type(f_value)
+                        if processing.unparse(t_value_preferred) == processing.unparse(
+                            f_value_preferred
+                        ) and t_call in {"update", "extend"}:
+                            loop_replacements[condition] = on_true
                             continue
-                        if (
-                            isinstance(f_value, ast.Call)
-                            and (not f_value.args)
-                            and isinstance(f_value.func, ast.Name)
-                            and (f_value.func.id == "set")
-                            and (t_call in {"add", "update"})
-                        ):
-                            loop_removals.add(condition)
-                            continue
-                        consistent = False
-                        break
 
-                for condition in parsing.walk(ast.Module(body=n2.body), ast.If):
-                    if condition not in loop_replacements:
-                        if len(condition.body) == len(condition.orelse) == 1:
-                            try:
-                                key, obj, negative = _get_contains_args(condition.test)
-                            except ValueError:
-                                continue
+        if not consistent:
+            continue
 
-                            if obj != target.id:
-                                continue
+        if subscript_calls and subscript_calls <= {"add", "update"}:
+            replacements.update(loop_replacements)
+            removals.update(loop_removals)
+            replacements[n1.value] = ast.Call(
+                func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
+                args=[ast.Name(id="set")],
+                keywords=[],
+            )
 
-                            on_true = condition.body[0]
-                            on_false = condition.orelse[0]
-                            if negative:
-                                on_true, on_false = on_false, on_true
-
-                            try:
-                                t_obj, t_call, t_key, t_value = _get_subscript_functions(on_true)
-                                f_obj, f_key, f_value = _get_assign_functions(on_false)
-                            except ValueError:
-                                continue
-
-                            if t_obj == f_obj == obj and t_key == f_key == key:
-                                subscript_calls.add(t_call)
-                                if (
-                                    t_call in {"add", "append"}
-                                    and isinstance(f_value, (ast.List, ast.Set))
-                                    and len(f_value.elts) == 1
-                                    and processing.unparse(t_value)
-                                    == processing.unparse(f_value.elts[0])
-                                ):
-                                    if isinstance(f_value, (ast.List)) == (t_call == "append"):
-                                        loop_replacements[condition] = on_true
-                                        continue
-
-                                    consistent = False
-                                    break
-                                t_value_preferred = _preferred_comprehension_type(t_value)
-                                f_value_preferred = _preferred_comprehension_type(f_value)
-                                if processing.unparse(t_value_preferred) == processing.unparse(
-                                    f_value_preferred
-                                ) and t_call in {"update", "extend"}:
-                                    loop_replacements[condition] = on_true
-                                    continue
-
-                if not consistent:
-                    continue
-
-                if subscript_calls and subscript_calls <= {"add", "update"}:
-                    replacements.update(loop_replacements)
-                    removals.update(loop_removals)
-                    replacements[n1.value] = ast.Call(
-                        func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
-                        args=[ast.Name(id="set")],
-                        keywords=[],
-                    )
-
-                if subscript_calls and subscript_calls <= {"append", "extend"}:
-                    replacements.update(loop_replacements)
-                    removals.update(loop_removals)
-                    replacements[n1.value] = ast.Call(
-                        func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
-                        args=[ast.Name(id="list")],
-                        keywords=[],
-                    )
+        if subscript_calls and subscript_calls <= {"append", "extend"}:
+            replacements.update(loop_replacements)
+            removals.update(loop_removals)
+            replacements[n1.value] = ast.Call(
+                func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
+                args=[ast.Name(id="list")],
+                keywords=[],
+            )
 
     content = processing.alter_code(content, root, replacements=replacements, removals=removals)
 

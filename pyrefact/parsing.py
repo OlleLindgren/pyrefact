@@ -46,6 +46,33 @@ def walk(scope: ast.AST, node_type: Union[ast.AST, Sequence[ast.AST]]) -> Sequen
             yield from nodes
 
 
+def walk_sequence(
+    scope: ast.Module, *node_types: ast.AST, expand_first: bool = False, expand_last: bool = False
+) -> Iterable[Sequence[ast.AST]]:
+    for node in walk(scope, ast.AST):
+        for body in [
+            getattr(node, "body", []),
+            getattr(node, "orelse", []),
+        ]:
+            if isinstance(body, Sequence) and len(body) > 0:
+                for nodes in zip(
+                    *(body[i : len(body) - len(node_types) + i + 1] for i in range(len(node_types)))
+                ):
+                    if expand_first:
+                        pre = body[: body.index(nodes[0])]
+                        pre = tuple(node for node in pre if isinstance(node, node_types[0]))
+                        nodes = pre + nodes
+                    if expand_last:
+                        post = body[body.index(nodes[-1]) + 1 :]
+                        post = tuple(node for node in post if isinstance(node, node_types[-1]))
+                        nodes = nodes + post
+                    if all(
+                        isinstance(node, expected_type)
+                        for node, expected_type in zip(nodes, node_types)
+                    ):
+                        yield nodes
+
+
 def filter_nodes(
     nodes: Iterable[ast.AST], node_type: Union[ast.AST, Sequence[ast.AST]]
 ) -> Sequence[ast.AST]:
