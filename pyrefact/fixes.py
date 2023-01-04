@@ -858,14 +858,14 @@ def move_imports_to_toplevel(content: str) -> str:
     if defs := set(
         parsing.filter_nodes(root.body, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
     ):
-        first_def_lineno = min(node.lineno for node in defs)
+        first_def_lineno = min(node.lineno - len(node.decorator_list) for node in defs)
         imports_movable_to_toplevel.update(
             node for node in toplevel_imports if node.lineno > first_def_lineno
         )
 
     for i, node in enumerate(root.body):
         if i > 0 and not isinstance(node, (ast.Import, ast.ImportFrom)):
-            lineno = node.lineno - 1
+            lineno = min(getattr(x, "lineno", node.lineno) for x in parsing.walk(node, ast.AST)) - 1
             break
         if (
             i == 0
@@ -876,7 +876,7 @@ def move_imports_to_toplevel(content: str) -> str:
                 and isinstance(node.value.value, str)
             )
         ):
-            lineno = node.lineno - 1
+            lineno = min(getattr(x, "lineno", node.lineno) for x in parsing.walk(node, ast.AST)) - 1
             break
     else:
         if root.body:
@@ -913,12 +913,9 @@ def move_imports_to_toplevel(content: str) -> str:
         )
         additions.append(new_node)
 
-    if removals:
-        print("Removing imports outside of toplevel")
-        content = processing.remove_nodes(content, removals, root)
-    if additions:
-        print("Adding imports to toplevel")
-        content = processing.insert_nodes(content, additions)
+    if removals or additions:
+        print("Moving imports to toplevel")
+        content = processing.alter_code(content, root, removals=removals, additions=additions)
 
     # Isort will remove redundant imports
 
@@ -1103,20 +1100,18 @@ def _negate_condition(node: ast.AST) -> ast.AST:
             left=node.left, ops=[opposite_operator_type()], comparators=node.comparators
         )
 
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.And):
-        return ast.BinOp(
-            left=_negate_condition(node.left), right=_negate_condition(node.right), op=ast.Or()
-        )
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+        return ast.BoolOp(op=ast.Or(), values=[_negate_condition(child) for child in node.values])
 
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Or):
-        return ast.BinOp(
-            left=_negate_condition(node.left), right=_negate_condition(node.right), op=ast.And()
-        )
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
+        return ast.BoolOp(op=ast.And(), values=[_negate_condition(child) for child in node.values])
 
     return ast.UnaryOp(op=ast.Not(), operand=node)
 
 
-def iter_implicit_if_elses(root: ast.AST) -> Iterable[Tuple[ast.If, Sequence[ast.AST], Sequence[ast.AST]]]:
+def _iter_implicit_if_elses(
+    root: ast.AST,
+) -> Iterable[Tuple[ast.If, Sequence[ast.AST], Sequence[ast.AST]]]:
     for condition, *implicit_orelse in parsing.walk_sequence(
         root, ast.If, ast.AST, expand_last=True
     ):
@@ -1124,54 +1119,65 @@ def iter_implicit_if_elses(root: ast.AST) -> Iterable[Tuple[ast.If, Sequence[ast
             yield condition, condition.body, implicit_orelse
 
 
-def iter_explicit_if_elses(root: ast.AST) -> Iterable[Tuple[ast.If, Sequence[ast.AST], Sequence[ast.AST]]]:
+def _iter_explicit_if_elses(
+    root: ast.AST,
+) -> Iterable[Tuple[ast.If, Sequence[ast.AST], Sequence[ast.AST]]]:
     for condition in parsing.walk(root, ast.If):
         if condition.body and condition.orelse:
             yield condition, condition.body, condition.orelse
 
 
-def _orelse_preferred_as_body(body: Sequence[ast.AST], orelse: Sequence[ast.AST], content: str) -> bool:
+def _count_children(node: ast.AST, child_type: ast.AST) -> int:
+    return sum(1 for _ in parsing.walk(node, child_type))
+
+
+def _count_branches(nodes: Sequence[ast.AST]) -> int:
+    return 1 + sum(_count_children(node, ast.If) for node in nodes)
+
+
+def _orelse_preferred_as_body(
+    body: Sequence[ast.AST], orelse: Sequence[ast.AST], content: str
+) -> bool:
+    if all(isinstance(node, ast.Pass) for node in body):
+        return True
+    if all(isinstance(node, ast.Pass) for node in orelse):
+        return False
+
     body_blocking = any(parsing.is_blocking(node) for node in body)
     orelse_blocking = any(parsing.is_blocking(node) for node in orelse)
     if body_blocking and not orelse_blocking:
         return False
     if orelse_blocking and not body_blocking:
         return True
-
-    # They are equally blocking
-    for body_node, orelse_node in zip(body, orelse):
-        body_strictly_blocking = isinstance(body_node, (ast.Continue, ast.Break, ast.Return))
-        orelse_strictly_blocking = isinstance(orelse_node, (ast.Continue, ast.Break, ast.Return))
-        if body_strictly_blocking:
-            return False
-        if orelse_strictly_blocking:
-            return True
-
-    max_body_if_indentation = max([node.col_offset - body[0].col_offset for node in parsing.walk(ast.Module(body=body), ast.If)] + [0])
-    max_orelse_if_indentation = max([node.col_offset - orelse[0].col_offset for node in parsing.walk(ast.Module(body=orelse), ast.If)] + [0])
-    if max_orelse_if_indentation > max_body_if_indentation:
-        return False
-    if max_body_if_indentation > max_orelse_if_indentation:
+    body_branches = _count_branches(body)
+    orelse_branches = _count_branches(orelse)
+    if orelse_blocking and body_blocking and body_branches >= 2 * orelse_branches:
+        return True
+    if isinstance(orelse[0], (ast.Return, ast.Continue, ast.Break)) and len(body) > 3:
         return True
 
-    body_chars = sum(len(re.sub(r"\s", "", parsing.get_code(node, content))) for node in body if not isinstance(node, ast.Pass))
-    orelse_chars = sum(len(re.sub(r"\s", "", parsing.get_code(node, content))) for node in orelse if not isinstance(node, ast.Pass))
-
-    if orelse_chars == 0:
-        return False
-    if body_chars == 0:
-        return True
-
-    return body_chars > 2 * orelse_chars
+    return False
 
 
-def swap_explicit_if_else(content: str) -> str:
+def _sequential_similar_ifs(content: str, root: ast.AST) -> Collection[ast.If]:
+    return set.union(
+        set(),
+        *map(set, parsing.iter_similar_nodes(root, content, ast.If, count=2, length=15)),
+        *map(set, parsing.iter_similar_nodes(root, content, ast.If, count=3, length=10)),
+    )
+
+
+def _swap_explicit_if_else(content: str) -> str:
     replacements = {}
 
     root = parsing.parse(content)
-    loops = list(parsing.walk(root, (ast.For, ast.While)))
+    sequential_similar_ifs = _sequential_similar_ifs(content, root)
 
-    for stmt, body, orelse in iter_explicit_if_elses(root):
+    for stmt, body, orelse in _iter_explicit_if_elses(root):
+        if constants.PYTHON_VERSION >= (3, 9) and isinstance(stmt.test, ast.NamedExpr):
+            continue
+        if stmt in sequential_similar_ifs:
+            continue
         if (
             orelse
             and any(parsing.is_blocking(node) for node in body)
@@ -1180,8 +1186,6 @@ def swap_explicit_if_else(content: str) -> str:
             continue  # Redundant else
         if parsing.get_code(stmt, content).startswith("elif"):
             continue
-        body_lines = body[-1].end_lineno - body[0].lineno
-        orelse_lines = orelse[-1].end_lineno - orelse[0].lineno if orelse else 0
         if _orelse_preferred_as_body(body, orelse, content):
             if orelse:
                 replacements[stmt] = ast.If(
@@ -1191,28 +1195,26 @@ def swap_explicit_if_else(content: str) -> str:
                     lineno=stmt.lineno,
                 )
                 break
-            if len(body) > 3 and any(stmt is loop.body[-1] for loop in loops):
-                replacements[stmt] = ast.If(
-                    test=_negate_condition(stmt.test),
-                    body=[ast.Continue()],
-                    orelse=[node for node in body if not isinstance(node, ast.Pass)],
-                    lineno=stmt.lineno,
-                )
-                break
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
-        return swap_explicit_if_else(content)
+        return _swap_explicit_if_else(content)
 
     return content
 
 
-def swap_implicit_if_else(content: str) -> str:
+def _swap_implicit_if_else(content: str) -> str:
     replacements = {}
     removals = set()
 
     root = parsing.parse(content)
-    for stmt, body, orelse in iter_implicit_if_elses(root):
+    sequential_similar_ifs = _sequential_similar_ifs(content, root)
+
+    for stmt, body, orelse in _iter_implicit_if_elses(root):
+        if stmt in sequential_similar_ifs:
+            continue
+        if constants.PYTHON_VERSION >= (3, 9) and isinstance(stmt.test, ast.NamedExpr):
+            continue
         if (
             orelse
             and any(parsing.is_blocking(node) for node in body)
@@ -1221,8 +1223,6 @@ def swap_implicit_if_else(content: str) -> str:
             continue  # body is blocking but orelse is not
         if parsing.get_code(stmt, content).startswith("elif"):
             continue
-        body_lines = body[-1].end_lineno - body[0].lineno
-        orelse_lines = orelse[-1].end_lineno - orelse[0].lineno if orelse else 0
         if _orelse_preferred_as_body(body, orelse, content):
             if orelse:
                 replacements[stmt] = ast.If(
@@ -1233,26 +1233,17 @@ def swap_implicit_if_else(content: str) -> str:
                 )
                 removals.update(orelse)
                 break
-            if len(body) > 3 and any(stmt is loop.body[-1] for loop in loops):
-                replacements[stmt] = ast.If(
-                    test=_negate_condition(stmt.test),
-                    body=[ast.Continue()],
-                    orelse=[node for node in body if not isinstance(node, ast.Pass)],
-                    lineno=stmt.lineno,
-                )
-                removals.update(orelse)
-                break
 
     if replacements or removals:
         content = processing.alter_code(content, root, replacements=replacements, removals=removals)
-        return swap_explicit_if_else(content)
+        return _swap_explicit_if_else(content)
 
     return content
 
 
 def swap_if_else(content: str) -> str:
-    content = swap_implicit_if_else(content)
-    content = swap_explicit_if_else(content)
+    content = _swap_implicit_if_else(content)
+    content = _swap_explicit_if_else(content)
 
     return content
 
@@ -1428,10 +1419,6 @@ def replace_functions_with_literals(content: str) -> str:
     return content
 
 
-import ast
-import itertools
-
-
 def replace_for_loops_with_comprehensions(content: str) -> str:
     replacements = {}
     removals = set()
@@ -1516,9 +1503,7 @@ def replace_for_loops_with_comprehensions(content: str) -> str:
                     elt=body_node.value,
                     generators=generators,
                 )
-                replacement = ast.Call(
-                    func=ast.Name(id="sum"), args=[comprehension], keywords=[]
-                )
+                replacement = ast.Call(func=ast.Name(id="sum"), args=[comprehension], keywords=[])
 
             try:
                 if not parsing.literal_value(n1.value):
@@ -1806,7 +1791,11 @@ def replace_with_filter(content: str) -> str:
                     keywords=[],
                 )
                 replacements[node.body[0].test] = ast.Constant(value=not negative, kind=None)
-            elif isinstance(node.target, ast.Name) and isinstance(test, ast.Name) and node.target.id == test.id:
+            elif (
+                isinstance(node.target, ast.Name)
+                and isinstance(test, ast.Name)
+                and node.target.id == test.id
+            ):
                 replacements[node.iter] = ast.Call(
                     func=ast.Name(id="filter"),
                     args=[ast.Constant(value=None, kind=None), node.iter],
@@ -1817,7 +1806,11 @@ def replace_with_filter(content: str) -> str:
         if len(node.body) < 2:
             continue
         first_node, second_node, *_ = node.body
-        if isinstance(first_node, ast.If) and isinstance(first_node.body[0], ast.Continue) and not first_node.orelse:
+        if (
+            isinstance(first_node, ast.If)
+            and isinstance(first_node.body[0], ast.Continue)
+            and not first_node.orelse
+        ):
             test = first_node.test
 
             if (
@@ -2014,8 +2007,7 @@ def implicit_defaultdict(content: str) -> str:
                             t_call in {"add", "append"}
                             and isinstance(f_value, (ast.List, ast.Set))
                             and len(f_value.elts) == 1
-                            and processing.unparse(t_value)
-                            == processing.unparse(f_value.elts[0])
+                            and processing.unparse(t_value) == processing.unparse(f_value.elts[0])
                         ):
                             if isinstance(f_value, (ast.List)) == (t_call == "append"):
                                 loop_replacements[condition] = on_true

@@ -81,7 +81,7 @@ def _foo() -> bool:
     if X >= -500:
         if X > -400:
             return 3
-        if not (X > -300 and X % 2 == 0):
+        if X <= -300 or X % 2 != 0:
             return 2
         if X % 3 == 0:
             return -3

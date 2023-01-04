@@ -107,7 +107,41 @@ if X % 5 == 0:
         if X % (X - 4) == 0:
             return 61
 return 12
+            """,
+        ),
+        (  # There's a pattern going on here, it shouldn't be disturbed.
             """
+def foo(x):
+    if isinstance(x, str):
+        y = foo(x)
+        w = faa(x)
+        return y, w
+    if isinstance(x, int):
+        y = faf(x)
+        w = wow(x)
+        return y, w
+    if isinstance(x, float):
+        y = wowow(x)
+        w = papaf(x)
+        return y, w
+    return 1, 2
+            """,
+            """
+def foo(x):
+    if isinstance(x, str):
+        y = foo(x)
+        w = faa(x)
+        return y, w
+    if isinstance(x, int):
+        y = faf(x)
+        w = wow(x)
+        return y, w
+    if isinstance(x, float):
+        y = wowow(x)
+        w = papaf(x)
+        return y, w
+    return 1, 2
+            """,
         ),
     )
 

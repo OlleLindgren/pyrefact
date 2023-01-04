@@ -81,6 +81,20 @@ def filter_nodes(
             yield node
 
 
+def iter_similar_nodes(
+    root: ast.AST, content: str, node_type: ast.AST, count: int, length: int
+) -> Collection[ast.AST]:
+    for sequence in walk_sequence(root, *[node_type] * count):
+        for i, chars in enumerate(
+            zip(*(re.sub(r"\s", "", get_code(node, content)) for node in sequence))
+        ):
+            if len(set(chars)) != 1:
+                break
+            if i - 1 >= length:
+                yield sequence
+                break
+
+
 def is_valid_python(content: str) -> bool:
     """Determine if source code is valid python.
 
@@ -388,16 +402,18 @@ def has_side_effect(
             has_side_effect(child, safe_callable_whitelist) for child in (node.value, node.slice)
         )
 
-    if constants.PYTHON_VERSION < (3, 9) and isinstance(node, ast.Index):
-        return has_side_effect(node.value)
-
     # NamedExpr is :=
-    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
+    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) or (
+        constants.PYTHON_VERSION >= (3, 9) and isinstance(node, ast.NamedExpr)
+    ):
         if isinstance(node, ast.Assign):
             targets = node.targets
         else:
             targets = [node.target]
         return has_side_effect(node.value) or any(has_side_effect(target) for target in targets)
+
+    if isinstance(node, ast.Index):
+        return has_side_effect(node.value)
 
     return True
 
@@ -676,10 +692,10 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
                 continue
             nonreturn_children = []
             for child in node.body:
-                if not is_blocking(child):
-                    nonreturn_children.append(child)
-                else:
+                if is_blocking(child):
                     break
+
+                nonreturn_children.append(child)
             return_children = [child.value for child in walk(node, ast.Return)]
 
             if not any(

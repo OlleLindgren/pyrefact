@@ -139,10 +139,10 @@ def simplify_math_iterators(content: str) -> str:
                         node is not arg for node in parsing.walk(arg, (ast.Attribute, ast.Call))
                     ):
                         continue
-                    if node.func.id == "sum":
-                        replacements[node] = _sum_range(arg)
-                    else:
+                    if node.func.id != "sum":
                         continue
+
+                    replacements[node] = _sum_range(arg)
                 elif isinstance(arg, (ast.Tuple, ast.List)) and all(
                     isinstance(elt, (ast.Constant, ast.UnaryOp, ast.BinOp)) for elt in arg.elts
                 ):

@@ -29,19 +29,17 @@ def main() -> int:
         except Exception as error:
             return_codes[relpath] = error
 
-    if set(return_codes.values()) - {0}:
-        print("Some tests failed")
-        print(f"{'Test path':<50}   Return code")
+    if not set(return_codes.values()) - {0}:
+        print("PASSED")
+        return 0
 
-        for test, return_code in return_codes.items():
-            if return_code != 0:
-                print(f"./{test:<50} {return_code}")
-
-        print("FAILED")
-        return 1
-
-    print("PASSED")
-    return 0
+    print("Some tests failed")
+    print(f"{'Test path':<50}   Return code")
+    for (test, return_code) in return_codes.items():
+        if return_code != 0:
+            print(f"./{test:<50} {return_code}")
+    print("FAILED")
+    return 1
 
 
 if __name__ == "__main__":
