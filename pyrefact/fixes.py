@@ -1649,10 +1649,28 @@ def delete_commented_code(content: str) -> str:
 
                 parsed_content = parsing.parse(uncommented_block)
                 if len(parsed_content.body) == 1:
-                    if isinstance(parsed_content.body[0], ast.Expr) and len(uncommented_block) < 20:
+                    if (
+                        isinstance(parsed_content.body[0], ast.Expr)
+                        and len(uncommented_block) < 20
+                        and not isinstance(parsed_content.body[0].value, ast.Call)
+                    ):
                         continue
                     if isinstance(parsed_content.body[0], ast.Name):
                         continue
+
+                # Magic comments should not be removed
+                if any(
+                    expr.value.id == "noqa"
+                    for expr in parsing.filter_nodes(parsed_content.body, ast.Expr)
+                    if isinstance(expr.value, ast.Name)
+                ):
+                    continue
+                if any(
+                    name.id in {"pylint", "mypy", "flake8", "noqa", "type"}
+                    for annassign in parsing.walk(parsed_content, ast.AnnAssign)
+                    for name in parsing.walk(annassign, ast.Name)
+                ):
+                    continue
 
                 print("Deleting commented code")
                 print(content[start + start_offset : end - end_offset])

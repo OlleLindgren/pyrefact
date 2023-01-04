@@ -45,6 +45,25 @@ y = 10
         ),
         (
             """
+# x: int = 100
+# x: int = 100  # pylint: disable=invalid-name
+# pylint: disable=some-important-error
+# type: ignore
+# flake8: noqa
+# noqa
+# x: int = 100  # pylint: disable=invalid-name
+# noqa: abcdef
+            """,
+            """
+# pylint: disable=some-important-error
+# type: ignore
+# flake8: noqa
+# noqa
+# noqa: abcdef
+            """,
+        ),
+        (
+            """
 def f() -> int:
     # Normal comment
     return 2
