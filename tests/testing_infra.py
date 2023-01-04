@@ -3,7 +3,7 @@ import itertools
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, Tuple
+from typing import Iterable
 
 
 def _remove_multi_whitespace(content: str) -> str:
@@ -58,4 +58,3 @@ def ignore_on_version(major: int, minor: int):
         return lambda before, after: ("", "")
 
     return lambda before, after: (before, after)
-
