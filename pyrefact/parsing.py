@@ -403,9 +403,7 @@ def has_side_effect(
         )
 
     # NamedExpr is :=
-    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) or (
-        constants.PYTHON_VERSION >= (3, 9) and isinstance(node, ast.NamedExpr)
-    ):
+    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
         if isinstance(node, ast.Assign):
             targets = node.targets
         else:
