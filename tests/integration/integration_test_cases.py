@@ -1,5 +1,7 @@
 """Integration test cases, used in test_format_code and test_format_file"""
 
+import testing_infra
+
 INTEGRATION_TEST_CASES = (
     ("", ""),
     (
@@ -124,6 +126,34 @@ if all(y in [1, 2, 5] for y in sorted(set(list(z)))):
 X = sorted(range(100))[::3]
 Z = [w**3 for a in X if a % 3 == 0 and a % 4 == 2 for w in X if w > len(X) // 2]
 if all(y in {1, 2, 5} for y in sorted(set(Z))):
+    print(Z, X)
+        """,
+    ),
+    testing_infra.ignore_on_version(3, 8)(
+        """
+x = sorted(list(range(100)))[::3]
+z = {1: 9}
+for a in x:
+    if a % 3 == 0 and a % 4 == 2:
+        for w in x:
+            if w > len(x) // 2:
+                z[(w ** 3)] = w ** 2
+for a in x:
+    if a % 5 == 0 and a % 9 == 2:
+        z[(w ** -1)] = w ** -2
+z[1] = 333
+if all(y in [1, 2, 5] for y in set(sorted(list(z)))):
+    print(z, x)
+        """,
+        """
+X = sorted(range(100))[::3]
+Z = {
+    **{1: 9},
+    **{w**3: w**2 for a in X if a % 3 == 0 and a % 4 == 2 for w in X if w > len(X) // 2},
+    **{w ** (-1): w ** (-2) for a in X if a % 5 == 0 and a % 9 == 2},
+}
+Z[1] = 333
+if all(y in {1, 2, 5} for y in set(Z)):
     print(Z, X)
         """,
     ),

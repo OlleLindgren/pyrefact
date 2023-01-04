@@ -3,7 +3,7 @@ import itertools
 import re
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Tuple
 
 
 def _remove_multi_whitespace(content: str) -> str:
@@ -51,3 +51,11 @@ def iter_unit_tests() -> Iterable[Path]:
 
 def iter_integration_tests() -> Iterable[Path]:
     return sorted((Path(__file__).parent / "integration").rglob("test_*.py"))
+
+
+def ignore_on_version(major: int, minor: int):
+    if (major, minor) == sys.version_info[:2]:
+        return lambda before, after: ("", "")
+
+    return lambda before, after: (before, after)
+
