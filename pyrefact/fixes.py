@@ -1784,6 +1784,14 @@ def replace_with_filter(content: str) -> str:
             continue
         if len(node.body) == 1 and isinstance(node.body[0], ast.If):
             test = node.body[0].test
+            negative = isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not)
+            if negative:
+                test = test.operand
+                if not all(isinstance(child, ast.Continue) for child in node.body[0].body):
+                    continue
+            else:
+                if not all(isinstance(child, ast.Continue) for child in node.body[0].orelse):
+                    continue
             if (
                 isinstance(test, ast.Call)
                 and len(test.args) == 1
@@ -1797,12 +1805,19 @@ def replace_with_filter(content: str) -> str:
                     args=[test.func, node.iter],
                     keywords=[],
                 )
-                replacements[test] = ast.Constant(value=True, kind=None)
+                replacements[node.body[0].test] = ast.Constant(value=not negative, kind=None)
+            elif isinstance(node.target, ast.Name) and isinstance(test, ast.Name) and node.target.id == test.id:
+                replacements[node.iter] = ast.Call(
+                    func=ast.Name(id="filter"),
+                    args=[ast.Constant(value=None, kind=None), node.iter],
+                    keywords=[],
+                )
+                replacements[node.body[0].test] = ast.Constant(value=not negative, kind=None)
             continue
         if len(node.body) < 2:
             continue
         first_node, second_node, *_ = node.body
-        if isinstance(first_node, ast.If) and isinstance(first_node.body[0], ast.Continue):
+        if isinstance(first_node, ast.If) and isinstance(first_node.body[0], ast.Continue) and not first_node.orelse:
             test = first_node.test
 
             if (
