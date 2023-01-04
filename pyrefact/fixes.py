@@ -727,10 +727,9 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
 
             constructors[node].add(child)
 
-    constructor_classes = {}
-    for classdef, magics in constructors.items():
-        for magic in magics:
-            constructor_classes[magic] = classdef
+    constructor_classes = {
+        magic: classdef for (classdef, magics) in constructors.items() for magic in magics
+    }
 
     for def_node in funcdefs:
         usages = name_usages[def_node.name]
@@ -1475,26 +1474,27 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
                 # Empty dict {}
                 replacements[n1.value] = comp
                 removals.add(n2)
-            elif isinstance(n1.value, ast.Dict) and n1.value.values and all(key is None for key in n1.value.keys):
+            elif (
+                isinstance(n1.value, ast.Dict)
+                and n1.value.values
+                and all(key is None for key in n1.value.keys)
+            ):
                 # Existing union of other dicts {**a, **b}
                 replacements[n1.value] = ast.Dict(
-                    keys=n1.value.keys + [None],
-                    values=n1.value.values + [comp]
+                    keys=n1.value.keys + [None], values=n1.value.values + [comp]
                 )
                 removals.add(n2)
-            elif isinstance(n1.value, ast.Dict) and n1.value.values and not any(key is None for key in n1.value.keys):
+            elif (
+                isinstance(n1.value, ast.Dict)
+                and n1.value.values
+                and not any(key is None for key in n1.value.keys)
+            ):
                 # Non-empty dict {a: 1, b: 2}
-                replacements[n1.value] = ast.Dict(
-                    keys=[None, None],
-                    values=[n1.value, comp]
-                )
+                replacements[n1.value] = ast.Dict(keys=[None, None], values=[n1.value, comp])
                 removals.add(n2)
             elif isinstance(n1.value, ast.DictComp):
                 # Comprehension {i: i ** 2 for i in range(10)}
-                replacements[n1.value] = ast.Dict(
-                    keys=[None, None],
-                    values=[n1.value, comp]
-                )
+                replacements[n1.value] = ast.Dict(keys=[None, None], values=[n1.value, comp])
                 removals.add(n2)
 
     content = processing.alter_code(content, root, removals=removals, replacements=replacements)

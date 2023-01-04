@@ -81,15 +81,14 @@ def optimize_contains_types(content: str) -> str:
 
 def remove_redundant_iter(content: str) -> str:
     root = parsing.parse(content)
-    replacements = {}
-    for node in parsing.walk(root, (ast.For, ast.comprehension)):
-        if (
-            isinstance(node.iter, ast.Call)
-            and isinstance(node.iter.func, ast.Name)
-            and node.iter.func.id in {"iter", "list", "tuple"}
-            and len(node.iter.args) == 1
-        ):
-            replacements[node.iter] = node.iter.args[0]
+    replacements = {
+        node.iter: node.iter.args[0]
+        for node in parsing.walk(root, (ast.For, ast.comprehension))
+        if isinstance(node.iter, ast.Call)
+        and isinstance(node.iter.func, ast.Name)
+        and (node.iter.func.id in {"iter", "list", "tuple"})
+        and (len(node.iter.args) == 1)
+    }
 
     if replacements:
         content = processing.replace_nodes(content, replacements)
