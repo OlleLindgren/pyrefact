@@ -39,14 +39,10 @@ def remove_unused_self_cls(content: str) -> str:
                 for child in ast.walk(node):
                     if isinstance(child, ast.Name) and child.id == first_arg_name:
                         first_arg_accesses.add(child)
-                    elif isinstance(child, ast.Call):
-                        func = child.func
-                        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-                            if (
-                                func.value.id == first_arg_name
-                                and func.attr in class_non_instance_methods
-                            ):
-                                static_accesses.add(func.value)
+                    elif parsing.is_call(
+                        child, [f"{first_arg_name}.{attr}" for attr in class_non_instance_methods]
+                    ):
+                        static_accesses.add(child.func.value)
 
             instance_access_names = {node.id for node in first_arg_accesses - static_accesses}
             if first_arg_name in instance_access_names:

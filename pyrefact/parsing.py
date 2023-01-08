@@ -368,11 +368,6 @@ def has_side_effect(
     if isinstance(node, ast.Call):
         return (
             not all(
-                child.id in safe_callable_whitelist
-                for child in ast.walk(node.func)
-                if isinstance(child, ast.Name)
-            )
-            or not all(
                 child.id in safe_callable_whitelist or child.id == "_"
                 for child in ast.walk(node.func)
                 if isinstance(child, ast.Name)
@@ -766,3 +761,21 @@ def transpose_target(node: ast.AST) -> ast.AST:
         return node.args[0].value
 
     raise ValueError(f"Node {node} is not a transpose operation.")
+
+
+def is_call(node: ast.AST, qualified_name: Union[str, Collection[str]]) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+
+    if isinstance(qualified_name, str):
+        qualified_name = (qualified_name,)
+
+    func = node.func
+
+    if isinstance(func, ast.Name):
+        return func.id in qualified_name
+
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        return f"{func.value.id}.{func.attr}" in qualified_name
+
+    return False

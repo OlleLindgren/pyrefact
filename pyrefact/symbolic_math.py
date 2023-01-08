@@ -130,11 +130,7 @@ def simplify_math_iterators(content: str) -> str:
         if isinstance(node.func, ast.Name) and node.func.id in constants.MATH_FUNCTIONS:
             if not node.keywords and len(node.args) == 1:
                 arg = node.args[0]
-                if (
-                    isinstance(arg, ast.Call)
-                    and isinstance(arg.func, ast.Name)
-                    and arg.func.id == "range"
-                ):
+                if parsing.is_call(arg, "range"):
                     if any(
                         node is not arg for node in parsing.walk(arg, (ast.Attribute, ast.Call))
                     ):

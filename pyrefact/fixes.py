@@ -1539,13 +1539,11 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
             if len(comprehension.ifs) > 1:
                 comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
 
+        target = n1.targets[0].id
         if (
             isinstance(body_node, ast.Expr)
-            and isinstance(body_node.value, ast.Call)
-            and isinstance(body_node.value.func, ast.Attribute)
-            and isinstance(body_node.value.func.value, ast.Name)
-            and (len(body_node.value.args) == 1)
-            and (body_node.value.func.value.id == n1.targets[0].id)
+            and parsing.is_call(body_node.value, (f"{target}.append", f"{target}.add"))
+            and len(body_node.value.args) == 1
         ):
             if (
                 isinstance(n1.value, ast.List)
@@ -1554,9 +1552,7 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
             ):
                 comp_type = ast.ListComp
             elif (
-                isinstance(n1.value, ast.Call)
-                and isinstance(n1.value.func, ast.Name)
-                and (n1.value.func.id == "set")
+                parsing.is_call(n1.value, "set")
                 and (not n1.value.args)
                 and (not n1.value.keywords)
                 and (body_node.value.func.attr == "add")
@@ -1842,13 +1838,7 @@ def replace_with_filter(content: str) -> str:
     removals = set()
 
     for node in parsing.walk(root, ast.For):
-        if isinstance(node.iter, ast.Call) and (
-            (
-                isinstance(node.iter.func, ast.Name)
-                and node.iter.func.id in {"filter", "filterfalse"}
-            )
-            or (isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "filterfalse")
-        ):
+        if parsing.is_call(node.iter, ("filter", "filterfalse", "itertools.filterfalse")):
             continue
         if len(node.body) == 1 and isinstance(node.body[0], ast.If):
             test = node.body[0].test
@@ -2051,10 +2041,8 @@ def implicit_defaultdict(content: str) -> str:
                 loop_removals.add(condition)
                 continue
             if (
-                isinstance(f_value, ast.Call)
+                parsing.is_call(f_value, ("set"))
                 and (not f_value.args)
-                and isinstance(f_value.func, ast.Name)
-                and (f_value.func.id == "set")
                 and (t_call in {"add", "update"})
             ):
                 loop_removals.add(condition)

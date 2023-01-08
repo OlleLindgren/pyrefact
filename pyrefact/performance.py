@@ -60,10 +60,8 @@ def optimize_contains_types(content: str) -> str:
                     continue
                 replacement = preferred_type(elts=comp.elts)
             elif (
-                isinstance(comp, ast.Call)
-                and isinstance(comp.func, ast.Name)
+                parsing.is_call(comp, ("sorted", "list", "tuple"))
                 and isinstance(comp.func.ctx, ast.Load)
-                and comp.func.id in {"sorted", "list", "tuple"}
                 and len(comp.args) == 1
                 and not comp.keywords
             ):
@@ -324,11 +322,7 @@ def replace_subscript_looping(content: str) -> str:
 
         iterated_node = comp.generators[0].iter
 
-        if not (
-            isinstance(iterated_node, ast.Call)
-            and isinstance(iterated_node.func, ast.Name)
-            and iterated_node.func.id == "range"
-        ):
+        if not parsing.is_call(iterated_node, "range"):
             continue
 
         if (

@@ -27,43 +27,11 @@ def _only_if_uses_numpy(f: Callable) -> Callable:
 
 
 def _is_sum_call(call: ast.Call):
-    return (isinstance(call.func, ast.Name) and call.func.id == "sum") or (
-        isinstance(call.func, ast.Attribute)
-        and call.func.attr == "sum"
-        and isinstance(call.func.value, ast.Name)
-        and call.func.value.id in {"np", "numpy"}
-    )
+    return parsing.is_call(call, ("sum", "np.sum", "numpy.sum"))
 
 
 def _is_np_array_call(call: ast.Call) -> bool:
-    return (
-        isinstance(call.func, ast.Attribute)
-        and call.func.attr == "array"
-        and isinstance(call.func.value, ast.Name)
-        and call.func.value.id in {"np", "numpy"}
-    )
-
-
-def _is_np_dot_call(call: ast.Call) -> bool:
-    return (
-        isinstance(call.func, ast.Attribute)
-        and call.func.attr == "dot"
-        and isinstance(call.func.value, ast.Name)
-        and call.func.value.id in {"np", "numpy"}
-    )
-
-
-def _is_np_matmul_call(call: ast.Call) -> bool:
-    return (
-        isinstance(call.func, ast.Attribute)
-        and call.func.attr == "matmul"
-        and isinstance(call.func.value, ast.Name)
-        and call.func.value.id in {"np", "numpy"}
-    )
-
-
-def _is_zip_call(call: ast.Call):
-    return isinstance(call.func, ast.Name) and call.func.id == "zip"
+    return parsing.is_call(call, ("np.array", "numpy.array"))
 
 
 def _is_zip_product(comp: Union[ast.ListComp, ast.GeneratorExp]):
@@ -77,7 +45,7 @@ def _is_zip_product(comp: Union[ast.ListComp, ast.GeneratorExp]):
         and isinstance(comp.generators[0].target, ast.Tuple)
         and all(isinstance(x, ast.Name) for x in comp.generators[0].target.elts)
         and {x.id for x in comp.generators[0].target.elts} == {comp.elt.left.id, comp.elt.right.id}
-        and _is_zip_call(comp.generators[0].iter)
+        and parsing.is_call(comp.generators[0].iter, "zip")
     )
 
 
@@ -110,7 +78,7 @@ def simplify_matmul_transposes(content: str) -> str:
     for node in filter(parsing.is_transpose_operation, parsing.walk(root, ast.Attribute)):
 
         target = parsing.transpose_target(node)
-        if isinstance(target, ast.Call) and _is_np_matmul_call(target):
+        if parsing.is_call(target, ("np.matmul", "numpy.matmul")):
             if (
                 len(target.args) == 2
                 and not any(isinstance(arg, ast.Starred) for arg in target.args)
@@ -182,7 +150,7 @@ def replace_implicit_matmul(content: str) -> str:
                         and comp_outer.generators[0].iter.attr == "T"
                     ):
                         continue
-                    if _is_np_dot_call(comp_inner.elt):
+                    if parsing.is_call(comp_inner.elt, ("numpy.dot", "np.dot")):
                         left_id = (
                             comp_inner.generators[0].target.id
                             if isinstance(comp_inner.generators[0].target, ast.Name)
