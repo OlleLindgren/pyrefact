@@ -8,6 +8,49 @@ from typing import Collection, Iterable, Mapping, Sequence, Tuple, Union
 from pyrefact import constants
 
 
+def match_template(node: ast.AST, template: ast.AST):
+    """Check if a node matches a provided ast template"""
+    # A type indicates that the node should be an instance of that type,
+    # and nothing else. A tuple indicates that the node should be any of
+    # the types in it.
+    if isinstance(template, type):
+        return isinstance(node, template)
+
+    # A tuple indicates an or condition; the node must comply with any of
+    # the templates in the child.
+    # They may all be types for example, which boils down to the traditional
+    # isinstance logic.
+    if isinstance(template, tuple):
+        return any(match_template(node, child) for child in template)
+
+    # A list indicates that the node must also be a list, and for every
+    # element, it must match against the corresponding node in the template.
+    # It must also be equal length.
+    if isinstance(template, list):
+        return (
+            isinstance(node, list)
+            and len(node) == len(template)
+            and all(
+                match_template(child, template_child)
+                for child, template_child in zip(node, template)
+            )
+        )
+
+    # If the node is not an ast, we presume it is a string or something like
+    # that, and just assert it should be equal.
+    if not isinstance(node, ast.AST):
+        return node == template
+
+    template_vars = vars(template)
+    node_vars = vars(node)
+
+    return (
+        issubclass(type(node), type(template))
+        and template_vars.keys() <= node_vars.keys()
+        and all(match_template(node_vars[key], template_vars[key]) for key in template_vars.keys())
+    )
+
+
 @functools.lru_cache(maxsize=100)
 def parse(source_code: str) -> ast.AST:
     """Parse python source code and cache
@@ -30,31 +73,43 @@ def _group_nodes_in_scope(scope: ast.AST) -> Mapping[ast.AST, Sequence[ast.AST]]
     return node_types
 
 
-def walk(scope: ast.AST, node_type: Union[ast.AST, Sequence[ast.AST]]) -> Sequence[ast.AST]:
+def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> Sequence[ast.AST]:
     """Get nodes in scope of a particular type
 
     Args:
         scope (ast.AST): Scope to search
-        node_type (ast.AST): Node type to filter on
+        node_template (ast.AST): Node type to filter on
 
     Returns:
         Sequence[ast.AST]: All nodes in scope of that type
     """
     types_in_scope = _group_nodes_in_scope(scope)
-    for variant, nodes in types_in_scope.items():
-        if issubclass(variant, node_type):
-            yield from nodes
+    if not isinstance(node_template, tuple):
+        node_template = (node_template,)
+
+    yielded_nodes = set()
+    for template in node_template:
+        type_matcher = template if isinstance(template, type) else type(template)
+        nodes = itertools.chain.from_iterable(
+            children
+            for child_type, children in types_in_scope.items()
+            if issubclass(child_type, type_matcher)
+        )
+        for node in nodes:
+            if node not in yielded_nodes and match_template(node, template):
+                yielded_nodes.add(node)
+                yield node
 
 
 def walk_sequence(
     scope: ast.Module, *node_types: ast.AST, expand_first: bool = False, expand_last: bool = False
 ) -> Iterable[Sequence[ast.AST]]:
-    for node in walk(scope, ast.AST):
+    for node in walk(scope, (ast.AST(body=list), ast.AST(orelse=list))):
         for body in [
             getattr(node, "body", []),
             getattr(node, "orelse", []),
         ]:
-            if isinstance(body, Sequence) and len(body) > 0:
+            if len(body) > 0:
                 for nodes in zip(
                     *(body[i : len(body) - len(node_types) + i + 1] for i in range(len(node_types)))
                 ):
@@ -77,7 +132,7 @@ def filter_nodes(
     nodes: Iterable[ast.AST], node_type: Union[ast.AST, Sequence[ast.AST]]
 ) -> Sequence[ast.AST]:
     for node in nodes:
-        if isinstance(node, node_type):
+        if match_template(node, node_type):
             yield node
 
 
@@ -195,21 +250,17 @@ def iter_typedefs(ast_tree: ast.Module) -> Iterable[ast.Name]:
         ast.Assign: An assignment of a custom type annotation or typevar
     """
     for node in ast_tree.body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+        if match_template(node, ast.Assign(targets=[object])):
             for child in ast.walk(node.value):
                 if isinstance(child, ast.Name) and (
                     child.id in constants.ASSUMED_SOURCES["typing"] or "namedtuple" in child.id
                 ):
                     yield node
                     break
-                if (
-                    isinstance(child, ast.Attribute)
-                    and isinstance(child.value, ast.Name)
-                    and child.value.id in {"collections", "typing"}
-                    and (
-                        "namedtuple" in child.attr
-                        or child.attr in constants.ASSUMED_SOURCES["typing"]
-                    )
+                if match_template(
+                    child, ast.Attribute(value=ast.Name(id=("collections", "typing")))
+                ) and (
+                    "namedtuple" in child.attr or child.attr in constants.ASSUMED_SOURCES["typing"]
                 ):
                     yield node
                     break
@@ -432,10 +483,7 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
         Tuple[int, int]: start, end
     """
     line_start_charnos = _get_line_start_charnos(content)
-    if (
-        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        and node.decorator_list
-    ):
+    if match_template(node, ast.AST(decorator_list=list)) and node.decorator_list:
         start = min(node.decorator_list, key=lambda n: (n.lineno, n.col_offset))
     else:
         start = node
@@ -573,9 +621,7 @@ def is_blocking(node: ast.AST, parent_type: ast.AST = None) -> bool:
             iterator = literal_value(node.iter)
         except ValueError:
             return False
-        try:
-            next(iter(iterator))
-        except StopIteration:
+        if not any(True for _ in iterator):
             return False
 
     if isinstance(node, (ast.For, ast.While)):
@@ -615,15 +661,12 @@ def iter_bodies_recursive(
     while left:
         for node in left.copy():
             left.remove(node)
-            if isinstance(
-                node,
-                (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef, ast.For, ast.While, ast.With),
-            ):
-                left.extend(node.body)
-                yield node
-            if isinstance(node, ast.If):
+            if match_template(node, ast.AST(body=list, orelse=list)):
                 left.extend(node.body)
                 left.extend(node.orelse)
+                yield node
+            elif match_template(node, ast.AST(body=list)):
+                left.extend(node.body)
                 yield node
 
 
@@ -673,7 +716,7 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
     Returns:
         Collection[str]: Names of all functions that have no side effect when called.
     """
-    defined_names = {node.id for node in walk(root, ast.Name) if isinstance(node.ctx, ast.Store)}
+    defined_names = {node.id for node in walk(root, ast.Name(ctx=ast.Store))}
     function_defs = list(walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)))
     safe_callables = set(constants.BUILTIN_FUNCTIONS) - {"print", "exit"}
     safe_callable_nodes = set()
@@ -705,8 +748,7 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
         constructors = {
             child
             for child in node.body
-            if isinstance(child, ast.FunctionDef)
-            and child.name in {"__init__", "__post_init__", "__new__"}
+            if match_template(child, ast.FunctionDef(name=("__init__", "__post_init__", "__new__")))
         }
         if not constructors - safe_callable_nodes:
             safe_callables.add(node.name)
@@ -738,26 +780,17 @@ def get_comp_wrapper_func_equivalent(node: ast.AST) -> str:
 
 
 def is_transpose_operation(node: ast.AST) -> bool:
-    if isinstance(node, ast.Attribute) and node.attr == "T":
-        return True
+    numpy_transpose_template = ast.Attribute(value=object, attr="T")
+    zip_transpose_template = ast.Call(func=ast.Name(id="zip"), args=[ast.Starred])
 
-    if (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "zip"
-        and len(node.args) == 1
-        and isinstance(node.args[0], ast.Starred)
-    ):
-        return True
-
-    return False
+    return match_template(node, (numpy_transpose_template, zip_transpose_template))
 
 
 def transpose_target(node: ast.AST) -> ast.AST:
     if isinstance(node, ast.Attribute):
         return node.value
 
-    if isinstance(node, ast.Call):
+    if isinstance(node, ast.Call) and len(node.args) > 0:
         return node.args[0].value
 
     raise ValueError(f"Node {node} is not a transpose operation.")
@@ -775,7 +808,7 @@ def is_call(node: ast.AST, qualified_name: Union[str, Collection[str]]) -> bool:
     if isinstance(func, ast.Name):
         return func.id in qualified_name
 
-    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+    if match_template(func, ast.Attribute(value=ast.Name)):
         return f"{func.value.id}.{func.attr}" in qualified_name
 
     return False

@@ -101,15 +101,11 @@ def replace_implicit_dot(content: str) -> str:
 
     replacements = {}
 
-    for call in filter(_is_sum_call, parsing.walk(root, ast.Call)):
-        if (
-            len(call.args) == 1
-            and not call.keywords
-            and isinstance(call.args[0], (ast.ListComp, ast.GeneratorExp))
-        ):
-            if _is_zip_product(call.args[0]):
-                zip_args = call.args[0].generators[0].iter.args
-                replacements[call] = _wrap_np_dot(*zip_args)
+    template = ast.Call(args=[(ast.ListComp, ast.GeneratorExp)], keywords=[])
+    for call in parsing.walk(root, template):
+        if _is_sum_call(call) and _is_zip_product(call.args[0]):
+            zip_args = call.args[0].generators[0].iter.args
+            replacements[call] = _wrap_np_dot(*zip_args)
 
     content = processing.replace_nodes(content, replacements)
 
@@ -122,59 +118,46 @@ def replace_implicit_matmul(content: str) -> str:
 
     replacements = {}
 
+    comp_template = ast.ListComp(
+        generators=[
+            ast.comprehension(ifs=[], target=ast.Name, iter=(ast.Name, ast.Attribute(attr="T")))
+        ]
+    )
+
     for call in filter(_is_np_array_call, parsing.walk(root, ast.Call)):
-        if len(call.args) == 1 and not call.keywords:
+        if parsing.match_template(
+            call, ast.Call(args=[ast.ListComp(elt=ast.ListComp)], keywords=[])
+        ):
             comp_outer = call.args[0]
-            if (
-                isinstance(comp_outer, ast.ListComp)
-                and len(comp_outer.generators) == 1
-                and not any(gen.ifs for gen in comp_outer.generators)
+            comp_inner = comp_outer.elt
+            if parsing.match_template(comp_outer, comp_template) and parsing.match_template(
+                comp_inner, comp_template
             ):
-                comp_inner = comp_outer.elt
-                if (
-                    isinstance(comp_inner, ast.ListComp)
-                    and len(comp_inner.generators) == 1
-                    and not any(gen.ifs for gen in comp_inner.generators)
-                ):
-                    if not isinstance(comp_inner.generators[0].target, ast.Name):
-                        continue
-                    if not isinstance(comp_outer.generators[0].target, ast.Name):
-                        continue
-                    if not isinstance(comp_inner.generators[0].iter, ast.Name) and not (
-                        isinstance(comp_inner.generators[0].iter, ast.Attribute)
-                        and comp_inner.generators[0].iter.attr == "T"
-                    ):
-                        continue
-                    if not isinstance(comp_outer.generators[0].iter, ast.Name) and not (
-                        isinstance(comp_outer.generators[0].iter, ast.Attribute)
-                        and comp_outer.generators[0].iter.attr == "T"
-                    ):
-                        continue
-                    if parsing.is_call(comp_inner.elt, ("numpy.dot", "np.dot")):
-                        left_id = (
-                            comp_inner.generators[0].target.id
-                            if isinstance(comp_inner.generators[0].target, ast.Name)
-                            else comp_inner.generators[0].target.value.id
+                if parsing.is_call(comp_inner.elt, ("numpy.dot", "np.dot")):
+                    left_id = (
+                        comp_inner.generators[0].target.id
+                        if isinstance(comp_inner.generators[0].target, ast.Name)
+                        else comp_inner.generators[0].target.value.id
+                    )
+                    right_id = (
+                        comp_outer.generators[0].target.id
+                        if isinstance(comp_outer.generators[0].target, ast.Name)
+                        else comp_outer.generators[0].target.value.id
+                    )
+                    if (
+                        left_id == comp_inner.generators[0].target.id
+                        and right_id == comp_outer.generators[0].target.id
+                        or (
+                            right_id == comp_inner.generators[0].target.id
+                            and left_id == comp_outer.generators[0].target.id
                         )
-                        right_id = (
-                            comp_outer.generators[0].target.id
-                            if isinstance(comp_outer.generators[0].target, ast.Name)
-                            else comp_outer.generators[0].target.value.id
+                    ):
+                        replacements[call] = wrap_transpose(
+                            _wrap_np_matmul(
+                                comp_inner.generators[0].iter,
+                                wrap_transpose(comp_outer.generators[0].iter),
+                            )
                         )
-                        if (
-                            left_id == comp_inner.generators[0].target.id
-                            and right_id == comp_outer.generators[0].target.id
-                            or (
-                                right_id == comp_inner.generators[0].target.id
-                                and left_id == comp_outer.generators[0].target.id
-                            )
-                        ):
-                            replacements[call] = wrap_transpose(
-                                _wrap_np_matmul(
-                                    comp_inner.generators[0].iter,
-                                    wrap_transpose(comp_outer.generators[0].iter),
-                                )
-                            )
 
     content = processing.replace_nodes(content, replacements)
 
