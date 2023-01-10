@@ -1452,32 +1452,28 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
             if len(comprehension.ifs) > 1:
                 comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
 
-        if parsing.match_template(
+        if not parsing.match_template(
             body_node, ast.Assign(targets=[ast.Subscript(value=ast.Name(id=target.id))])
         ):
-            comp = ast.DictComp(
-                key=body_node.targets[0].slice,
-                value=body_node.value,
-                generators=generators,
+            continue
+
+        comp = ast.DictComp(
+            key=body_node.targets[0].slice, value=body_node.value, generators=generators
+        )
+        if parsing.match_template(n1.value, ast.Dict(values=[], keys=[])):
+            replacements[n1.value] = comp
+            removals.add(n2)
+        elif parsing.match_template(n1.value, ast.Dict(values=list, keys={None})):
+            replacements[n1.value] = ast.Dict(
+                keys=n1.value.keys + [None], values=n1.value.values + [comp]
             )
-            if parsing.match_template(n1.value, ast.Dict(values=[], keys=[])):
-                # Empty dict {}
-                replacements[n1.value] = comp
-                removals.add(n2)
-            elif parsing.match_template(n1.value, ast.Dict(values=list, keys={None})):
-                # Existing union of other dicts {**a, **b}
-                replacements[n1.value] = ast.Dict(
-                    keys=n1.value.keys + [None], values=n1.value.values + [comp]
-                )
-                removals.add(n2)
-            elif parsing.match_template(n1.value, ast.Dict(values=list, keys=list)):
-                # Non-empty dict {a: 1, b: 2}
-                replacements[n1.value] = ast.Dict(keys=[None, None], values=[n1.value, comp])
-                removals.add(n2)
-            elif isinstance(n1.value, ast.DictComp):
-                # Comprehension {i: i ** 2 for i in range(10)}
-                replacements[n1.value] = ast.Dict(keys=[None, None], values=[n1.value, comp])
-                removals.add(n2)
+            removals.add(n2)
+        elif parsing.match_template(n1.value, ast.Dict(values=list, keys=list)):
+            replacements[n1.value] = ast.Dict(keys=[None, None], values=[n1.value, comp])
+            removals.add(n2)
+        elif isinstance(n1.value, ast.DictComp):
+            replacements[n1.value] = ast.Dict(keys=[None, None], values=[n1.value, comp])
+            removals.add(n2)
 
     content = processing.alter_code(content, root, removals=removals, replacements=replacements)
 
@@ -1996,48 +1992,47 @@ def implicit_defaultdict(content: str) -> str:
 
         template = ast.If(body=[object], orelse=[object])
         for condition in parsing.walk(ast.Module(body=n2.body), template):
-            if condition not in loop_replacements:
-                try:
-                    key, obj, negative = _get_contains_args(condition.test)
-                except ValueError:
+            if condition in loop_replacements:
+                continue
+
+            try:
+                key, obj, negative = _get_contains_args(condition.test)
+            except ValueError:
+                continue
+            if obj != target.id:
+                continue
+            on_true = condition.body[0]
+            on_false = condition.orelse[0]
+            if negative:
+                on_true, on_false = (on_false, on_true)
+            try:
+                t_obj, t_call, t_key, t_value = _get_subscript_functions(on_true)
+                f_obj, f_key, f_value = _get_assign_functions(on_false)
+            except ValueError:
+                continue
+            if not t_obj == f_obj == obj or not t_key == f_key == key:
+                continue
+
+            subscript_calls.add(t_call)
+            if (
+                t_call in {"add", "append"}
+                and parsing.match_template(
+                    f_value, (ast.List(elts=[object]), ast.Set(elts=[object]))
+                )
+                and (processing.unparse(t_value) == processing.unparse(f_value.elts[0]))
+            ):
+                if isinstance(f_value, ast.List) == (t_call == "append"):
+                    loop_replacements[condition] = on_true
                     continue
-
-                if obj != target.id:
-                    continue
-
-                on_true = condition.body[0]
-                on_false = condition.orelse[0]
-                if negative:
-                    on_true, on_false = on_false, on_true
-
-                try:
-                    t_obj, t_call, t_key, t_value = _get_subscript_functions(on_true)
-                    f_obj, f_key, f_value = _get_assign_functions(on_false)
-                except ValueError:
-                    continue
-
-                if t_obj == f_obj == obj and t_key == f_key == key:
-                    subscript_calls.add(t_call)
-                    if (
-                        t_call in {"add", "append"}
-                        and parsing.match_template(
-                            f_value, (ast.List(elts=[object]), ast.Set(elts=[object]))
-                        )
-                        and processing.unparse(t_value) == processing.unparse(f_value.elts[0])
-                    ):
-                        if isinstance(f_value, (ast.List)) == (t_call == "append"):
-                            loop_replacements[condition] = on_true
-                            continue
-
-                        consistent = False
-                        break
-                    t_value_preferred = _preferred_comprehension_type(t_value)
-                    f_value_preferred = _preferred_comprehension_type(f_value)
-                    if processing.unparse(t_value_preferred) == processing.unparse(
-                        f_value_preferred
-                    ) and t_call in {"update", "extend"}:
-                        loop_replacements[condition] = on_true
-                        continue
+                consistent = False
+                break
+            t_value_preferred = _preferred_comprehension_type(t_value)
+            f_value_preferred = _preferred_comprehension_type(f_value)
+            if processing.unparse(t_value_preferred) == processing.unparse(
+                f_value_preferred
+            ) and t_call in {"update", "extend"}:
+                loop_replacements[condition] = on_true
+                continue
 
         if not consistent:
             continue

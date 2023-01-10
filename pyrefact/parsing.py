@@ -119,22 +119,24 @@ def walk_sequence(
             getattr(node, "body", []),
             getattr(node, "orelse", []),
         ]:
-            if len(body) > 0:
-                for nodes in zip(
-                    *(body[i : len(body) - len(templates) + i + 1] for i in range(len(templates)))
+            if len(body) <= 0:
+                continue
+
+            for nodes in zip(
+                *(body[i : len(body) - len(templates) + i + 1] for i in range(len(templates)))
+            ):
+                if expand_first:
+                    pre = body[: body.index(nodes[0])]
+                    pre = tuple((node for node in pre if match_template(node, templates[0])))
+                    nodes = pre + nodes
+                if expand_last:
+                    post = body[body.index(nodes[-1]) + 1 :]
+                    post = tuple((node for node in post if match_template(node, templates[-1])))
+                    nodes = nodes + post
+                if all(
+                    (match_template(node, template) for node, template in zip(nodes, templates))
                 ):
-                    if expand_first:
-                        pre = body[: body.index(nodes[0])]
-                        pre = tuple(node for node in pre if match_template(node, templates[0]))
-                        nodes = pre + nodes
-                    if expand_last:
-                        post = body[body.index(nodes[-1]) + 1 :]
-                        post = tuple(node for node in post if match_template(node, templates[-1]))
-                        nodes = nodes + post
-                    if all(
-                        match_template(node, template) for node, template in zip(nodes, templates)
-                    ):
-                        yield nodes
+                    yield nodes
 
 
 def filter_nodes(
@@ -259,20 +261,20 @@ def iter_typedefs(ast_tree: ast.Module) -> Iterable[ast.Name]:
         ast.Assign: An assignment of a custom type annotation or typevar
     """
     for node in ast_tree.body:
-        if match_template(node, ast.Assign(targets=[object])):
-            for child in ast.walk(node.value):
-                if isinstance(child, ast.Name) and (
-                    child.id in constants.ASSUMED_SOURCES["typing"] or "namedtuple" in child.id
-                ):
-                    yield node
-                    break
-                if match_template(
-                    child, ast.Attribute(value=ast.Name(id=("collections", "typing")))
-                ) and (
-                    "namedtuple" in child.attr or child.attr in constants.ASSUMED_SOURCES["typing"]
-                ):
-                    yield node
-                    break
+        if not match_template(node, ast.Assign(targets=[object])):
+            continue
+
+        for child in ast.walk(node.value):
+            if isinstance(child, ast.Name) and (
+                child.id in constants.ASSUMED_SOURCES["typing"] or "namedtuple" in child.id
+            ):
+                yield node
+                break
+            if match_template(
+                child, ast.Attribute(value=ast.Name(id=("collections", "typing")))
+            ) and ("namedtuple" in child.attr or child.attr in constants.ASSUMED_SOURCES["typing"]):
+                yield node
+                break
 
 
 def slice_of(node: ast.Subscript) -> ast.AST:

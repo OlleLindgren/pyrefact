@@ -127,60 +127,68 @@ def simplify_math_iterators(content: str) -> str:
     root = parsing.parse(content)
 
     for node in parsing.walk(root, ast.Call):
-        if isinstance(node.func, ast.Name) and node.func.id in constants.MATH_FUNCTIONS:
-            if not node.keywords and len(node.args) == 1:
-                arg = node.args[0]
-                if parsing.is_call(arg, "range"):
-                    if any(
-                        node is not arg for node in parsing.walk(arg, (ast.Attribute, ast.Call))
-                    ):
-                        continue
-                    if node.func.id != "sum":
-                        continue
+        if not isinstance(node.func, ast.Name) or node.func.id not in constants.MATH_FUNCTIONS:
+            continue
+        if node.keywords or len(node.args) != 1:
+            continue
 
-                    replacements[node] = _sum_range(arg)
-                elif isinstance(arg, (ast.Tuple, ast.List)) and all(
-                    isinstance(elt, (ast.Constant, ast.UnaryOp, ast.BinOp)) for elt in arg.elts
-                ):
-                    if any(parsing.walk(arg, (ast.Attribute))):
-                        continue
-                    if any(
-                        not isinstance(node.func, ast.Name) or node.func.id not in ("range")
-                        for node in parsing.walk(arg, (ast.Call))
-                    ):
-                        continue
-                    replacements[node] = _sum_constants(arg.elts)
-                elif isinstance(arg, (ast.GeneratorExp, ast.ListComp)) and all(
-                    (
+        arg = node.args[0]
+        if parsing.is_call(arg, "range"):
+            if any((node is not arg for node in parsing.walk(arg, (ast.Attribute, ast.Call)))):
+                continue
+            if node.func.id != "sum":
+                continue
+            replacements[node] = _sum_range(arg)
+        elif isinstance(arg, (ast.Tuple, ast.List)) and all(
+            (isinstance(elt, (ast.Constant, ast.UnaryOp, ast.BinOp)) for elt in arg.elts)
+        ):
+            if any(parsing.walk(arg, ast.Attribute)):
+                continue
+            if any(
+                (
+                    not isinstance(node.func, ast.Name) or node.func.id not in "range"
+                    for node in parsing.walk(arg, ast.Call)
+                )
+            ):
+                continue
+            replacements[node] = _sum_constants(arg.elts)
+        elif isinstance(arg, (ast.GeneratorExp, ast.ListComp)) and all(
+            (
+                (
+                    isinstance(gen.iter, ast.Call)
+                    and isinstance(gen.iter.func, ast.Name)
+                    and (gen.iter.func.id == "range")
+                    and all(
                         (
-                            isinstance(gen.iter, ast.Call)
-                            and isinstance(gen.iter.func, ast.Name)
-                            and gen.iter.func.id == "range"
-                            and all(
-                                isinstance(arg, (ast.Name, ast.Constant, ast.UnaryOp, ast.BinOp))
-                                for arg in gen.iter.args
-                            )
+                            isinstance(arg, (ast.Name, ast.Constant, ast.UnaryOp, ast.BinOp))
+                            for arg in gen.iter.args
                         )
-                        or (
-                            isinstance(gen.iter, (ast.Set, ast.List, ast.Tuple))
-                            and all(
+                    )
+                    or (
+                        isinstance(gen.iter, (ast.Set, ast.List, ast.Tuple))
+                        and all(
+                            (
                                 isinstance(value, (ast.Name, ast.Constant, ast.UnaryOp, ast.BinOp))
                                 for value in gen.iter.elts
                             )
                         )
                     )
-                    and not gen.ifs
-                    and isinstance(gen.target, ast.Name)
-                    for gen in arg.generators
-                ):
-                    if any(parsing.walk(arg, (ast.Attribute))):
-                        continue
-                    if any(
-                        not isinstance(node.func, ast.Name) or node.func.id not in ("range")
-                        for node in parsing.walk(arg, (ast.Call))
-                    ):
-                        continue
-                    replacements[node] = _integrate_over(arg.elt, arg.generators)
+                )
+                and (not gen.ifs)
+                and isinstance(gen.target, ast.Name)
+                for gen in arg.generators
+            )
+        ):
+            if any(parsing.walk(arg, ast.Attribute)):
+                continue
+            if any(
+                (
+                    not isinstance(node.func, ast.Name) or node.func.id not in "range"
+                    for node in parsing.walk(arg, ast.Call)
+                )
+            ):
+                continue
+            replacements[node] = _integrate_over(arg.elt, arg.generators)
 
     content = processing.replace_nodes(content, replacements)
 

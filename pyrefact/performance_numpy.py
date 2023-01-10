@@ -121,39 +121,41 @@ def replace_implicit_matmul(content: str) -> str:
     )
 
     for call in filter(_is_np_array_call, parsing.walk(root, ast.Call)):
-        if parsing.match_template(
+        if not parsing.match_template(
             call, ast.Call(args=[ast.ListComp(elt=ast.ListComp)], keywords=[])
         ):
-            comp_outer = call.args[0]
-            comp_inner = comp_outer.elt
-            if parsing.match_template(comp_outer, comp_template) and parsing.match_template(
-                comp_inner, comp_template
-            ):
-                if parsing.is_call(comp_inner.elt, ("numpy.dot", "np.dot")):
-                    left_id = (
-                        comp_inner.generators[0].target.id
-                        if isinstance(comp_inner.generators[0].target, ast.Name)
-                        else comp_inner.generators[0].target.value.id
+            continue
+
+        comp_outer = call.args[0]
+        comp_inner = comp_outer.elt
+        if parsing.match_template(comp_outer, comp_template) and parsing.match_template(
+            comp_inner, comp_template
+        ):
+            if parsing.is_call(comp_inner.elt, ("numpy.dot", "np.dot")):
+                left_id = (
+                    comp_inner.generators[0].target.id
+                    if isinstance(comp_inner.generators[0].target, ast.Name)
+                    else comp_inner.generators[0].target.value.id
+                )
+                right_id = (
+                    comp_outer.generators[0].target.id
+                    if isinstance(comp_outer.generators[0].target, ast.Name)
+                    else comp_outer.generators[0].target.value.id
+                )
+                if (
+                    left_id == comp_inner.generators[0].target.id
+                    and right_id == comp_outer.generators[0].target.id
+                    or (
+                        right_id == comp_inner.generators[0].target.id
+                        and left_id == comp_outer.generators[0].target.id
                     )
-                    right_id = (
-                        comp_outer.generators[0].target.id
-                        if isinstance(comp_outer.generators[0].target, ast.Name)
-                        else comp_outer.generators[0].target.value.id
+                ):
+                    replacements[call] = wrap_transpose(
+                        _wrap_np_matmul(
+                            comp_inner.generators[0].iter,
+                            wrap_transpose(comp_outer.generators[0].iter),
+                        )
                     )
-                    if (
-                        left_id == comp_inner.generators[0].target.id
-                        and right_id == comp_outer.generators[0].target.id
-                        or (
-                            right_id == comp_inner.generators[0].target.id
-                            and left_id == comp_outer.generators[0].target.id
-                        )
-                    ):
-                        replacements[call] = wrap_transpose(
-                            _wrap_np_matmul(
-                                comp_inner.generators[0].iter,
-                                wrap_transpose(comp_outer.generators[0].iter),
-                            )
-                        )
 
     content = processing.replace_nodes(content, replacements)
 
