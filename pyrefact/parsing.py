@@ -23,6 +23,13 @@ def match_template(node: ast.AST, template: ast.AST):
     if isinstance(template, tuple):
         return any(match_template(node, child) for child in template)
 
+    # A set indicates a variable length list, where all elements must match
+    # against at least one of the templates in it.
+    if isinstance(template, set):
+        return isinstance(node, list) and all(
+            any(match_template(node_child, child) for child in template) for node_child in node
+        )
+
     # A list indicates that the node must also be a list, and for every
     # element, it must match against the corresponding node in the template.
     # It must also be equal length.
