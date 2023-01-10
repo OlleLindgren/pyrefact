@@ -85,11 +85,12 @@ def _rename_class(name: str, *, private: bool) -> str:
 
 
 def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Name]:
-    name = node.id if isinstance(node, ast.Name) else node.name
     if isinstance(node, ast.Name):
+        name = node.id
         start = (node.lineno, node.col_offset)
         end = (node.end_lineno, node.end_col_offset)
     elif isinstance(node, (ast.ClassDef, ast.AsyncFunctionDef, ast.FunctionDef)):
+        name = node.name
         start_charno, end_charno = _get_func_name_start_end(node, content)
         start = (node.lineno, start_charno)
         end = (node.lineno, end_charno)
@@ -102,25 +103,21 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
     for funcdef in parsing.walk(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
         if node in parsing.walk(funcdef, type(node)):
             continue
-        if any(arg.arg == name for arg in parsing.walk(funcdef.args, ast.arg)):
+        if any(parsing.walk(funcdef.args, ast.arg(arg=name))):
             blacklisted_names.update(parsing.walk(funcdef, ast.Name))
-        for node in parsing.walk(funcdef, ast.Name):
-            if isinstance(node.ctx, ast.Store) and node.id == name:
-                blacklisted_names.update(parsing.walk(funcdef, ast.Name))
+        for child in parsing.walk(funcdef, ast.Name(ctx=ast.Store, id=name)):
+            blacklisted_names.update(parsing.walk(child, ast.Name))
 
     augass_candidates = {
         target
         for augass in parsing.walk(scope, ast.AugAssign)
-        for target in parsing.walk(augass, ast.Name)
-        if target.id == name
+        for target in parsing.walk(augass, ast.Name(id=name))
     }
 
     ctx_load_candidates = {
         refnode
-        for refnode in parsing.walk(scope, ast.Name)
+        for refnode in parsing.walk(scope, ast.Name(ctx=ast.Load, id=name))
         if refnode not in blacklisted_names
-        and isinstance(refnode.ctx, ast.Load)
-        and refnode.id == name
     }
 
     for refnode in augass_candidates | ctx_load_candidates:
@@ -356,7 +353,7 @@ def _get_unused_imports(ast_tree: ast.Module) -> Collection[str]:
     """
     imports = parsing.get_imported_names(ast_tree)
 
-    names = {node.id for node in parsing.walk(ast_tree, ast.Name) if isinstance(node.ctx, ast.Load)}
+    names = {node.id for node in parsing.walk(ast_tree, ast.Name(ctx=ast.Load))}
     for node in parsing.walk(ast_tree, ast.Attribute):
         try:
             full_name = _recursive_attribute_name(node)
@@ -545,15 +542,13 @@ def _unique_assignment_targets(
 ) -> Collection[ast.Name]:
     targets = set()
     if isinstance(node, (ast.AugAssign, ast.AnnAssign, ast.For)):
-        for subtarget in ast.walk(node.target):
-            if isinstance(subtarget, ast.Name) and isinstance(subtarget.ctx, ast.Store):
-                targets.add(subtarget)
+        for subtarget in parsing.walk(node.target, ast.Name(ctx=ast.Store)):
+            targets.add(subtarget)
         return targets
     if isinstance(node, ast.Assign):
         for target in node.targets:
-            for subtarget in ast.walk(target):
-                if isinstance(subtarget, ast.Name) and isinstance(subtarget.ctx, ast.Store):
-                    targets.add(subtarget)
+            for subtarget in parsing.walk(target, ast.Name(ctx=ast.Store)):
+                targets.add(subtarget)
         return targets
     raise TypeError(f"Expected Assignment type, got {type(node)}")
 
@@ -575,9 +570,7 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         imports.update(alias.name for alias in node.names)
 
     for def_node in parsing.walk(ast_tree, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef)):
-        reference_nodes = {
-            node for node in parsing.walk(def_node, ast.Name) if isinstance(node.ctx, ast.Load)
-        }
+        reference_nodes = set(parsing.walk(def_node, ast.Name(ctx=ast.Load)))
         body = queue.PriorityQueue()
         for node in def_node.body:
             body.put((node.lineno, node, None))
@@ -660,11 +653,7 @@ def _is_pointless_string(node: ast.AST) -> bool:
     Returns:
         bool: True if the node is a pointless string statement.
     """
-    return (
-        isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Constant)
-        and isinstance(node.value.value, str)
-    )
+    return parsing.match_template(node, ast.Expr(value=ast.Constant(value=str)))
 
 
 def delete_pointless_statements(content: str) -> str:
@@ -712,9 +701,8 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
         if node.name not in preserve:
             classdefs.append(node)
 
-    for node in parsing.walk(root, ast.Name):
-        if isinstance(node.ctx, ast.Load):
-            name_usages[node.id].add(node)
+    for node in parsing.walk(root, ast.Name(ctx=ast.Load)):
+        name_usages[node.id].add(node)
 
     for node in parsing.walk(root, ast.Attribute):
         name_usages[node.attr].add(node)
@@ -746,11 +734,9 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
 
     for def_node in classdefs:
         usages = name_usages[def_node.name]
-        internal_usages = {
-            node
-            for node in parsing.walk(def_node, ast.Name)
-            if isinstance(node.ctx, ast.Load) and node.id in {def_node.name, "self", "cls"}
-        }
+        internal_usages = set(
+            parsing.walk(def_node, ast.Name(ctx=ast.Load, id=(def_node.name, "self", "cls")))
+        )
         if not usages - internal_usages:
             print(f"{def_node.name} is never used")
             yield def_node
@@ -866,14 +852,8 @@ def move_imports_to_toplevel(content: str) -> str:
         if i > 0 and not isinstance(node, (ast.Import, ast.ImportFrom)):
             lineno = min(getattr(x, "lineno", node.lineno) for x in parsing.walk(node, ast.AST)) - 1
             break
-        if (
-            i == 0
-            and not isinstance(node, (ast.Import, ast.ImportFrom))
-            and not (
-                isinstance(node, ast.Expr)
-                and isinstance(node.value, ast.Constant)
-                and isinstance(node.value.value, str)
-            )
+        if i == 0 and not parsing.match_template(
+            node, (ast.Import, ast.ImportFrom, ast.Expr(value=ast.Constant(value=str)))
         ):
             lineno = min(getattr(x, "lineno", node.lineno) for x in parsing.walk(node, ast.AST)) - 1
             break
@@ -934,9 +914,7 @@ def remove_duplicate_functions(content: str, preserve: Collection[str]) -> str:
     root = parsing.parse(content)
     function_defs = collections.defaultdict(set)
 
-    for node in root.body:
-        if not isinstance(node, ast.FunctionDef):
-            continue
+    for node in parsing.filter_nodes(root.body, ast.FunctionDef):
         function_defs[abstractions.hash_node(node, preserve)].add(node)
 
     delete = set()
@@ -1022,7 +1000,7 @@ def remove_redundant_else(content: str) -> str:
         if not any((parsing.is_blocking(child) for child in node.body)):
             continue
 
-        if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
+        if parsing.match_template(node.orelse, [ast.If]):
             (start, end) = parsing.get_charnos(node.orelse[0], content)
             orelse = content[start:end]
             if orelse.startswith("elif"):  # Regular elif
@@ -1060,8 +1038,8 @@ def singleton_eq_comparison(content: str) -> str:
         changes = False
         operators = []
         for comparator, node_operator in zip(node.comparators, node.ops):
-            is_comparator_singleton = isinstance(comparator, ast.Constant) and (
-                comparator.value is None or comparator.value is True or comparator.value is False
+            is_comparator_singleton = parsing.match_template(
+                comparator, ast.Constant(value=(None, True, False))
             )
             if is_comparator_singleton and isinstance(node_operator, ast.Eq):
                 operators.append(ast.Is())
@@ -1086,23 +1064,21 @@ def singleton_eq_comparison(content: str) -> str:
 
 
 def _negate_condition(node: ast.AST) -> ast.AST:
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+    if parsing.match_template(node, ast.UnaryOp(op=ast.Not)):
         return node.operand
 
-    if (
-        isinstance(node, ast.Compare)
-        and len(node.ops) == len(node.comparators) == 1
-        and type(node.ops[0]) in constants.REVERSE_OPERATOR_MAPPING
+    if parsing.match_template(
+        node, ast.Compare(ops=[tuple(constants.REVERSE_OPERATOR_MAPPING)], comparators=[object])
     ):
         opposite_operator_type = constants.REVERSE_OPERATOR_MAPPING[type(node.ops[0])]
         return ast.Compare(
             left=node.left, ops=[opposite_operator_type()], comparators=node.comparators
         )
 
-    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+    if parsing.match_template(node, ast.BoolOp(op=ast.And)):
         return ast.BoolOp(op=ast.Or(), values=[_negate_condition(child) for child in node.values])
 
-    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
+    if parsing.match_template(node, ast.BoolOp(op=ast.Or)):
         return ast.BoolOp(op=ast.And(), values=[_negate_condition(child) for child in node.values])
 
     return ast.UnaryOp(op=ast.Not(), operand=node)
@@ -1173,7 +1149,7 @@ def _swap_explicit_if_else(content: str) -> str:
     sequential_similar_ifs = _sequential_similar_ifs(content, root)
 
     for stmt, body, orelse in _iter_explicit_if_elses(root):
-        if constants.PYTHON_VERSION >= (3, 9) and isinstance(stmt.test, ast.NamedExpr):
+        if isinstance(stmt.test, ast.NamedExpr):
             continue
         if stmt in sequential_similar_ifs:
             continue
@@ -1212,7 +1188,7 @@ def _swap_implicit_if_else(content: str) -> str:
     for stmt, body, orelse in _iter_implicit_if_elses(root):
         if stmt in sequential_similar_ifs:
             continue
-        if constants.PYTHON_VERSION >= (3, 9) and isinstance(stmt.test, ast.NamedExpr):
+        if isinstance(stmt.test, ast.NamedExpr):
             continue
         if (
             orelse
@@ -1254,17 +1230,12 @@ def early_return(content: str) -> str:
 
     root = parsing.parse(content)
     for funcdef in parsing.iter_funcdefs(root):
-        if not (
-            len(funcdef.body) >= 2
-            and isinstance(funcdef.body[-1], ast.Return)
-            and isinstance(funcdef.body[-2], ast.If)
-        ):
+        if not parsing.match_template(funcdef.body[-2:], [ast.If, ast.Return(value=ast.Name)]):
             continue
 
         ret_stmt = funcdef.body[-1]
         if_stmt = funcdef.body[-2]
-        if not isinstance(ret_stmt.value, ast.Name):
-            continue
+
         retval = ret_stmt.value.id
         recursive_last_if_nodes = [if_stmt]
         recursive_last_nonif_nodes = []
@@ -1282,10 +1253,7 @@ def early_return(content: str) -> str:
                 recursive_last_nonif_nodes.append(last_orelse)
         if all(
             (
-                isinstance(node, ast.Assign)
-                and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name)
-                and (node.targets[0].id == retval)
+                parsing.match_template(node, ast.Assign(targets=[ast.Name(id=retval)]))
                 for node in recursive_last_nonif_nodes
             )
         ):
@@ -1371,47 +1339,44 @@ def replace_functions_with_literals(content: str) -> str:
 
     root = parsing.parse(content)
     replacements = {}
-    for node in parsing.walk(root, ast.Call):
-        if node.keywords:
-            continue
+    for node in parsing.walk(
+        root, ast.Call(func=ast.Name(id=("list", "tuple", "dict")), args=[], keywords=[])
+    ):
+        if node.func.id == "list":
+            replacements[node] = ast.List(elts=[], ctx=ast.Load())
+        elif node.func.id == "tuple":
+            replacements[node] = ast.Tuple(elts=[], ctx=ast.Load())
+        elif node.func.id == "dict":
+            replacements[node] = ast.Dict(keys=[], values=[], ctx=ast.Load())
 
-        if not isinstance(node.func, ast.Name):
-            continue
+    for node in parsing.walk(
+        root,
+        ast.Call(func=ast.Name(id=("list", "tuple", "set", "iter")), args=[object], keywords=[]),
+    ):
+        arg = node.args[0]
+        if node.func.id == "list":
+            if isinstance(arg, (ast.List, ast.ListComp)):
+                replacements[node] = node.args[0]
+            elif isinstance(arg, ast.Tuple):
+                replacements[node] = ast.List(elts=arg.elts, ctx=arg.ctx)
 
-        if not node.args:
-            if node.func.id == "list":
-                replacements[node] = ast.List(elts=[], ctx=ast.Load())
-            elif node.func.id == "tuple":
-                replacements[node] = ast.Tuple(elts=[], ctx=ast.Load())
-            elif node.func.id == "dict":
-                replacements[node] = ast.Dict(keys=[], values=[], ctx=ast.Load())
-            continue
+        elif node.func.id == "tuple":
+            if isinstance(arg, ast.Tuple):
+                replacements[node] = node.args[0]
+            elif isinstance(arg, ast.List):
+                replacements[node] = ast.Tuple(elts=arg.elts, ctx=arg.ctx)
 
-        if len(node.args) == 1:
-            arg = node.args[0]
-            if node.func.id == "list":
-                if isinstance(arg, (ast.List, ast.ListComp)):
-                    replacements[node] = node.args[0]
-                elif isinstance(arg, ast.Tuple):
-                    replacements[node] = ast.List(elts=arg.elts, ctx=arg.ctx)
+        elif node.func.id == "set":
+            if isinstance(arg, (ast.Set, ast.SetComp)):
+                replacements[node] = node.args[0]
+            elif isinstance(arg, (ast.Tuple, ast.List)):
+                replacements[node] = ast.Set(elts=arg.elts, ctx=arg.ctx)
+            elif isinstance(arg, ast.GeneratorExp):
+                replacements[node] = ast.SetComp(elt=arg.elt, generators=arg.generators)
 
-            elif node.func.id == "tuple":
-                if isinstance(arg, ast.Tuple):
-                    replacements[node] = node.args[0]
-                elif isinstance(arg, ast.List):
-                    replacements[node] = ast.Tuple(elts=arg.elts, ctx=arg.ctx)
-
-            elif node.func.id == "set":
-                if isinstance(arg, (ast.Set, ast.SetComp)):
-                    replacements[node] = node.args[0]
-                elif isinstance(arg, (ast.Tuple, ast.List)):
-                    replacements[node] = ast.Set(elts=arg.elts, ctx=arg.ctx)
-                elif isinstance(arg, ast.GeneratorExp):
-                    replacements[node] = ast.SetComp(elt=arg.elt, generators=arg.generators)
-
-            elif node.func.id == "iter":
-                if isinstance(arg, ast.GeneratorExp):
-                    replacements[node] = node.args[0]
+        elif node.func.id == "iter":
+            if isinstance(arg, ast.GeneratorExp):
+                replacements[node] = node.args[0]
 
     content = processing.replace_nodes(content, replacements)
 
@@ -1423,20 +1388,16 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
     removals = set()
 
     root = parsing.parse(content)
-    for n1, n2 in parsing.walk_sequence(root, ast.Assign, ast.For):
-        if not (isinstance(n1.value, (ast.Dict, ast.DictComp))):
-            continue
-        if len(n1.targets) != 1:
-            continue
+    for n1, n2 in parsing.walk_sequence(
+        root, ast.Assign(value=(ast.Dict, ast.DictComp), targets=[ast.Name]), ast.For
+    ):
         target = n1.targets[0]
-        if not (isinstance(target, ast.Name)):
-            continue
 
         body_node = n2
         generators = []
 
-        while (isinstance(body_node, ast.For) and len(body_node.body) == 1) or (
-            isinstance(body_node, ast.If) and len(body_node.body) == 1 and not body_node.orelse
+        while parsing.match_template(
+            body_node, (ast.For(body=[object]), ast.If(body=[object], orelse=[]))
         ):
             if isinstance(body_node, ast.If):
                 generators[-1].ifs.append(body_node.test)
@@ -1458,37 +1419,25 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
             if len(comprehension.ifs) > 1:
                 comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
 
-        if (
-            isinstance(body_node, ast.Assign)
-            and len(body_node.targets) == 1
-            and isinstance(body_node.targets[0], ast.Subscript)
-            and isinstance(body_node.targets[0].value, ast.Name)
-            and body_node.targets[0].value.id == target.id
+        if parsing.match_template(
+            body_node, ast.Assign(targets=[ast.Subscript(value=ast.Name(id=target.id))])
         ):
             comp = ast.DictComp(
                 key=body_node.targets[0].slice,
                 value=body_node.value,
                 generators=generators,
             )
-            if isinstance(n1.value, ast.Dict) and not n1.value.values and not n1.value.keys:
+            if parsing.match_template(n1.value, ast.Dict(values=[], keys=[])):
                 # Empty dict {}
                 replacements[n1.value] = comp
                 removals.add(n2)
-            elif (
-                isinstance(n1.value, ast.Dict)
-                and n1.value.values
-                and all(key is None for key in n1.value.keys)
-            ):
+            elif parsing.match_template(n1.value, ast.Dict(values=list, keys={None})):
                 # Existing union of other dicts {**a, **b}
                 replacements[n1.value] = ast.Dict(
                     keys=n1.value.keys + [None], values=n1.value.values + [comp]
                 )
                 removals.add(n2)
-            elif (
-                isinstance(n1.value, ast.Dict)
-                and n1.value.values
-                and not any(key is None for key in n1.value.keys)
-            ):
+            elif parsing.match_template(n1.value, ast.Dict(values=list, keys=list)):
                 # Non-empty dict {a: 1, b: 2}
                 replacements[n1.value] = ast.Dict(keys=[None, None], values=[n1.value, comp])
                 removals.add(n2)
@@ -1507,17 +1456,15 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
     removals = set()
 
     root = parsing.parse(content)
-    for n1, n2 in parsing.walk_sequence(root, ast.Assign, ast.For):
-        if not (
-            len(n1.targets) == 1 and isinstance(n1.targets[0], ast.Name) and (len(n2.body) == 1)
-        ):
-            continue
+    for n1, n2 in parsing.walk_sequence(
+        root, ast.Assign(targets=[ast.Name]), ast.For(body=[object])
+    ):
 
         body_node = n2
         generators = []
 
-        while (isinstance(body_node, ast.For) and len(body_node.body) == 1) or (
-            isinstance(body_node, ast.If) and len(body_node.body) == 1 and not body_node.orelse
+        while parsing.match_template(
+            body_node, (ast.For(body=[object]), ast.If(body=[object], orelse=[]))
         ):
             if isinstance(body_node, ast.If):
                 generators[-1].ifs.append(body_node.test)
@@ -1540,23 +1487,22 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
                 comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
 
         target = n1.targets[0].id
-        if (
-            isinstance(body_node, ast.Expr)
-            and parsing.is_call(body_node.value, (f"{target}.append", f"{target}.add"))
-            and len(body_node.value.args) == 1
+        if parsing.match_template(
+            body_node,
+            ast.Expr(
+                value=ast.Call(
+                    func=ast.Attribute(value=ast.Name(id=target), attr=("add", "append")),
+                    args=[object],
+                )
+            ),
         ):
-            if (
-                isinstance(n1.value, ast.List)
-                and (not n1.value.elts)
-                and (body_node.value.func.attr == "append")
+            if parsing.match_template(n1.value, ast.List(elts=[])) and (
+                body_node.value.func.attr == "append"
             ):
                 comp_type = ast.ListComp
-            elif (
-                parsing.is_call(n1.value, "set")
-                and (not n1.value.args)
-                and (not n1.value.keywords)
-                and (body_node.value.func.attr == "add")
-            ):
+            elif parsing.match_template(
+                n1.value, ast.Call(func=ast.Name(id="set"), args=[], keywords=[])
+            ) and (body_node.value.func.attr == "add"):
                 comp_type = ast.SetComp
             else:
                 continue
@@ -1567,10 +1513,8 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
             )
             removals.add(n2)
 
-        elif (
-            isinstance(body_node, ast.AugAssign)
-            and isinstance(body_node.op, (ast.Add, ast.Sub))
-            and (body_node.target.id == n1.targets[0].id)
+        elif parsing.match_template(
+            body_node, ast.AugAssign(op=(ast.Add, ast.Sub), target=ast.Name(id=n1.targets[0].id))
         ):
             if isinstance(n1.value, ast.List):
                 replacement = ast.ListComp(
@@ -1797,21 +1741,19 @@ def delete_commented_code(content: str) -> str:
                     continue
 
                 parsed_content = parsing.parse(uncommented_block)
-                if len(parsed_content.body) == 1:
-                    if (
-                        isinstance(parsed_content.body[0], ast.Expr)
-                        and len(uncommented_block) < 20
-                        and not isinstance(parsed_content.body[0].value, ast.Call)
-                    ):
-                        continue
-                    if isinstance(parsed_content.body[0], ast.Name):
-                        continue
+                if (
+                    parsing.match_template(parsed_content.body, [ast.Expr])
+                    and len(uncommented_block) < 20
+                    and not isinstance(parsed_content.body[0].value, ast.Call)
+                ):
+                    continue
+
+                if parsing.match_template(parsed_content.body, [ast.Name]):
+                    continue
 
                 # Magic comments should not be removed
                 if any(
-                    expr.value.id == "noqa"
-                    for expr in parsing.filter_nodes(parsed_content.body, ast.Expr)
-                    if isinstance(expr.value, ast.Name)
+                    parsing.filter_nodes(parsed_content.body, ast.Expr(value=ast.Name(id="noqa")))
                 ):
                     continue
                 if any(
@@ -1840,23 +1782,18 @@ def replace_with_filter(content: str) -> str:
     for node in parsing.walk(root, ast.For):
         if parsing.is_call(node.iter, ("filter", "filterfalse", "itertools.filterfalse")):
             continue
-        if len(node.body) == 1 and isinstance(node.body[0], ast.If):
+        if parsing.match_template(node.body, [ast.If]):
             test = node.body[0].test
             negative = isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not)
             if negative:
                 test = test.operand
-                if not all(isinstance(child, ast.Continue) for child in node.body[0].body):
+                if not parsing.match_template(node.body[0].body, {ast.Continue}):
                     continue
             else:
-                if not all(isinstance(child, ast.Continue) for child in node.body[0].orelse):
+                if not parsing.match_template(node.body[0].orelse, {ast.Continue}):
                     continue
-            if (
-                isinstance(test, ast.Call)
-                and len(test.args) == 1
-                and not test.keywords
-                and isinstance(test.args[0], ast.Name)
-                and isinstance(node.target, ast.Name)
-                and test.args[0].id == node.target.id
+            if isinstance(node.target, ast.Name) and parsing.match_template(
+                test, ast.Call(args=[ast.Name(id=node.target.id)], keywords=[])
             ):
                 replacements[node.iter] = ast.Call(
                     func=ast.Name(id="filter"),
@@ -1864,10 +1801,8 @@ def replace_with_filter(content: str) -> str:
                     keywords=[],
                 )
                 replacements[node.body[0].test] = ast.Constant(value=not negative, kind=None)
-            elif (
-                isinstance(node.target, ast.Name)
-                and isinstance(test, ast.Name)
-                and node.target.id == test.id
+            elif isinstance(test, ast.Name) and parsing.match_template(
+                node.target, ast.Name(id=test.id)
             ):
                 replacements[node.iter] = ast.Call(
                     func=ast.Name(id="filter"),
@@ -1879,30 +1814,25 @@ def replace_with_filter(content: str) -> str:
         if len(node.body) < 2:
             continue
         first_node, second_node, *_ = node.body
-        if (
-            isinstance(first_node, ast.If)
-            and isinstance(first_node.body[0], ast.Continue)
-            and not first_node.orelse
+        if parsing.match_template(first_node, ast.If(orelse=[])) and isinstance(
+            first_node.body[0], ast.Continue
         ):
             test = first_node.test
 
             if (
-                isinstance(test, ast.UnaryOp)
-                and isinstance(test.op, ast.Not)
-                and isinstance(test.operand, ast.Call)
+                isinstance(node.target, ast.Name)
                 and len(node.body) >= 2
-                and not (
-                    isinstance(second_node, ast.If)
-                    and isinstance(second_node.body[0], ast.Continue)
-                    and isinstance(second_node.test, ast.UnaryOp)
-                    and isinstance(second_node.test.op, ast.Not)
-                    and isinstance(second_node.test.operand, ast.Call)
+                and parsing.match_template(
+                    test,
+                    ast.UnaryOp(
+                        op=ast.Not,
+                        operand=ast.Call(keywords=[], args=[ast.Name(id=node.target.id)]),
+                    ),
                 )
-                and not test.operand.keywords
-                and len(test.operand.args) == 1
-                and isinstance(node.target, ast.Name)
-                and isinstance(test.operand.args[0], ast.Name)
-                and test.operand.args[0].id == node.target.id
+                and not parsing.match_template(
+                    second_node,
+                    ast.If(body=[ast.Continue], test=ast.UnaryOp(op=ast.Not, operand=ast.Call)),
+                )
             ):
                 replacements[node.iter] = ast.Call(
                     func=ast.Name(id="filter"),
@@ -1921,13 +1851,9 @@ def _get_contains_args(node: ast.Compare) -> Tuple[str, str, bool]:
     if negative:
         node = node.operand
 
-    if (
-        isinstance(node, ast.Compare)
-        and isinstance(node.left, ast.Name)
-        and len(node.ops) == 1
-        and len(node.comparators) == 1
-        and isinstance(node.comparators[0], ast.Name)
-    ):
+    template = ast.Compare(left=ast.Name, ops=[(ast.In, ast.NotIn)], comparators=[ast.Name])
+
+    if parsing.match_template(node, template):
         key = node.left.id
         value = node.comparators[0].id
         if isinstance(node.ops[0], ast.In):
@@ -1939,21 +1865,20 @@ def _get_contains_args(node: ast.Compare) -> Tuple[str, str, bool]:
 
 
 def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
-    if (
-        isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Call)
-        and isinstance(node.value.func, ast.Attribute)
-        and isinstance(node.value.func.value, ast.Subscript)
-        and isinstance(node.value.func.value.value, ast.Name)
-        and (
-            isinstance(node.value.func.value.slice, ast.Name)
-            or (
-                constants.PYTHON_VERSION < (3, 9)
-                and isinstance(node.value.func.value.slice.value, ast.Name)
-            )
+    template = ast.Expr(
+        value=ast.Call(
+            func=ast.Attribute(
+                value=ast.Subscript(
+                    value=ast.Name,
+                    slice=ast.Name
+                    if constants.PYTHON_VERSION >= (3, 9)
+                    else ast.Index(value=ast.Name),
+                )
+            ),
+            args=[object],
         )
-        and len(node.value.args) == 1
-    ):
+    )
+    if parsing.match_template(node, template):
         call = node.value.func.attr
         value = node.value.args[0]
         key = (
@@ -1968,11 +1893,7 @@ def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
 
 
 def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
-    if (
-        isinstance(node, ast.Assign)
-        and len(node.targets) == 1
-        and isinstance(node.targets[0], ast.Subscript)
-    ):
+    if parsing.match_template(node, ast.Assign(targets=[ast.Subscript])):
         key = (
             node.targets[0].slice.id
             if constants.PYTHON_VERSION >= (3, 9)
@@ -1998,15 +1919,9 @@ def implicit_defaultdict(content: str) -> str:
     removals = set()
 
     root = parsing.parse(content)
-    for n1, n2 in parsing.walk_sequence(root, ast.Assign, ast.For):
-        if not (
-            len(n1.targets) == 1
-            and isinstance(n1.targets[0], ast.Name)
-            and isinstance(n1.value, ast.Dict)
-            and not n1.value.keys
-            and not n1.value.values
-        ):
-            continue
+    for n1, n2 in parsing.walk_sequence(
+        root, ast.Assign(targets=[ast.Name], value=ast.Dict(keys=[], values=[])), ast.For
+    ):
 
         target = n1.targets[0]
 
@@ -2033,17 +1948,13 @@ def implicit_defaultdict(content: str) -> str:
                 continue
 
             subscript_calls.add(t_call)
-            if (
-                isinstance(f_value, ast.List)
-                and (not f_value.elts)
-                and (t_call in {"append", "extend"})
+            if parsing.match_template(f_value, ast.List(elts=[])) and (
+                t_call in {"append", "extend"}
             ):
                 loop_removals.add(condition)
                 continue
-            if (
-                parsing.is_call(f_value, ("set"))
-                and (not f_value.args)
-                and (t_call in {"add", "update"})
+            if parsing.match_template(f_value, ast.Call(func=ast.Name(id="set"), args=[])) and (
+                t_call in {"add", "update"}
             ):
                 loop_removals.add(condition)
                 continue
@@ -2076,8 +1987,9 @@ def implicit_defaultdict(content: str) -> str:
                         subscript_calls.add(t_call)
                         if (
                             t_call in {"add", "append"}
-                            and isinstance(f_value, (ast.List, ast.Set))
-                            and len(f_value.elts) == 1
+                            and parsing.match_template(
+                                f_value, (ast.List(elts=[object]), ast.Set(elts=[object]))
+                            )
                             and processing.unparse(t_value) == processing.unparse(f_value.elts[0])
                         ):
                             if isinstance(f_value, (ast.List)) == (t_call == "append"):
@@ -2125,25 +2037,25 @@ def simplify_redundant_lambda(content: str) -> str:
 
     replacements = {}
 
-    for node in parsing.walk(root, ast.Lambda):
-        lambda_args = node.args
-        if (
-            not lambda_args.args
-            and not lambda_args.defaults
-            and not lambda_args.kw_defaults
-            and not lambda_args.kwarg
-            and not lambda_args.kwonlyargs
-            and not lambda_args.posonlyargs
-            and not lambda_args.vararg
-        ):
-            if isinstance(node.body, ast.Call) and not node.body.args and not node.body.keywords:
-                replacements[node] = node.body.func
-            elif isinstance(node.body, ast.List) and not node.body.elts:
-                replacements[node] = ast.Name(id="list")
-            elif isinstance(node.body, ast.Tuple) and not node.body.elts:
-                replacements[node] = ast.Name(id="tuple")
-            elif isinstance(node.body, ast.Dict) and not node.body.keys and not node.body.values:
-                replacements[node] = ast.Name(id="dict")
+    template = ast.Lambda(
+        args=ast.arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]),
+        body=(
+            ast.Call(args=[], keywords=[]),
+            ast.List(elts=[]),
+            ast.Tuple(elts=[]),
+            ast.Dict(keys=[], values=[]),
+        ),
+    )
+
+    for node in parsing.walk(root, template):
+        if isinstance(node.body, ast.Call):
+            replacements[node] = node.body.func
+        elif isinstance(node.body, ast.List):
+            replacements[node] = ast.Name(id="list")
+        elif isinstance(node.body, ast.Tuple):
+            replacements[node] = ast.Name(id="tuple")
+        elif isinstance(node.body, ast.Dict):
+            replacements[node] = ast.Name(id="dict")
 
     content = processing.replace_nodes(content, replacements)
 
