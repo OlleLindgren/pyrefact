@@ -1277,9 +1277,11 @@ def early_continue(content: str) -> str:
     replacements = {}
 
     root = parsing.parse(content)
+    blacklisted_ifs = _sequential_similar_ifs(content, root)
+
     for loop in parsing.walk(root, ast.For):
         stmt = loop.body[-1]
-        if isinstance(stmt, ast.If) and not isinstance(stmt.body[-1], ast.Continue):
+        if isinstance(stmt, ast.If) and not isinstance(stmt.body[-1], ast.Continue) and stmt not in blacklisted_ifs:
             recursive_ifs = [stmt]
             for child in stmt.orelse:
                 recursive_ifs.extend(parsing.walk(child, ast.If))
