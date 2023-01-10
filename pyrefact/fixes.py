@@ -1276,8 +1276,8 @@ def _total_linenos(nodes: Iterable[ast.AST]) -> int:
     end_lineno = 0
     for node in nodes:
         for child in parsing.walk(node, ast.AST(lineno=int, end_lineno=int)):
-            start_lineno = min(start_lineno, node.lineno)
-            end_lineno = max(end_lineno, node.end_lineno)
+            start_lineno = min(start_lineno, child.lineno)
+            end_lineno = max(end_lineno, child.end_lineno)
 
     return max(end_lineno - start_lineno, 0)
 
