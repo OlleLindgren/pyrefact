@@ -308,7 +308,9 @@ def _code_dependencies_outputs(
             node_created = set()
             node_needed = set()
             generator_internal_names = set()
-            for child in parsing.walk(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+            for child in parsing.walk(
+                node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
+            ):
                 comp_created = {comp.target.id for comp in child.generators}
                 for grandchild in ast.walk(child):
                     if isinstance(grandchild, ast.Name) and grandchild.id in comp_created:
@@ -360,10 +362,7 @@ def _code_complexity_length(node: ast.AST) -> int:
         re.sub(
             " *",
             "",
-            "".join(
-                child.value
-                for child in parsing.walk(node, ast.Constant(value=str))
-            ),
+            "".join(child.value for child in parsing.walk(node, ast.Constant(value=str))),
         )
     )
     return node_unparse_length - node_string_length
@@ -583,7 +582,9 @@ def create_abstractions(content: str) -> str:
                     [
                         (
                             ast.Return(value=ast.Name),
-                            ast.Expr(value=(ast.Yield(value=ast.Name), ast.YieldFrom(value=ast.Name))),
+                            ast.Expr(
+                                value=(ast.Yield(value=ast.Name), ast.YieldFrom(value=ast.Name))
+                            ),
                         )
                     ],
                 )
