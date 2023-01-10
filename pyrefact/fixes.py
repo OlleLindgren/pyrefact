@@ -1274,6 +1274,7 @@ def early_return(content: str) -> str:
 def early_continue(content: str) -> str:
 
     additions = []
+    replacements = {}
 
     root = parsing.parse(content)
     for loop in parsing.walk(root, ast.For):
@@ -1289,11 +1290,21 @@ def early_continue(content: str) -> str:
                         col_offset=stmt.body[-1].col_offset,
                     )
                 )
+            elif (
+                sum(len(x.body) - 1 for x in itertools.chain([stmt], parsing.iter_bodies_recursive(stmt))) >= 3
+                and not stmt.orelse
+            ):
+                replacements[stmt] = ast.If(
+                    body=[ast.Continue()],
+                    orelse=stmt.body,
+                    test=_negate_condition(stmt.test),
+                )
 
     content = processing.alter_code(
         content,
         root,
         additions=additions,
+        replacements=replacements,
     )
 
     return content

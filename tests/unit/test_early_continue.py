@@ -36,6 +36,104 @@ for x in range(100):
 print(x)
             """,
         ),
+        (
+            """
+for i in range(100):
+    if i % 3 == 2:
+        print(i ** i)
+        print(i ** 3)
+        import os
+        import sys
+        print(os.getcwd())
+        print(sys is os)
+            """,
+            """
+for i in range(100):
+    if i % 3 != 2:
+        continue
+    else:
+        print(i ** i)
+        print(i ** 3)
+        import os
+        import sys
+        print(os.getcwd())
+        print(sys is os)
+            """,
+        ),
+        (
+            """
+for i in range(100):
+    if i % 3 == 2:
+        print(i ** i)
+        print(i ** 3)
+        print(i ** 4)
+            """,
+            """
+for i in range(100):
+    if i % 3 == 2:
+        print(i ** i)
+        print(i ** 3)
+        print(i ** 4)
+            """,
+        ),
+        (
+            """
+for i in range(100):
+    if i % 3 == 2:
+        if i % 6 == 1:
+            print(i ** i)
+            print(i ** 3)
+            print(i ** 4)
+            """,
+            """
+for i in range(100):
+    if i % 3 == 2:
+        if i % 6 == 1:
+            print(i ** i)
+            print(i ** 3)
+            print(i ** 4)
+            """,
+        ),
+        (
+            """
+for i in range(100):
+    if i % 3 == 2:
+        print(i ** i)
+        if i % 6 == 1:
+            print(i ** 3)
+            print(i ** 4)
+            """,
+            """
+for i in range(100):
+    if i % 3 == 2:
+        print(i ** i)
+        if i % 6 == 1:
+            print(i ** 3)
+            print(i ** 4)
+            """,
+        ),
+        (
+            """
+for i in range(100):
+    if i % 3 == 2:
+        print(i ** i)
+        print(i ** (i - 1))
+        if i % 6 == 1:
+            print(i ** 3)
+            print(i ** 4)
+            """,
+            """
+for i in range(100):
+    if i % 3 != 2:
+        continue
+    else:
+        print(i ** i)
+        print(i ** (i - 1))
+        if i % 6 == 1:
+            print(i ** 3)
+            print(i ** 4)
+            """,
+        ),
     )
 
     for content, expected_abstraction in test_cases:
