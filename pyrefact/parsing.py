@@ -112,7 +112,7 @@ def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> 
 
 
 def walk_sequence(
-    scope: ast.Module, *node_types: ast.AST, expand_first: bool = False, expand_last: bool = False
+    scope: ast.Module, *templates: ast.AST, expand_first: bool = False, expand_last: bool = False
 ) -> Iterable[Sequence[ast.AST]]:
     for node in walk(scope, (ast.AST(body=list), ast.AST(orelse=list))):
         for body in [
@@ -121,19 +121,18 @@ def walk_sequence(
         ]:
             if len(body) > 0:
                 for nodes in zip(
-                    *(body[i : len(body) - len(node_types) + i + 1] for i in range(len(node_types)))
+                    *(body[i : len(body) - len(templates) + i + 1] for i in range(len(templates)))
                 ):
                     if expand_first:
                         pre = body[: body.index(nodes[0])]
-                        pre = tuple(node for node in pre if isinstance(node, node_types[0]))
+                        pre = tuple(node for node in pre if match_template(node, templates[0]))
                         nodes = pre + nodes
                     if expand_last:
                         post = body[body.index(nodes[-1]) + 1 :]
-                        post = tuple(node for node in post if isinstance(node, node_types[-1]))
+                        post = tuple(node for node in post if match_template(node, templates[-1]))
                         nodes = nodes + post
                     if all(
-                        isinstance(node, expected_type)
-                        for node, expected_type in zip(nodes, node_types)
+                        match_template(node, template) for node, template in zip(nodes, templates)
                     ):
                         yield nodes
 
