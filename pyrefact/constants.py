@@ -299,6 +299,10 @@ REVERSE_OPERATOR_MAPPING = MappingProxyType(
         ast.Lt: ast.GtE,
         ast.GtE: ast.Lt,
         ast.LtE: ast.Gt,
+        ast.In: ast.NotIn,
+        ast.NotIn: ast.In,
+        ast.Is: ast.IsNot,
+        ast.IsNot: ast.Is,
     }
 )
 
