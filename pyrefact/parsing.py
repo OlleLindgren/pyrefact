@@ -36,6 +36,9 @@ def match_template(node: ast.AST, template: ast.AST):
             )
         )
 
+    if template is True or template is False or template is None:
+        return node is template
+
     # If the node is not an ast, we presume it is a string or something like
     # that, and just assert it should be equal.
     if not isinstance(node, ast.AST):
