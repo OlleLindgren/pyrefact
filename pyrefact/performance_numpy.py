@@ -9,10 +9,7 @@ def uses_numpy(root: ast.Module) -> bool:
         return True
 
     # If np.something is referenced anywhere, assume it uses numpy as well.
-    return any(
-        isinstance(node.value, ast.Name) and node.value.id in {"numpy", "np"}
-        for node in parsing.walk(root, ast.Attribute)
-    )
+    return any(parsing.walk(root, ast.Attribute(value=ast.Name(id=("numpy", "np")))))
 
 
 def _only_if_uses_numpy(f: Callable) -> Callable:
@@ -35,17 +32,14 @@ def _is_np_array_call(call: ast.Call) -> bool:
 
 
 def _is_zip_product(comp: Union[ast.ListComp, ast.GeneratorExp]):
+    elt_template = ast.BinOp(op=ast.Mult, left=ast.Name, right=ast.Name)
+    generator_template = ast.comprehension(
+        ifs=[], target=ast.Tuple(elts=[ast.Name, ast.Name]), iter=ast.Call(func=ast.Name(id="zip"))
+    )
     return (
-        isinstance(comp.elt, ast.BinOp)
-        and isinstance(comp.elt.op, ast.Mult)
-        and isinstance(comp.elt.left, ast.Name)
-        and isinstance(comp.elt.right, ast.Name)
-        and len(comp.generators) == 1
-        and not any(gen.ifs for gen in comp.generators)
-        and isinstance(comp.generators[0].target, ast.Tuple)
-        and all(isinstance(x, ast.Name) for x in comp.generators[0].target.elts)
+        parsing.match_template(comp.elt, elt_template)
+        and parsing.match_template(comp.generators, [generator_template])
         and {x.id for x in comp.generators[0].target.elts} == {comp.elt.left.id, comp.elt.right.id}
-        and parsing.is_call(comp.generators[0].iter, "zip")
     )
 
 
@@ -75,20 +69,22 @@ def simplify_matmul_transposes(content: str) -> str:
     root = parsing.parse(content)
     replacements = {}
 
+    target_template = ast.Call(
+        func=ast.Attribute(value=ast.Name(id=("np", "numpy")), attr="matmul"),
+        args=[object, object],
+    )
     for node in filter(parsing.is_transpose_operation, parsing.walk(root, ast.Attribute)):
-
         target = parsing.transpose_target(node)
-        if parsing.is_call(target, ("np.matmul", "numpy.matmul")):
-            if (
-                len(target.args) == 2
-                and not any(isinstance(arg, ast.Starred) for arg in target.args)
-                and all(parsing.is_transpose_operation(arg) for arg in target.args)
-            ):
-                left, right = target.args
-                matmul = _wrap_np_matmul(wrap_transpose(right), wrap_transpose(left))
-                matmul.func = target.func
-                matmul.keywords = target.keywords
-                replacements[node] = matmul
+        if (
+            parsing.match_template(target, target_template)
+            and not any(isinstance(arg, ast.Starred) for arg in target.args)
+            and all(parsing.is_transpose_operation(arg) for arg in target.args)
+        ):
+            left, right = target.args
+            matmul = _wrap_np_matmul(wrap_transpose(right), wrap_transpose(left))
+            matmul.func = target.func
+            matmul.keywords = target.keywords
+            replacements[node] = matmul
 
     content = processing.replace_nodes(content, replacements)
 
