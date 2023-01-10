@@ -81,35 +81,16 @@ def _possible_external_effects(node: ast.AST, safe_callables: Collection[str]) -
         ast.AST: Node that could potentially be encountered, and that may have some effect.
     """
     comprehension_local_vars = {comp.target for comp in parsing.walk(node, ast.comprehension)}
-    types = (
-        ast.Name,
-        ast.Subscript,
-        ast.Call,
-        ast.Yield,
-        ast.YieldFrom,
-        ast.Continue,
-        ast.Break,
-        ast.Return,
-    )
-    for child in parsing.walk(node, types):
-        if (
-            isinstance(child, ast.Name)
-            and isinstance(child.ctx, ast.Store)
-            and child not in comprehension_local_vars
-        ):
+    for child in parsing.walk(
+        node, (ast.Name(ctx=ast.Store), ast.Subscript(ctx=ast.Store, value=ast.Name))
+    ):
+        if child not in comprehension_local_vars:
             yield child
-        elif (
-            isinstance(child, ast.Subscript)
-            and isinstance(child.ctx, ast.Store)
-            and child not in comprehension_local_vars
-            and isinstance(child.value, ast.Name)
-        ):
-            yield child
-        elif isinstance(child, (ast.Yield, ast.YieldFrom, ast.Continue, ast.Break, ast.Return)):
-            yield child
-        elif isinstance(child, ast.Call) and not (
-            isinstance(child.func, ast.Name) and child.func.id in safe_callables
-        ):
+    halting_types = (ast.Yield, ast.YieldFrom, ast.Continue, ast.Break, ast.Return)
+    for child in parsing.walk(node, halting_types):
+        yield child
+    for child in parsing.walk(node, ast.Call):
+        if not (isinstance(child.func, ast.Name) and child.func.id in safe_callables):
             yield child
 
 
@@ -125,10 +106,11 @@ def _definite_external_effects(
     Yields:
         ast.AST: Node that will be encountered, and that may have some effect.
     """
+    if isinstance(node, (ast.Break, ast.Continue)):
+        yield node
+        return
     if not isinstance(node, (ast.If, ast.IfExp)):
         yield from _possible_external_effects(node, safe_callables)
-        if isinstance(node, (ast.Break, ast.Continue)):
-            yield node
         return
 
     body_effects = {}
@@ -153,19 +135,13 @@ def _definite_external_effects(
             break
     for key in body_effects.keys() & orelse_effects:
         yield body_effects[key]
-    if isinstance(node, (ast.Break, ast.Continue)):
-        yield node
 
 
 def _definite_stored_names(node: ast.AST) -> Iterable[str]:
     for child in _definite_external_effects(node, _EverythingContainer()):
-        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+        if parsing.match_template(child, ast.Name(ctx=ast.Store)):
             yield child.id
-        elif (
-            isinstance(child, ast.Subscript)
-            and isinstance(child.ctx, ast.Store)
-            and isinstance(child.value, ast.Name)
-        ):
+        elif parsing.match_template(child, ast.Subscript(ctx=ast.Store, value=ast.Name)):
             yield child.value.id
 
 
@@ -332,24 +308,19 @@ def _code_dependencies_outputs(
             node_created = set()
             node_needed = set()
             generator_internal_names = set()
-            for child in ast.walk(node):
-                if isinstance(child, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
-                    comp_created = {comp.target.id for comp in child.generators}
-                    for grandchild in ast.walk(child):
-                        if isinstance(grandchild, ast.Name) and grandchild.id in comp_created:
-                            generator_internal_names.add(grandchild)
+            for child in parsing.walk(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+                comp_created = {comp.target.id for comp in child.generators}
+                for grandchild in ast.walk(child):
+                    if isinstance(grandchild, ast.Name) and grandchild.id in comp_created:
+                        generator_internal_names.add(grandchild)
 
-            for child in ast.walk(node):
-                if isinstance(child, ast.Attribute) and isinstance(child.ctx, ast.Load):
-                    for n in ast.walk(child):
-                        if isinstance(n, ast.Name) and n not in generator_internal_names:
-                            node_needed.add(n.id)
+            for child in parsing.walk(node, ast.Attribute(ctx=ast.Load)):
+                for n in parsing.walk(child, ast.Name):
+                    if n not in generator_internal_names:
+                        node_needed.add(n.id)
 
-                if (
-                    isinstance(child, ast.Name)
-                    and child.id not in node_needed
-                    and child not in generator_internal_names
-                ):
+            for child in parsing.walk(node, ast.Name):
+                if child.id not in node_needed and child not in generator_internal_names:
                     if isinstance(child.ctx, ast.Load):
                         node_needed.add(child.id)
                     elif isinstance(child.ctx, ast.Store):
@@ -390,9 +361,8 @@ def _code_complexity_length(node: ast.AST) -> int:
             " *",
             "",
             "".join(
-                node.value
-                for node in ast.walk(node)
-                if isinstance(node, ast.Constant) and isinstance(node.value, str)
+                child.value
+                for child in parsing.walk(node, ast.Constant(value=str))
             ),
         )
     )
@@ -465,8 +435,7 @@ def create_abstractions(content: str) -> str:
             if len(nodes) > len(node.body) - 2:
                 continue
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and all(
-                isinstance(child, ast.Return)
-                or (isinstance(child, ast.Expr) and isinstance(child.value, ast.Constant))
+                parsing.match_template(child, (ast.Return, ast.Expr(value=ast.Constant)))
                 or child in nodes
                 for child in node.body
             ):
@@ -476,7 +445,7 @@ def create_abstractions(content: str) -> str:
             assert len(purposes) == 1
             purpose = purposes.pop()
 
-            if isinstance(nodes[0], (ast.Assign, ast.AnnAssign)) and len(nodes) == 1:
+            if parsing.match_template(nodes, [(ast.Assign, ast.AnnAssign)]):
                 continue
 
             children_with_purpose = sum(
@@ -556,7 +525,7 @@ def create_abstractions(content: str) -> str:
                 function_call = ast.Assign(
                     targets=assign_targets, value=call, lineno=nodes[0].lineno
                 )
-                ifs = [c for n in nodes for c in ast.walk(n) if isinstance(c, ast.If)]
+                ifs = [c for n in nodes for c in parsing.walk(n, ast.If)]
 
                 pure_nested_if = len(nodes) == 1 and all(
                     len(n.body) == len(n.orelse) == 1 for n in ifs
@@ -566,10 +535,8 @@ def create_abstractions(content: str) -> str:
                     purpose[0] if pure_nested_if else None,
                 )
                 if not pure_nested_if:
-                    ifs = [c for c in ast.walk(nodes[0]) if isinstance(c, ast.If)]
-
                     if not isinstance(nodes[0], (ast.Assign, ast.AnnAssign)) and not all(
-                        len(n.body) == len(n.orelse) == 1 for n in ifs
+                        len(n.body) == len(n.orelse) == 1 for n in parsing.walk(nodes[0], ast.If)
                     ):
                         continue
                     function_body.append(ast.Return(value=return_targets))
@@ -611,17 +578,14 @@ def create_abstractions(content: str) -> str:
             is_singular_return_reassignment = (
                 isinstance(function_call, ast.Assign)
                 and len(return_args) == 1
-                and len(nodes_after_abstraction) == 1
-                and (
-                    (
-                        isinstance(nodes_after_abstraction[0], ast.Return)
-                        and isinstance(nodes_after_abstraction[0].value, ast.Name)
-                    )
-                    or (
-                        isinstance(nodes_after_abstraction[0], ast.Expr)
-                        and isinstance(nodes_after_abstraction[0].value, (ast.Yield, ast.YieldFrom))
-                        and isinstance(nodes_after_abstraction[0].value.value, ast.Name)
-                    )
+                and parsing.match_template(
+                    nodes_after_abstraction,
+                    [
+                        (
+                            ast.Return(value=ast.Name),
+                            ast.Expr(value=(ast.Yield(value=ast.Name), ast.YieldFrom(value=ast.Name))),
+                        )
+                    ],
                 )
             )
 
