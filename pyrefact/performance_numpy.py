@@ -120,12 +120,8 @@ def replace_implicit_matmul(content: str) -> str:
         ]
     )
 
-    for call in filter(_is_np_array_call, parsing.walk(root, ast.Call)):
-        if not parsing.match_template(
-            call, ast.Call(args=[ast.ListComp(elt=ast.ListComp)], keywords=[])
-        ):
-            continue
-
+    template = ast.Call(args=[ast.ListComp(elt=ast.ListComp)], keywords=[])
+    for call in filter(_is_np_array_call, parsing.walk(root, template)):
         comp_outer = call.args[0]
         comp_inner = comp_outer.elt
         if parsing.match_template(comp_outer, comp_template) and parsing.match_template(

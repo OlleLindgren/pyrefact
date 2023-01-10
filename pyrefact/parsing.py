@@ -119,7 +119,7 @@ def walk_sequence(
             getattr(node, "body", []),
             getattr(node, "orelse", []),
         ]:
-            if len(body) <= 0:
+            if not body:
                 continue
 
             for nodes in zip(
@@ -260,10 +260,7 @@ def iter_typedefs(ast_tree: ast.Module) -> Iterable[ast.Name]:
     Yields:
         ast.Assign: An assignment of a custom type annotation or typevar
     """
-    for node in ast_tree.body:
-        if not match_template(node, ast.Assign(targets=[object])):
-            continue
-
+    for node in filter_nodes(ast_tree.body, ast.Assign(targets=[object])):
         for child in ast.walk(node.value):
             if isinstance(child, ast.Name) and (
                 child.id in constants.ASSUMED_SOURCES["typing"] or "namedtuple" in child.id

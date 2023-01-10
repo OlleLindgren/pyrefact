@@ -126,12 +126,12 @@ def simplify_math_iterators(content: str) -> str:
 
     root = parsing.parse(content)
 
-    for node in parsing.walk(root, ast.Call):
-        if not isinstance(node.func, ast.Name) or node.func.id not in constants.MATH_FUNCTIONS:
-            continue
-        if node.keywords or len(node.args) != 1:
-            continue
-
+    template = ast.Call(
+        func=ast.Name(id=tuple(constants.MATH_FUNCTIONS)),
+        keywords=[],
+        args=[object],
+    )
+    for node in parsing.walk(root, template):
         arg = node.args[0]
         if parsing.is_call(arg, "range"):
             if any((node is not arg for node in parsing.walk(arg, (ast.Attribute, ast.Call)))):
