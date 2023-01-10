@@ -1271,6 +1271,17 @@ def early_return(content: str) -> str:
     return content
 
 
+def _total_linenos(nodes: Iterable[ast.AST]) -> int:
+    start_lineno = 1000_000
+    end_lineno = 0
+    for node in nodes:
+        for child in parsing.walk(node, ast.AST(lineno=int, end_lineno=int)):
+            start_lineno = min(start_lineno, node.lineno)
+            end_lineno = max(end_lineno, node.end_lineno)
+
+    return max(end_lineno - start_lineno, 0)
+
+
 def early_continue(content: str) -> str:
 
     additions = []
@@ -1281,7 +1292,11 @@ def early_continue(content: str) -> str:
 
     for loop in parsing.walk(root, ast.For):
         stmt = loop.body[-1]
-        if isinstance(stmt, ast.If) and not isinstance(stmt.body[-1], ast.Continue) and stmt not in blacklisted_ifs:
+        if (
+            isinstance(stmt, ast.If)
+            and not isinstance(stmt.body[-1], ast.Continue)
+            and stmt not in blacklisted_ifs
+        ):
             recursive_ifs = [stmt]
             for child in stmt.orelse:
                 recursive_ifs.extend(parsing.walk(child, ast.If))
@@ -1293,7 +1308,12 @@ def early_continue(content: str) -> str:
                     )
                 )
             elif (
-                sum(len(x.body) - 1 for x in itertools.chain([stmt], parsing.iter_bodies_recursive(stmt))) >= 3
+                sum(
+                    len(x.body) - 1
+                    for x in itertools.chain([stmt], parsing.iter_bodies_recursive(stmt))
+                )
+                >= 3
+                and _total_linenos(stmt.body) >= 5
                 and not stmt.orelse
             ):
                 replacements[stmt] = ast.If(

@@ -118,6 +118,9 @@ for i in range(100):
     if i % 3 == 2:
         print(i ** i)
         print(i ** (i - 1))
+        for i in range(10000):
+            if i >= 1337 and i is not 99:
+                print(i - i)
         if i % 6 == 1:
             print(i ** 3)
             print(i ** 4)
@@ -129,6 +132,9 @@ for i in range(100):
     else:
         print(i ** i)
         print(i ** (i - 1))
+        for i in range(10000):
+            if i >= 1337 and i is not 99:
+                print(i - i)
         if i % 6 == 1:
             print(i ** 3)
             print(i ** 4)
