@@ -1961,50 +1961,50 @@ def implicit_defaultdict(content: str) -> str:
             consistent = False
             break
 
-        for condition in parsing.walk(ast.Module(body=n2.body), ast.If):
+        template = ast.If(body=[object], orelse=[object])
+        for condition in parsing.walk(ast.Module(body=n2.body), template):
             if condition not in loop_replacements:
-                if len(condition.body) == len(condition.orelse) == 1:
-                    try:
-                        key, obj, negative = _get_contains_args(condition.test)
-                    except ValueError:
-                        continue
+                try:
+                    key, obj, negative = _get_contains_args(condition.test)
+                except ValueError:
+                    continue
 
-                    if obj != target.id:
-                        continue
+                if obj != target.id:
+                    continue
 
-                    on_true = condition.body[0]
-                    on_false = condition.orelse[0]
-                    if negative:
-                        on_true, on_false = on_false, on_true
+                on_true = condition.body[0]
+                on_false = condition.orelse[0]
+                if negative:
+                    on_true, on_false = on_false, on_true
 
-                    try:
-                        t_obj, t_call, t_key, t_value = _get_subscript_functions(on_true)
-                        f_obj, f_key, f_value = _get_assign_functions(on_false)
-                    except ValueError:
-                        continue
+                try:
+                    t_obj, t_call, t_key, t_value = _get_subscript_functions(on_true)
+                    f_obj, f_key, f_value = _get_assign_functions(on_false)
+                except ValueError:
+                    continue
 
-                    if t_obj == f_obj == obj and t_key == f_key == key:
-                        subscript_calls.add(t_call)
-                        if (
-                            t_call in {"add", "append"}
-                            and parsing.match_template(
-                                f_value, (ast.List(elts=[object]), ast.Set(elts=[object]))
-                            )
-                            and processing.unparse(t_value) == processing.unparse(f_value.elts[0])
-                        ):
-                            if isinstance(f_value, (ast.List)) == (t_call == "append"):
-                                loop_replacements[condition] = on_true
-                                continue
-
-                            consistent = False
-                            break
-                        t_value_preferred = _preferred_comprehension_type(t_value)
-                        f_value_preferred = _preferred_comprehension_type(f_value)
-                        if processing.unparse(t_value_preferred) == processing.unparse(
-                            f_value_preferred
-                        ) and t_call in {"update", "extend"}:
+                if t_obj == f_obj == obj and t_key == f_key == key:
+                    subscript_calls.add(t_call)
+                    if (
+                        t_call in {"add", "append"}
+                        and parsing.match_template(
+                            f_value, (ast.List(elts=[object]), ast.Set(elts=[object]))
+                        )
+                        and processing.unparse(t_value) == processing.unparse(f_value.elts[0])
+                    ):
+                        if isinstance(f_value, (ast.List)) == (t_call == "append"):
                             loop_replacements[condition] = on_true
                             continue
+
+                        consistent = False
+                        break
+                    t_value_preferred = _preferred_comprehension_type(t_value)
+                    f_value_preferred = _preferred_comprehension_type(f_value)
+                    if processing.unparse(t_value_preferred) == processing.unparse(
+                        f_value_preferred
+                    ) and t_call in {"update", "extend"}:
+                        loop_replacements[condition] = on_true
+                        continue
 
         if not consistent:
             continue
