@@ -46,10 +46,14 @@ def _unit():
     assert fixes._rename_variable("VAR_NAME", private=False, static=True) == "VAR_NAME"
     assert fixes._rename_variable("VAR_NAME", private=True, static=False) == "_var_name"
     assert fixes._rename_variable("VAR_NAME", private=True, static=True) == "_VAR_NAME"
-    assert fixes._rename_variable("__var_Name__", private=False, static=False) == "var_name"
-    assert fixes._rename_variable("__var_Name__", private=False, static=True) == "VAR_NAME"
-    assert fixes._rename_variable("__var_Name__", private=True, static=False) == "_var_name"
-    assert fixes._rename_variable("__var_Name__", private=True, static=True) == "_VAR_NAME"
+    assert fixes._rename_variable("__var_Name_", private=False, static=False) == "var_name"
+    assert fixes._rename_variable("__var_Name_", private=False, static=True) == "VAR_NAME"
+    assert fixes._rename_variable("__var_Name_", private=True, static=False) == "_var_name"
+    assert fixes._rename_variable("__var_Name_", private=True, static=True) == "_VAR_NAME"
+    assert fixes._rename_variable("__var_Name__", private=False, static=False) == "__var_Name__"
+    assert fixes._rename_variable("__var_Name__", private=False, static=True) == "__var_Name__"
+    assert fixes._rename_variable("__var_Name__", private=True, static=False) == "__var_Name__"
+    assert fixes._rename_variable("__var_Name__", private=True, static=True) == "__var_Name__"
 
 
 def _integration() -> int:
