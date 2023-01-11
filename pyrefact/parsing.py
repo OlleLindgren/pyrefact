@@ -68,11 +68,7 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     # the types in it.
 
     if isinstance(template, type):
-
-        if isinstance(node, template):
-            return (node,)
-
-        return ()
+        return (node,) if isinstance(node, template) else ()
 
     # A tuple indicates an or condition; the node must comply with any of
     # the templates in the child.
@@ -89,6 +85,7 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     if isinstance(template, set):
         if not isinstance(node, list):
             return ()
+
         matches = [match_template(node_child, tuple(template)) for node_child in node]
         return _merge_matches(node, matches)
 
@@ -96,14 +93,14 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     # element, it must match against the corresponding node in the template.
     # It must also be equal length.
     if isinstance(template, list):
-        if not isinstance(node, list):
-            return ()
-        if len(node) != len(template):
-            return ()
-        matches = [
-            match_template(child, template_child) for child, template_child in zip(node, template)
-        ]
-        return _merge_matches(node, matches)
+        if isinstance(node, list) and len(node) == len(template):
+            matches = [
+                match_template(child, template_child)
+                for child, template_child in zip(node, template)
+            ]
+            return _merge_matches(node, matches)
+
+        return ()
 
     if template is True or template is False or template is None:
         return (node,) if node is template else ()
@@ -118,13 +115,11 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     if not isinstance(node, ast.AST):
         return (node,) if node == template else ()
 
-    template_vars = vars(template)
-    node_vars = vars(node)
+    t_vars = vars(template)
+    n_vars = vars(node)
 
-    if issubclass(type(node), type(template)) and template_vars.keys() <= node_vars.keys():
-        matches = [
-            match_template(node_vars[key], template_vars[key]) for key in template_vars.keys()
-        ]
+    if issubclass(type(node), type(template)) and t_vars.keys() <= n_vars.keys():
+        matches = [match_template(n_vars[key], t_vars[key]) for key in t_vars.keys()]
         return _merge_matches(node, matches)
 
     return ()
@@ -152,7 +147,9 @@ def _group_nodes_in_scope(scope: ast.AST) -> Mapping[ast.AST, Sequence[ast.AST]]
     return node_types
 
 
-def walk_wildcard(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> Sequence[Tuple[ast.AST, ...]]:
+def walk_wildcard(
+    scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]
+) -> Sequence[Tuple[ast.AST, ...]]:
     """Get nodes in scope of a particular type. Match wildcards.
 
     Args:
