@@ -9,6 +9,30 @@ import black
 from pyrefact import constants, parsing
 
 
+def _get_indent(content: str) -> int:
+    indentation_whitespace = [x.group() for x in re.finditer(r"(?<![^\n]) *(?=[^\n])", content)]
+    if indentation_whitespace:
+        return min(len(x) for x in indentation_whitespace)
+
+    return 0
+
+
+def _deindent_code(content: str, indent: int) -> str:
+    lines = content.splitlines(keepends=True)
+    return "".join(line[indent:] if line.strip() else line for line in lines)
+
+
+def _indent_code(content: str, indent: int) -> str:
+    lines = content.splitlines(keepends=True)
+    return "".join(" " * indent + line for line in lines)
+
+
+def _match_wrapping_whitespace(new: str, initial: str) -> str:
+    prefix_whitespace = max(re.findall(r"\A^[\s\n]*", initial), key=len)
+    suffix_whitespace = max(re.findall(r"[\s\n]*\Z$", initial), key=len)
+    return prefix_whitespace + new.strip() + suffix_whitespace
+
+
 def format_with_black(content: str, *, line_length: int = 100) -> str:
     """Format code with black.
 
@@ -18,19 +42,13 @@ def format_with_black(content: str, *, line_length: int = 100) -> str:
     Returns:
         str: Formatted source code.
     """
-    prefix_whitespace = re.findall(r"\A^[\s\n]*", content)[0]
-    suffix_whitespace = re.findall(r"[\s\n]*\Z$", content)[0]
-    lines = content.splitlines(keepends=True)
-    *_, first_indentation = prefix_whitespace.splitlines() if "\n" in prefix_whitespace else "",
-    indent = len(first_indentation)
-    deindented_code = "".join(line[indent:] if line.strip() else line for line in lines)
+    indent = _get_indent(content)
+    deindented_code = _deindent_code(content, indent)
     formatted_deindented_code = black.format_str(
         deindented_code, mode=black.Mode(line_length=max(60, line_length - indent))
     )
-    formatted_lines = formatted_deindented_code.splitlines(keepends=True)
-    indented_formatted_lines = [" " * indent + line for line in formatted_lines]
-    formatted_content = "".join(indented_formatted_lines)
-    whitespace_adjusted_content = prefix_whitespace + formatted_content.strip() + suffix_whitespace
+    formatted_content = _indent_code(formatted_deindented_code, indent)
+    whitespace_adjusted_content = _match_wrapping_whitespace(formatted_content, content)
 
     return whitespace_adjusted_content
 
