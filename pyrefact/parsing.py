@@ -152,8 +152,8 @@ def _group_nodes_in_scope(scope: ast.AST) -> Mapping[ast.AST, Sequence[ast.AST]]
     return node_types
 
 
-def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> Sequence[ast.AST]:
-    """Get nodes in scope of a particular type
+def walk_wildcard(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> Sequence[Tuple[ast.AST, ...]]:
+    """Get nodes in scope of a particular type. Match wildcards.
 
     Args:
         scope (ast.AST): Scope to search
@@ -175,9 +175,24 @@ def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> 
             if issubclass(child_type, type_matcher)
         )
         for node in nodes:
-            if node not in yielded_nodes and match_template(node, template):
-                yielded_nodes.add(node)
-                yield node
+            if node not in yielded_nodes:
+                if template_match := match_template(node, template):
+                    yielded_nodes.add(node)
+                    yield template_match
+
+
+def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> Sequence[ast.AST]:
+    """Get nodes in scope of a particular type
+
+    Args:
+        scope (ast.AST): Scope to search
+        node_template (ast.AST): Node type to filter on
+
+    Returns:
+        Sequence[ast.AST]: All nodes in scope of that type
+    """
+    for node, *_ in walk_wildcard(scope, node_template):
+        yield node
 
 
 def walk_sequence(
