@@ -1921,7 +1921,7 @@ def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
     slice_value = (
         ast.Name(id=parsing.Wildcard("key", str))
         if constants.PYTHON_VERSION >= (3, 9)
-        else ast.Slice(value=ast.Name(id=parsing.Wildcard("key", str)))
+        else ast.Index(value=ast.Name(id=parsing.Wildcard("key", str)))
     )
     template = ast.Expr(
         value=ast.Call(
@@ -1946,7 +1946,7 @@ def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
     slice_value = (
         ast.Name(id=parsing.Wildcard("key", str))
         if constants.PYTHON_VERSION >= (3, 9)
-        else ast.Slice(value=ast.Name(id=parsing.Wildcard("key", str)))
+        else ast.Index(value=ast.Name(id=parsing.Wildcard("key", str)))
     )
     template = ast.Assign(
         targets=[ast.Subscript(slice=slice_value, value=ast.Name(id=parsing.Wildcard("obj", str)))]

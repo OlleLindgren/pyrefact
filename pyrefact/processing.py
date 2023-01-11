@@ -77,8 +77,10 @@ def unparse(node: ast.AST) -> str:
     ):
         content = content.rstrip()
 
-    line_length = max(60, 100 - node.col_offset)
+    line_length = max(60, 100 - getattr(node, "col_offset", 0))
     content = format_with_black(content, line_length=line_length)
+    indent = _get_indent(content)
+    content = _deindent_code(content, indent).lstrip()
 
     return content
 
