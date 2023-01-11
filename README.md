@@ -1,7 +1,8 @@
 # pyrefact
+
 Pyrefact does advanced python refactoring, with the goal of simplifying complicated code, deleting dead code, and improving performance.
 
-It is strongly recommended that you version control or otherwise backup any code you run pyrefact on.
+Pyrefact can break code, and is not suitable for your company's CI chain.
 
 ## Features
 
@@ -15,6 +16,7 @@ It is strongly recommended that you version control or otherwise backup any code
 * Invert `if`/`else` to put the smaller block first.
 * Rename variables, functions and classes with conventions.
 * Rewrite defaultdict-like use of dictionaries with `collections.defaultdict()`
+* Formats lines that are longer than 100 characters with `black`
 
 ### Performance
 
@@ -48,7 +50,8 @@ It is strongly recommended that you version control or otherwise backup any code
 
 ### Cleanup
 
-* Run black and isort with --line-length=100. (Will be removed in a future release)
+* Run [isort](https://pycqa.github.io/isort/) to organize imports.
+* Run [black](https://black.readthedocs.io/en/stable/) on added code, modified code, and lines that are longer than 100 characters.
 
 ## Usage
 
@@ -65,11 +68,11 @@ cat /path/to/filename.py | pyrefact --from-stdin
 
 ## VS Code Extension
 
-Pyrefact is also available as a VS Code extension, simply named [Pyrefact](https://marketplace.visualstudio.com/items?itemName=olleln.pyrefact). The extension allows you to use pyrefact as your formatter, similar to how the Black or Autopep8 extensions work.
+Pyrefact is also available as a VS Code extension, simply named `Pyrefact`. The extension allows you to use pyrefact as your formatter, similar to how other formatting extensions work. 
 
-You can also use pyrefact as your default formatter and use the configurations for format on save etc. Pyrefact always runs with the `--safe` flag when used through the VS Code extension, and works with format on save, letting you refactor snippets of code with great granularity.
+Pyrefact always runs with the `--safe` flag when used through the VS Code extension.
 
-The repository for the extension can be found at [pyrefact-vscode-extension](https://github.com/OlleLindgren/pyrefact-vscode-extension).
+The extension is published through the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=olleln.pyrefact), and the source code is available at [pyrefact-vscode-extension](https://github.com/OlleLindgren/pyrefact-vscode-extension).
 
 ## Prerequisites
 
