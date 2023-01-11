@@ -5,7 +5,6 @@ import queue
 import re
 from typing import Collection, Iterable, List, Mapping, Sequence, Tuple, Union
 
-import black
 import isort
 import rmspace
 
@@ -484,18 +483,6 @@ def fix_rmspace(content: str) -> str:
     return rmspace.format_str(content)
 
 
-def fix_black(content: str) -> str:
-    """Format source code with black.
-
-    Args:
-        content (str): Python source code
-
-    Returns:
-        str: Source code, formatted with black
-    """
-    return black.format_str(content, mode=black.Mode(line_length=100))
-
-
 def fix_isort(content: str, *, line_length: int = 100) -> str:
     """Format source code with isort
 
@@ -507,6 +494,46 @@ def fix_isort(content: str, *, line_length: int = 100) -> str:
         str: Source code, formatted with isort
     """
     return isort.code(content, config=isort.Config(profile="black", line_length=line_length))
+
+
+def fix_line_lengths(content: str, *, max_line_length: int = 100) -> str:
+
+    root = parsing.parse(content)
+
+    replacements = {}
+    formatted_nodes = set()
+    formatted_ranges = set()
+
+    for scope in parsing.walk(
+        root, (ast.AST(body=list), ast.AST(orelse=list), ast.AST(finalbody=list))
+    ):
+        subscopes = []
+        subscopes.append(getattr(scope, "body", []))
+        subscopes.append(getattr(scope, "orelse", []))
+        subscopes.append(getattr(scope, "finalbody", []))
+
+        for body in subscopes:
+            for node in body:
+                max_node_line_length = max(
+                    child.end_col_offset
+                    for child in parsing.walk(node, ast.AST(end_col_offset=int))
+                )
+                if node in formatted_nodes or max_node_line_length <= max_line_length:
+                    continue
+
+                current_code = parsing.get_code(node, content)
+                new_code = processing.format_with_black(current_code, line_length=max_line_length)
+                start, end = parsing.get_charnos(node, content)
+
+                if new_code != current_code and (
+                    not any((e >= start and s <= end for s, e in formatted_ranges))
+                ):
+                    replacements[node] = new_code
+                    formatted_ranges.add((start, end))
+
+    content = processing.replace_nodes(content, replacements)
+
+    return content
 
 
 def align_variable_names_with_convention(

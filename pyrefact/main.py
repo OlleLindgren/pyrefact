@@ -141,8 +141,6 @@ def format_code(
     if minimum_indent == 0:
         content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
-    content = fixes.fix_black(content)
-
     if minimum_indent == 0:
         content = fixes.fix_isort(content, line_length=10_000)
         content = fixes.add_missing_imports(content)
@@ -150,8 +148,8 @@ def format_code(
             content = fixes.remove_unused_imports(content)
 
         content = fixes.fix_isort(content)
-        content = fixes.fix_black(content)
 
+    content = fixes.fix_line_lengths(content)
     content = fixes.fix_rmspace(content)
 
     return "".join(f"{' ' * minimum_indent}{line}" for line in content.splitlines(keepends=True))

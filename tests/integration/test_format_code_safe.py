@@ -111,11 +111,11 @@ class TestSomeStuff(unittest.TestCase):
             """,
         ),
         (
-            """
+            '''
 def foo() -> int:
-    '''This seems useless, but pyrefact shouldn't remove it with --safe'''
+    """This seems useless, but pyrefact shouldn't remove it with --safe"""
     return 10
-            """,
+            ''',
             '''
 def foo() -> int:
     """This seems useless, but pyrefact shouldn't remove it with --safe"""

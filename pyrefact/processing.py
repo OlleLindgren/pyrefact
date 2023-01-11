@@ -1,9 +1,38 @@
 import ast
 import heapq
+import re
 from types import MappingProxyType
-from typing import Collection, Iterable, Mapping, Optional
+from typing import Collection, Iterable, Mapping, Union
+
+import black
 
 from pyrefact import constants, parsing
+
+
+def format_with_black(content: str, *, line_length: int = 100) -> str:
+    """Format code with black.
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Formatted source code.
+    """
+    prefix_whitespace = re.findall(r"\A^[\s\n]*", content)[0]
+    suffix_whitespace = re.findall(r"[\s\n]*\Z$", content)[0]
+    lines = content.splitlines(keepends=True)
+    *_, first_indentation = prefix_whitespace.splitlines() if "\n" in prefix_whitespace else "",
+    indent = len(first_indentation)
+    deindented_code = "".join(line[indent:] if line.strip() else line for line in lines)
+    formatted_deindented_code = black.format_str(
+        deindented_code, mode=black.Mode(line_length=max(60, line_length - indent))
+    )
+    formatted_lines = formatted_deindented_code.splitlines(keepends=True)
+    indented_formatted_lines = [" " * indent + line for line in formatted_lines]
+    formatted_content = "".join(indented_formatted_lines)
+    whitespace_adjusted_content = prefix_whitespace + formatted_content.strip() + suffix_whitespace
+
+    return whitespace_adjusted_content
 
 
 def unparse(node: ast.AST) -> str:
@@ -29,6 +58,9 @@ def unparse(node: ast.AST) -> str:
         ),
     ):
         content = content.rstrip()
+
+    line_length = max(60, 100 - node.col_offset)
+    content = format_with_black(content, line_length=line_length)
 
     return content
 
@@ -81,18 +113,27 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     return "".join(chars)
 
 
-def replace_nodes(content: str, replacements: Mapping[ast.AST, Optional[ast.AST]]) -> str:
+def replace_nodes(content: str, replacements: Mapping[ast.AST, Union[ast.AST, str]]) -> str:
     for node, replacement in sorted(
         replacements.items(), key=lambda tup: (tup[0].lineno, tup[0].end_lineno), reverse=True
     ):
         start, end = parsing.get_charnos(node, content)
         code = content[start:end]
-        new_code = unparse(replacement) if replacement is not None else ""
-        lines = [line for line in new_code.splitlines(keepends=True) if line.strip()]
+        if isinstance(replacement, str):
+            new_code = replacement
+            if new_code == code:
+                continue
+        elif isinstance(replacement, ast.AST):
+            new_code = unparse(replacement)
+        else:
+            raise TypeError(f"Invalid replacement type: {type(replacement)}")
+        lines = new_code.splitlines(keepends=True)
         indent = " " * node.col_offset
         start_indent = " " * (len(code) - len(code.lstrip(" ")))
         new_code = "".join(
-            f"{indent if i > 0 else start_indent}{code}" for i, code in enumerate(lines)
+            f"{indent if i > 0 else start_indent}{code}".rstrip()
+            + ("\n" if code.endswith("\n") else "")
+            for i, code in enumerate(lines)
         )
         if new_code:
             print(f"Replacing \n{code}\nWith      \n{new_code}")
