@@ -25,10 +25,6 @@ def _create_diff_view(processed_content: str, expected_content: str) -> str:
     return "".join(diff_view)
 
 
-def _remove_paranthesis_whitespace(content: str) -> str:
-    return content.replace("(", "").replace(")", "").replace(" ", "")
-
-
 def check_fixes_equal(processed_content: str, expected_abstraction: str) -> int:
     processed_content = _remove_multi_whitespace(processed_content)
     expected_abstraction = _remove_multi_whitespace(expected_abstraction)
