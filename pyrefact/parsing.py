@@ -4,7 +4,7 @@ import dataclasses
 import functools
 import itertools
 import re
-from typing import Collection, Iterable, Mapping, Sequence, Tuple, Union, NamedTuple
+from typing import Collection, Iterable, Mapping, Sequence, Tuple, Union
 
 from pyrefact import constants
 
@@ -40,7 +40,8 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
 
     # Sort in alphabetical order, but always with "root" first.
     if not all(
-        len({ast.dump(value) if isinstance(value, ast.AST) else str(value) for value in values}) == 1
+        len({ast.dump(value) if isinstance(value, ast.AST) else str(value) for value in values})
+        == 1
         for values in namedtuple_vars.values()
     ):
         return ()
@@ -48,7 +49,7 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
     fields = sorted(namedtuple_vars.keys(), key=lambda k: (k != "root", k))
     namedtuple_type = collections.namedtuple("Match", fields)
     return namedtuple_type(*(namedtuple_vars[field][0] for field in fields))
-    
+
 
 def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     """Match a node against a provided ast template.
@@ -67,11 +68,11 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     # the types in it.
 
     if isinstance(template, type):
-        # return isinstance(node, template)
+
         if isinstance(node, template):
             return (node,)
-        else:
-            return ()
+
+        return ()
 
     # A tuple indicates an or condition; the node must comply with any of
     # the templates in the child.
@@ -88,10 +89,7 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     if isinstance(template, set):
         if not isinstance(node, list):
             return ()
-        matches = [
-            match_template(node_child, tuple(template))
-            for node_child in node
-        ]
+        matches = [match_template(node_child, tuple(template)) for node_child in node]
         return _merge_matches(node, matches)
 
     # A list indicates that the node must also be a list, and for every
@@ -103,8 +101,7 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
         if len(node) != len(template):
             return ()
         matches = [
-            match_template(child, template_child)
-            for child, template_child in zip(node, template)
+            match_template(child, template_child) for child, template_child in zip(node, template)
         ]
         return _merge_matches(node, matches)
 
@@ -124,14 +121,13 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     template_vars = vars(template)
     node_vars = vars(node)
 
-    if (
-        issubclass(type(node), type(template))
-        and template_vars.keys() <= node_vars.keys()
-    ):
-        matches = [match_template(node_vars[key], template_vars[key]) for key in template_vars.keys()]
+    if issubclass(type(node), type(template)) and template_vars.keys() <= node_vars.keys():
+        matches = [
+            match_template(node_vars[key], template_vars[key]) for key in template_vars.keys()
+        ]
         return _merge_matches(node, matches)
-    else:
-        return ()
+
+    return ()
 
 
 @functools.lru_cache(maxsize=100)
@@ -198,7 +194,9 @@ def walk_sequence(
             for nodes in zip(
                 *(body[i : len(body) - len(templates) + i + 1] for i in range(len(templates)))
             ):
-                matches = [match_template(node, template) for node, template in zip(nodes, templates)]
+                matches = [
+                    match_template(node, template) for node, template in zip(nodes, templates)
+                ]
 
                 if not all(matches):
                     continue

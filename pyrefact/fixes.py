@@ -1457,7 +1457,7 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
     )
 
     root = parsing.parse(content)
-    for (n1, target, value), (n2,) in parsing.walk_sequence(
+    for (_, target, value), (n2,) in parsing.walk_sequence(
         root,
         assign_template,
         ast.For,
@@ -1995,15 +1995,15 @@ def implicit_defaultdict(content: str) -> str:
     )
 
     root = parsing.parse(content)
-    for (n1, target, value), (n2,) in parsing.walk_sequence(
-        root, assign_template, ast.For
-    ):
+    for (_, target, value), (n2,) in parsing.walk_sequence(root, assign_template, ast.For):
         loop_replacements = {}
         loop_removals = set()
         subscript_calls = set()
         consistent = True
 
-        for (condition,), (append,) in parsing.walk_sequence(n2, ast.If(body=[object], orelse=[]), ast.Expr):
+        for (condition,), (append,) in parsing.walk_sequence(
+            n2, ast.If(body=[object], orelse=[]), ast.Expr
+        ):
             try:
                 (key, obj, negative) = _get_contains_args(condition.test)
                 (f_obj, f_key, f_value) = _get_assign_functions(condition.body[0])
