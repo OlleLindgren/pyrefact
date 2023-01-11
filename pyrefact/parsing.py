@@ -1,64 +1,137 @@
 import ast
 import collections
+import dataclasses
 import functools
 import itertools
 import re
-from typing import Collection, Iterable, Mapping, Sequence, Tuple, Union
+from typing import Collection, Iterable, Mapping, Sequence, Tuple, Union, NamedTuple
 
 from pyrefact import constants
 
 
-def match_template(node: ast.AST, template: ast.AST):
-    """Check if a node matches a provided ast template"""
+@dataclasses.dataclass(eq=True, frozen=True)
+class Wildcard:
+    """A wildcard matches a specific template, and extracts its name."""
+    name: str
+    template: object
+
+
+def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
+    if not all(matches):
+        return ()
+
+    namedtuple_matches = []
+    tuple_matches = []
+    for match in matches:
+        if type(match) is tuple:
+            tuple_matches.append(match)
+        else:
+            namedtuple_matches.append(match)
+    if not namedtuple_matches:
+        return (root,)
+    namedtuple_vars = collections.defaultdict(list)  # May not be hashable
+
+    for match in namedtuple_matches:
+        for key, value in zip(match._fields, match):
+            namedtuple_vars[key].append(value)
+
+    # Always store node in special "root" field. Other contents of this field are discarded.
+    namedtuple_vars["root"] = [root]
+
+    # Sort in alphabetical order, but always with "root" first.
+    if not all(
+        len({ast.dump(value) if isinstance(value, ast.AST) else str(value) for value in values}) == 1
+        for values in namedtuple_vars.values()
+    ):
+        return ()
+
+    fields = sorted(namedtuple_vars.keys(), key=lambda k: (k != "root", k))
+    namedtuple_type = collections.namedtuple("Match", fields)
+    return namedtuple_type(*(namedtuple_vars[field][0] for field in fields))
+    
+
+def match_template(node: ast.AST, template: ast.AST) -> Tuple:
+    """Match a node against a provided ast template.
+
+    Args:
+        node (ast.AST): Node to match against template
+        template (ast.AST): Template to match node with
+
+    Returns:
+        Tuple:
+            If node matches, a namedtuple with node as the first element, and
+            any wildcards as other fields. Otherwise, an empty tuple.
+    """
     # A type indicates that the node should be an instance of that type,
     # and nothing else. A tuple indicates that the node should be any of
     # the types in it.
+
     if isinstance(template, type):
-        return isinstance(node, template)
+        # return isinstance(node, template)
+        if isinstance(node, template):
+            return (node,)
+        else:
+            return ()
 
     # A tuple indicates an or condition; the node must comply with any of
     # the templates in the child.
     # They may all be types for example, which boils down to the traditional
     # isinstance logic.
+    # If there are wildcards, the first match is chosen.
     if isinstance(template, tuple):
-        return any(match_template(node, child) for child in template)
+        return next(filter(None, (match_template(node, child) for child in template)), ())
 
     # A set indicates a variable length list, where all elements must match
     # against at least one of the templates in it.
+    # If there are wildcards, the first match is chosen.
+    # If there are inconsistencies between different elements, the match is discarded.
     if isinstance(template, set):
-        return isinstance(node, list) and all(
-            any(match_template(node_child, child) for child in template) for node_child in node
-        )
+        if not isinstance(node, list):
+            return ()
+        matches = [
+            match_template(node_child, tuple(template))
+            for node_child in node
+        ]
+        return _merge_matches(node, matches)
 
     # A list indicates that the node must also be a list, and for every
     # element, it must match against the corresponding node in the template.
     # It must also be equal length.
     if isinstance(template, list):
-        return (
-            isinstance(node, list)
-            and len(node) == len(template)
-            and all(
-                match_template(child, template_child)
-                for child, template_child in zip(node, template)
-            )
-        )
+        if not isinstance(node, list):
+            return ()
+        if len(node) != len(template):
+            return ()
+        matches = [
+            match_template(child, template_child)
+            for child, template_child in zip(node, template)
+        ]
+        return _merge_matches(node, matches)
 
     if template is True or template is False or template is None:
-        return node is template
+        return (node,) if node is template else ()
+
+    if isinstance(template, Wildcard):
+        namedtuple_type = collections.namedtuple("Match", (template.name,))
+        template_match = match_template(node, template.template)
+        return namedtuple_type(template_match[0]) if len(template_match) == 1 else ()
 
     # If the node is not an ast, we presume it is a string or something like
     # that, and just assert it should be equal.
     if not isinstance(node, ast.AST):
-        return node == template
+        return (node,) if node == template else ()
 
     template_vars = vars(template)
     node_vars = vars(node)
 
-    return (
+    if (
         issubclass(type(node), type(template))
         and template_vars.keys() <= node_vars.keys()
-        and all(match_template(node_vars[key], template_vars[key]) for key in template_vars.keys())
-    )
+    ):
+        matches = [match_template(node_vars[key], template_vars[key]) for key in template_vars.keys()]
+        return _merge_matches(node, matches)
+    else:
+        return ()
 
 
 @functools.lru_cache(maxsize=100)
@@ -125,18 +198,24 @@ def walk_sequence(
             for nodes in zip(
                 *(body[i : len(body) - len(templates) + i + 1] for i in range(len(templates)))
             ):
+                matches = [match_template(node, template) for node, template in zip(nodes, templates)]
+
+                if not all(matches):
+                    continue
+
                 if expand_first:
                     pre = body[: body.index(nodes[0])]
-                    pre = tuple((node for node in pre if match_template(node, templates[0])))
-                    nodes = pre + nodes
+                    for child in reversed(pre):
+                        if template_match := match_template(child, templates[0]):
+                            matches.insert(0, template_match)
+
                 if expand_last:
                     post = body[body.index(nodes[-1]) + 1 :]
-                    post = tuple((node for node in post if match_template(node, templates[-1])))
-                    nodes = nodes + post
-                if all(
-                    (match_template(node, template) for node, template in zip(nodes, templates))
-                ):
-                    yield nodes
+                    for child in post:
+                        if template_match := match_template(child, templates[-1]):
+                            matches.append(template_match)
+
+                yield tuple(matches)
 
 
 def filter_nodes(
@@ -151,6 +230,7 @@ def iter_similar_nodes(
     root: ast.AST, content: str, node_type: ast.AST, count: int, length: int
 ) -> Collection[ast.AST]:
     for sequence in walk_sequence(root, *[node_type] * count):
+        sequence = [node for node, *_ in sequence]
         for i, chars in enumerate(
             zip(*(re.sub(r"\s", "", get_code(node, content)) for node in sequence))
         ):

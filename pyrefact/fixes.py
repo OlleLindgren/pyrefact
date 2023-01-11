@@ -1117,9 +1117,10 @@ def _negate_condition(node: ast.AST) -> ast.AST:
 def _iter_implicit_if_elses(
     root: ast.AST,
 ) -> Iterable[Tuple[ast.If, Sequence[ast.AST], Sequence[ast.AST]]]:
-    for condition, *implicit_orelse in parsing.walk_sequence(
+    for (condition, ), *implicit_orelse in parsing.walk_sequence(
         root, ast.If, ast.AST, expand_last=True
     ):
+        implicit_orelse = [x[0] for x in implicit_orelse]
         if any(parsing.is_blocking(child) for child in condition.body) and not condition.orelse:
             yield condition, condition.body, implicit_orelse
 
@@ -1450,12 +1451,17 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
     replacements = {}
     removals = set()
 
-    root = parsing.parse(content)
-    for n1, n2 in parsing.walk_sequence(
-        root, ast.Assign(value=(ast.Dict, ast.DictComp), targets=[ast.Name]), ast.For
-    ):
-        target = n1.targets[0]
+    assign_template = ast.Assign(
+        value=parsing.Wildcard("value", (ast.Dict, ast.DictComp)),
+        targets=[ast.Name(id=parsing.Wildcard("target", str))]
+    )
 
+    root = parsing.parse(content)
+    for (n1, target, value), (n2,) in parsing.walk_sequence(
+        root,
+        assign_template,
+        ast.For,
+    ):
         body_node = n2
         generators = []
 
@@ -1483,26 +1489,26 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
                 comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
 
         if not parsing.match_template(
-            body_node, ast.Assign(targets=[ast.Subscript(value=ast.Name(id=target.id))])
+            body_node, ast.Assign(targets=[ast.Subscript(value=ast.Name(id=target))])
         ):
             continue
 
         comp = ast.DictComp(
             key=body_node.targets[0].slice, value=body_node.value, generators=generators
         )
-        if parsing.match_template(n1.value, ast.Dict(values=[], keys=[])):
-            replacements[n1.value] = comp
+        if parsing.match_template(value, ast.Dict(values=[], keys=[])):
+            replacements[value] = comp
             removals.add(n2)
-        elif parsing.match_template(n1.value, ast.Dict(values=list, keys={None})):
-            replacements[n1.value] = ast.Dict(
-                keys=n1.value.keys + [None], values=n1.value.values + [comp]
+        elif parsing.match_template(value, ast.Dict(values=list, keys={None})):
+            replacements[value] = ast.Dict(
+                keys=value.keys + [None], values=value.values + [comp]
             )
             removals.add(n2)
-        elif parsing.match_template(n1.value, ast.Dict(values=list, keys=list)):
-            replacements[n1.value] = ast.Dict(keys=[None, None], values=[n1.value, comp])
+        elif parsing.match_template(value, ast.Dict(values=list, keys=list)):
+            replacements[value] = ast.Dict(keys=[None, None], values=[value, comp])
             removals.add(n2)
-        elif isinstance(n1.value, ast.DictComp):
-            replacements[n1.value] = ast.Dict(keys=[None, None], values=[n1.value, comp])
+        elif isinstance(value, ast.DictComp):
+            replacements[value] = ast.Dict(keys=[None, None], values=[value, comp])
             removals.add(n2)
 
     content = processing.alter_code(content, root, removals=removals, replacements=replacements)
@@ -1514,9 +1520,14 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
     replacements = {}
     removals = set()
 
+    assign_template = ast.Assign(
+        value=parsing.Wildcard("value", object),
+        targets=[ast.Name(id=parsing.Wildcard("target", str))]
+    )
+
     root = parsing.parse(content)
-    for n1, n2 in parsing.walk_sequence(
-        root, ast.Assign(targets=[ast.Name]), ast.For(body=[object])
+    for (n1, target, value), (n2,) in parsing.walk_sequence(
+        root, assign_template, ast.For(body=[object])
     ):
 
         body_node = n2
@@ -1545,7 +1556,6 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
             if len(comprehension.ifs) > 1:
                 comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
 
-        target = n1.targets[0].id
         if parsing.match_template(
             body_node,
             ast.Expr(
@@ -1555,18 +1565,18 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
                 )
             ),
         ):
-            if parsing.match_template(n1.value, ast.List(elts=[])) and (
+            if parsing.match_template(value, ast.List(elts=[])) and (
                 body_node.value.func.attr == "append"
             ):
                 comp_type = ast.ListComp
             elif parsing.match_template(
-                n1.value, ast.Call(func=ast.Name(id="set"), args=[], keywords=[])
+                value, ast.Call(func=ast.Name(id="set"), args=[], keywords=[])
             ) and (body_node.value.func.attr == "add"):
                 comp_type = ast.SetComp
             else:
                 continue
 
-            replacements[n1.value] = comp_type(
+            replacements[value] = comp_type(
                 elt=body_node.value.args[0],
                 generators=generators,
             )
@@ -1575,7 +1585,7 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
         elif parsing.match_template(
             body_node, ast.AugAssign(op=(ast.Add, ast.Sub), target=ast.Name(id=n1.targets[0].id))
         ):
-            if isinstance(n1.value, ast.List):
+            if isinstance(value, ast.List):
                 replacement = ast.ListComp(
                     elt=body_node.value,
                     generators=generators,
@@ -1588,18 +1598,18 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
                 replacement = ast.Call(func=ast.Name(id="sum"), args=[comprehension], keywords=[])
 
             try:
-                if not parsing.literal_value(n1.value):
+                if not parsing.literal_value(value):
                     if isinstance(body_node.op, ast.Sub):
                         replacement = ast.UnaryOp(op=body_node.op, operand=replacement)
-                    replacements[n1.value] = replacement
+                    replacements[value] = replacement
                     removals.add(n2)
                     continue
 
             except ValueError:
                 pass
 
-            replacement = ast.BinOp(left=n1.value, op=body_node.op, right=replacement)
-            replacements[n1.value] = replacement
+            replacement = ast.BinOp(left=value, op=body_node.op, right=replacement)
+            replacements[value] = replacement
             removals.add(n2)
 
     content = processing.alter_code(content, root, removals=removals, replacements=replacements)
@@ -1910,11 +1920,14 @@ def _get_contains_args(node: ast.Compare) -> Tuple[str, str, bool]:
     if negative:
         node = node.operand
 
-    template = ast.Compare(left=ast.Name, ops=[(ast.In, ast.NotIn)], comparators=[ast.Name])
+    template = ast.Compare(
+        left=ast.Name(id=parsing.Wildcard(name="key", template=str)),
+        ops=[(ast.In, ast.NotIn)],
+        comparators=[ast.Name(id=parsing.Wildcard(name="value", template=str))],
+    )
 
-    if parsing.match_template(node, template):
-        key = node.left.id
-        value = node.comparators[0].id
+    if template_match := parsing.match_template(node, template):
+        _, key, value = template_match
         if isinstance(node.ops[0], ast.In):
             return key, value, negative
         if isinstance(node.ops[0], ast.NotIn):
@@ -1924,42 +1937,41 @@ def _get_contains_args(node: ast.Compare) -> Tuple[str, str, bool]:
 
 
 def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
+    slice_value = (
+        ast.Name(id=parsing.Wildcard("key", str))
+        if constants.PYTHON_VERSION >= (3, 9)
+        else ast.Slice(value=ast.Name(id=parsing.Wildcard("key", str)))
+    )
     template = ast.Expr(
         value=ast.Call(
             func=ast.Attribute(
                 value=ast.Subscript(
-                    value=ast.Name,
-                    slice=ast.Name
-                    if constants.PYTHON_VERSION >= (3, 9)
-                    else ast.Index(value=ast.Name),
-                )
+                    value=ast.Name(id=parsing.Wildcard("obj", str)),
+                    slice=slice_value,
+                ),
+                attr=parsing.Wildcard("call", str)
             ),
-            args=[object],
+            args=[parsing.Wildcard("value", object)],
         )
     )
-    if parsing.match_template(node, template):
-        call = node.value.func.attr
-        value = node.value.args[0]
-        key = (
-            node.value.func.value.slice.id
-            if constants.PYTHON_VERSION >= (3, 9)
-            else node.value.func.value.slice.value.id
-        )
-        obj = node.value.func.value.value.id
+    if template_match := parsing.match_template(node, template):
+        _, call, key, obj, value = template_match
         return obj, call, key, value
 
     raise ValueError(f"Node {node} is not a subscript call")
 
 
 def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
-    if parsing.match_template(node, ast.Assign(targets=[ast.Subscript])):
-        key = (
-            node.targets[0].slice.id
-            if constants.PYTHON_VERSION >= (3, 9)
-            else node.targets[0].slice.value.id
-        )
-
-        obj = node.targets[0].value.id
+    slice_value = (
+        ast.Name(id=parsing.Wildcard("key", str))
+        if constants.PYTHON_VERSION >= (3, 9)
+        else ast.Slice(value=ast.Name(id=parsing.Wildcard("key", str)))
+    )
+    template = ast.Assign(
+        targets=[ast.Subscript(slice=slice_value, value=ast.Name(id=parsing.Wildcard("obj", str)))]
+    )
+    if template_match := parsing.match_template(node, template):
+        _, key, obj = template_match
         value = node.value
         return obj, key, value
 
@@ -1977,22 +1989,21 @@ def implicit_defaultdict(content: str) -> str:
     replacements = {}
     removals = set()
 
+    assign_template = ast.Assign(
+        targets=[parsing.Wildcard("target", ast.Name)],
+        value=parsing.Wildcard("value", ast.Dict(keys=[], values=[])),
+    )
+
     root = parsing.parse(content)
-    for n1, n2 in parsing.walk_sequence(
-        root, ast.Assign(targets=[ast.Name], value=ast.Dict(keys=[], values=[])), ast.For
+    for (n1, target, value), (n2,) in parsing.walk_sequence(
+        root, assign_template, ast.For
     ):
-
-        target = n1.targets[0]
-
         loop_replacements = {}
         loop_removals = set()
         subscript_calls = set()
         consistent = True
 
-        for condition, append in parsing.walk_sequence(n2, ast.If, ast.Expr):
-            if not (len(condition.body) == 1 and (not condition.orelse)):
-                continue
-
+        for (condition,), (append,) in parsing.walk_sequence(n2, ast.If(body=[object], orelse=[]), ast.Expr):
             try:
                 (key, obj, negative) = _get_contains_args(condition.test)
                 (f_obj, f_key, f_value) = _get_assign_functions(condition.body[0])
@@ -2070,7 +2081,7 @@ def implicit_defaultdict(content: str) -> str:
         if subscript_calls and subscript_calls <= {"add", "update"}:
             replacements.update(loop_replacements)
             removals.update(loop_removals)
-            replacements[n1.value] = ast.Call(
+            replacements[value] = ast.Call(
                 func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
                 args=[ast.Name(id="set")],
                 keywords=[],
@@ -2079,7 +2090,7 @@ def implicit_defaultdict(content: str) -> str:
         if subscript_calls and subscript_calls <= {"append", "extend"}:
             replacements.update(loop_replacements)
             removals.update(loop_removals)
-            replacements[n1.value] = ast.Call(
+            replacements[value] = ast.Call(
                 func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
                 args=[ast.Name(id="list")],
                 keywords=[],
