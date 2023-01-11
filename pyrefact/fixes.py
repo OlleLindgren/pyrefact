@@ -39,6 +39,9 @@ def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
     if variable == "_":
         return variable
 
+    if variable.startswith("__") and variable.endswith("__"):
+        return variable
+
     renamed_variable = _make_snakecase(variable, uppercase=static)
 
     if private and not parsing.is_private(renamed_variable):
