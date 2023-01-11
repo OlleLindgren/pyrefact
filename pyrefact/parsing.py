@@ -573,7 +573,7 @@ def _get_line_start_charnos(content: str) -> Sequence[int]:
     return charnos
 
 
-def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
+def get_charnos(node: ast.AST, content: str, keep_first_indent: bool=False) -> Tuple[int, int]:
     """Get start and end character numbers in source code from ast node.
 
     Args:
@@ -594,15 +594,18 @@ def get_charnos(node: ast.AST, content: str) -> Tuple[int, int]:
 
     code = content[start_charno:end_charno]
     if code[0] == " ":
-        whitespace = re.findall(r"^ +", code)
-        start_charno += len(whitespace[0])
+        whitespace = max(re.findall(r"\A^ *", code), key=len)
+        start_charno += len(whitespace)
     if code[-1] == " ":
-        whitespace = re.findall(r" +$", code)
-        end_charno -= len(whitespace[0])
+        whitespace = max(re.findall(r" *\Z$", code), key=len)
+        end_charno -= len(whitespace)
     if content[start_charno - 1] == "@" and isinstance(
         node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
     ):
         start_charno -= 1
+    if keep_first_indent:
+        whitespace = max(re.findall(r" *\Z$", content[:start_charno]), key=len)
+        start_charno -= len(whitespace)
 
     if (
         constants.PYTHON_VERSION < (3, 9)

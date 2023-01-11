@@ -507,32 +507,33 @@ def fix_line_lengths(content: str, *, max_line_length: int = 100) -> str:
     formatted_nodes = set()
     formatted_ranges = set()
 
+    subscopes = []
+
     for scope in parsing.walk(
         root, (ast.AST(body=list), ast.AST(orelse=list), ast.AST(finalbody=list))
     ):
-        subscopes = []
         subscopes.append(getattr(scope, "body", []))
         subscopes.append(getattr(scope, "orelse", []))
         subscopes.append(getattr(scope, "finalbody", []))
 
-        for body in subscopes:
-            for node in body:
-                max_node_line_length = max(
-                    child.end_col_offset
-                    for child in parsing.walk(node, ast.AST(end_col_offset=int))
-                )
-                if node in formatted_nodes or max_node_line_length <= max_line_length:
-                    continue
+    for node in itertools.chain.from_iterable(subscopes):
+        max_node_line_length = max(
+            child.end_col_offset
+            for child in parsing.walk(node, ast.AST(end_col_offset=int))
+        )
+        if node in formatted_nodes or max_node_line_length <= max_line_length:
+            continue
 
-                current_code = parsing.get_code(node, content)
-                new_code = processing.format_with_black(current_code, line_length=max_line_length)
-                start, end = parsing.get_charnos(node, content)
+        start, end = parsing.get_charnos(node, content, keep_first_indent=True)
 
-                if new_code != current_code and (
-                    not any((e >= start and s <= end for s, e in formatted_ranges))
-                ):
-                    replacements[node] = new_code
-                    formatted_ranges.add((start, end))
+        current_code = content[start:end]
+        new_code = processing.format_with_black(current_code, line_length=max_line_length)
+
+        if new_code != current_code and (
+            not any((e >= start and s <= end for s, e in formatted_ranges))
+        ):
+            replacements[node] = new_code
+            formatted_ranges.add((start, end))
 
     content = processing.replace_nodes(content, replacements)
 
