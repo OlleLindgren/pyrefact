@@ -63,7 +63,7 @@ The `--from-stdin` flag will format code recieved from stdin, and output the res
 pip install pyrefact
 python -m pyrefact /path/to/filename.py --preserve /path/to/module/where/filename/is/used
 python -m pyrefact /path/to/filename.py --safe
-cat /path/to/filename.py | pyrefact --from-stdin
+cat /path/to/filename.py | python -m pyrefact --from-stdin
 ```
 
 ## VS Code Extension
