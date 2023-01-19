@@ -141,6 +141,8 @@ def format_code(
     if minimum_indent == 0:
         content = fixes.align_variable_names_with_convention(content, preserve=preserve)
 
+    content = fixes.format_inlined_sql(content)
+
     if minimum_indent == 0:
         content = fixes.fix_isort(content, line_length=10_000)
         content = fixes.add_missing_imports(content)

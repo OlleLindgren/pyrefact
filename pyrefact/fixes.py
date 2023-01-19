@@ -8,7 +8,7 @@ from typing import Collection, Iterable, List, Mapping, Sequence, Tuple, Union
 import isort
 import rmspace
 
-from pyrefact import abstractions, constants, parsing, processing
+from pyrefact import abstractions, constants, parsing, processing, sql
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
@@ -2108,4 +2108,50 @@ def simplify_redundant_lambda(content: str) -> str:
 
     content = processing.replace_nodes(content, replacements)
 
+    return content
+
+
+def format_inlined_sql(content: str) -> str:
+
+    root = parsing.parse(content)
+    replacements = {}
+
+    blacklist = set()
+
+    str_template = ast.Constant(value=parsing.Wildcard("code", str))
+    fstr_template = ast.JoinedStr(values={ast.Constant, ast.FormattedValue})
+    for node in parsing.walk(root, fstr_template):
+        blacklist.update(parsing.walk(node, str_template))
+        code = parsing.get_code(node, content)
+        delimiter = code[-1]
+        if set(code[-3:]) == {code[-1]}:
+            delimiter = delimiter * 3
+        code = code.lstrip("frb")
+        code = code.strip(delimiter)  # strip string modifiers and delimiters '"
+        if sql.is_sql_syntax(code):
+            formatted_code = sql.format_sql(code)
+            if code != formatted_code:
+                if len(formatted_code.splitlines()) > 1:
+                    delimiter = delimiter[0] * 3  # If not already 3 length, make it 3 length
+                    replacement = "f" + delimiter + '\n' + formatted_code + '\n' + delimiter
+                else:
+                    replacement = "f" + delimiter + formatted_code + delimiter
+                replacements[node] = replacement
+
+    for node, code in parsing.walk_wildcard(root, str_template):
+        if node not in blacklist and sql.is_sql_syntax(code):
+            code_with_delimiters = parsing.get_code(node, content)
+            delimiter = code_with_delimiters[-1]
+            if set(code_with_delimiters[-3:]) == {code_with_delimiters[-1]}:
+                delimiter = delimiter * 3
+            formatted_code = sql.format_sql(code).strip()
+            if code != formatted_code:
+                if len(formatted_code.splitlines()) > 1:
+                    delimiter = delimiter[0] * 3  # If not already 3 length, make it 3 length
+                    replacement = delimiter + '\n' + formatted_code + '\n' + delimiter
+                else:
+                    replacement = ast.Constant(value=formatted_code, kind=None)
+                replacements[node] = replacement
+
+    content = processing.replace_nodes(content, replacements)
     return content
