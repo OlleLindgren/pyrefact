@@ -15,7 +15,7 @@ class Range(NamedTuple):
     end: int  # Character number
 
 
-class Rewrite(NamedTuple):
+class _Rewrite(NamedTuple):
     old: Union[ast.AST, Range]  # TODO replace with (start_char, end_char)
     new: Union[ast.AST, str]  # "" indicates a removal
 
@@ -144,7 +144,7 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     return "".join(chars)
 
 
-def do_rewrite(content: str, rewrite: Rewrite) -> str:
+def _do_rewrite(content: str, rewrite: _Rewrite) -> str:
     old, new = rewrite
     start, end = _get_charnos(rewrite, content)
     code = content[start:end]
@@ -177,8 +177,8 @@ def replace_nodes(content: str, replacements: Mapping[ast.AST, Union[ast.AST, st
         replacements.items(), key=lambda tup: (tup[0].lineno, tup[0].end_lineno), reverse=True
     )
     for old, new in rewrites:
-        rewrite = Rewrite(old, new)
-        content = do_rewrite(content, rewrite)
+        rewrite = _Rewrite(old, new)
+        content = _do_rewrite(content, rewrite)
 
     return content
 
@@ -258,19 +258,19 @@ def alter_code(
     return content
 
 
-def _get_charnos(obj: Rewrite, content: str):
+def _get_charnos(obj: _Rewrite, content: str):
     old, new = obj
     if isinstance(old, Range):
         return old.start, old.end
 
     if old is not None:
         return parsing.get_charnos(old, content)
-    
+
     return parsing.get_charnos(new, content)
 
 
 def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) -> Callable:
-    def _fix(func: Callable) -> Callable:
+    def fix_decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(content, *args, **kwargs):
 
@@ -279,14 +279,16 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
             if restart_on_replace:
                 while True:
                     try:
-                        old, new = next(r for r in func(content, *args, **kwargs) if r not in history)
-                        rewrite = Rewrite(old, new or "")
+                        old, new = next(
+                            r for r in func(content, *args, **kwargs) if r not in history
+                        )
+                        rewrite = _Rewrite(old, new or "")
                         history.add(rewrite)
-                        content = do_rewrite(content, rewrite)
+                        content = _do_rewrite(content, rewrite)
                     except StopIteration:
                         return content
 
-            rewrites = (Rewrite(old, new or "") for old, new in func(content, *args, **kwargs))
+            rewrites = (_Rewrite(old, new or "") for old, new in func(content, *args, **kwargs))
             if sort_order:
                 rewrites = sorted(
                     rewrites,
@@ -295,16 +297,16 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
                 )
 
             for rewrite in rewrites:
-                content = do_rewrite(content, rewrite)
+                content = _do_rewrite(content, rewrite)
 
             return content
 
         return wrapper
 
     if not maybe_func:
-        return _fix
+        return fix_decorator
 
     if len(maybe_func) == 1 and callable(maybe_func[0]):
-        return _fix(maybe_func[0])
+        return fix_decorator(maybe_func[0])
 
     raise ValueError(f"Exactly 1 or 0 arguments must be given as maybe_func, not {len(maybe_func)}")
