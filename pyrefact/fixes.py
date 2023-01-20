@@ -1251,6 +1251,7 @@ def swap_if_else(source: str) -> str:
     return source
 
 
+@processing.fix
 def early_return(source: str) -> str:
 
     replacements = {}
@@ -1286,17 +1287,9 @@ def early_return(source: str) -> str:
             )
         ):
             for node in recursive_last_nonif_nodes:
-                replacements[node] = ast.Return(value=node.value, lineno=node.lineno)
-            removals.append(ret_stmt)
+                yield node, ast.Return(value=node.value, lineno=node.lineno)
 
-    source = processing.alter_code(
-        source,
-        root,
-        replacements=replacements,
-        removals=removals,
-    )
-
-    return source
+            yield ret_stmt, None
 
 
 def _total_linenos(nodes: Iterable[ast.AST]) -> int:

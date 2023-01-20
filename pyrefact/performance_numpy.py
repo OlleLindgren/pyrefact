@@ -63,11 +63,11 @@ def wrap_transpose(node: ast.AST) -> ast.Attribute:
     return ast.Attribute(value=node, attr="T")
 
 
+@processing.fix
 def simplify_matmul_transposes(source: str) -> str:
     """Replace np.matmul(a.T, b.T).T with np.matmul(b, a), if found."""
 
     root = parsing.parse(source)
-    replacements = {}
 
     target_template = ast.Call(
         func=ast.Attribute(value=ast.Name(id=("np", "numpy")), attr="matmul"),
@@ -84,35 +84,25 @@ def simplify_matmul_transposes(source: str) -> str:
             matmul = _wrap_np_matmul(wrap_transpose(right), wrap_transpose(left))
             matmul.func = target.func
             matmul.keywords = target.keywords
-            replacements[node] = matmul
-
-    source = processing.replace_nodes(source, replacements)
-
-    return source
+            yield node, matmul
 
 
 @_only_if_uses_numpy
+@processing.fix
 def replace_implicit_dot(source: str) -> str:
     root = parsing.parse(source)
-
-    replacements = {}
 
     template = ast.Call(args=[(ast.ListComp, ast.GeneratorExp)], keywords=[])
     for call in parsing.walk(root, template):
         if _is_sum_call(call) and _is_zip_product(call.args[0]):
             zip_args = call.args[0].generators[0].iter.args
-            replacements[call] = _wrap_np_dot(*zip_args)
-
-    source = processing.replace_nodes(source, replacements)
-
-    return source
+            yield call, _wrap_np_dot(*zip_args)
 
 
 @_only_if_uses_numpy
+@processing.fix
 def replace_implicit_matmul(source: str) -> str:
     root = parsing.parse(source)
-
-    replacements = {}
 
     comp_template = ast.ListComp(
         generators=[
@@ -146,13 +136,9 @@ def replace_implicit_matmul(source: str) -> str:
                         and left_id == comp_outer.generators[0].target.id
                     )
                 ):
-                    replacements[call] = wrap_transpose(
+                    yield call, wrap_transpose(
                         _wrap_np_matmul(
                             comp_inner.generators[0].iter,
                             wrap_transpose(comp_outer.generators[0].iter),
                         )
                     )
-
-    source = processing.replace_nodes(source, replacements)
-
-    return source
