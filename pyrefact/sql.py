@@ -33,7 +33,7 @@ DROP_VIEW_SYNTAX = _create_pattern(("drop", "view", STUFF))
 
 
 def format_sql(source: str) -> str:
-    return sqlparse.format(source, reindent=True, keyword_case='lower')
+    return sqlparse.format(source, reindent=True, keyword_case="lower")
 
 
 def is_sql_syntax(source: str) -> bool:

@@ -18,16 +18,20 @@ def main() -> int:
         values ('u', 'v', 3)
         """.lower(),
     )
-    assert sql.UPDATE_SYNTAX.match("""
-                                   update links
-                                   set qkf=19
-                                   where false
-                                   """.lower())
-    assert sql.DELETE_SYNTAX.match("""
-                                   delete
-                                   from temp_table_3
-                                   where true;
-                                   """.lower())
+    assert sql.UPDATE_SYNTAX.match(
+        """
+        update links
+        set qkf=19
+        where false
+        """.lower()
+    )
+    assert sql.DELETE_SYNTAX.match(
+        """
+        delete
+        from temp_table_3
+        where true;
+        """.lower()
+    )
     assert sql.INSERT_INTO_SELECT_SYNTAX.match(
         """
         insert into dogs (name)
@@ -41,11 +45,13 @@ def main() -> int:
                                           col2 int8 not null)
         """.lower(),
     )
-    assert sql.CREATE_VIEW_SYNTAX.match("""
-                                        create view f as
-                                        select *
-                                        from images
-                                        """.lower())
+    assert sql.CREATE_VIEW_SYNTAX.match(
+        """
+        create view f as
+        select *
+        from images
+        """.lower()
+    )
     assert sql.CREATE_FUNCTION_SYNTAX.match(
         """
         create function x as
@@ -54,7 +60,7 @@ def main() -> int:
         """.lower(),
     )
     assert sql.CREATE_OR_REPLACE_TABLE_SYNTAX.match(
-        'create or replace table w (col1 int4 primary ky, col2 int8 not null)'.lower(),
+        "create or replace table w (col1 int4 primary ky, col2 int8 not null)".lower(),
     )
     assert sql.CREATE_OR_REPLACE_VIEW_SYNTAX.match(
         """
@@ -77,7 +83,7 @@ def main() -> int:
         "create index ix on dogs (name, height)".lower(),
     )
     assert sql.CREATE_UNIQUE_INDEX_SYNTAX.match(
-        'create unique index ix on dogs (name, height)'.lower(),
+        "create unique index ix on dogs (name, height)".lower(),
     )
     assert sql.DROP_TABLE_SYNTAX.match(
         "drop table some_nice_table_that_we_like_a_lot;".lower(),

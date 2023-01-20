@@ -12,6 +12,7 @@ from pyrefact import constants
 @dataclasses.dataclass(eq=True, frozen=True)
 class Wildcard:
     """A wildcard matches a specific template, and extracts its name."""
+
     name: str
     template: object
 
@@ -570,7 +571,7 @@ def _get_line_start_charnos(source: str) -> Sequence[int]:
     return charnos
 
 
-def get_charnos(node: ast.AST, source: str, keep_first_indent: bool=False) -> Tuple[int, int]:
+def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> Tuple[int, int]:
     """Get start and end character numbers in source code from ast node.
 
     Args:

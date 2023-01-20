@@ -530,8 +530,7 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
 
     for node in itertools.chain.from_iterable(subscopes):
         max_node_line_length = max(
-            child.end_col_offset
-            for child in parsing.walk(node, ast.AST(end_col_offset=int))
+            child.end_col_offset for child in parsing.walk(node, ast.AST(end_col_offset=int))
         )
         if node in formatted_nodes or max_node_line_length <= max_line_length:
             continue
@@ -1116,7 +1115,7 @@ def _negate_condition(node: ast.AST) -> ast.AST:
 def _iter_implicit_if_elses(
     root: ast.AST,
 ) -> Iterable[Tuple[ast.If, Sequence[ast.AST], Sequence[ast.AST]]]:
-    for (condition, ), *implicit_orelse in parsing.walk_sequence(
+    for (condition,), *implicit_orelse in parsing.walk_sequence(
         root, ast.If, ast.AST, expand_last=True
     ):
         implicit_orelse = [x[0] for x in implicit_orelse]
@@ -1430,7 +1429,7 @@ def replace_for_loops_with_dict_comp(source: str) -> str:
 
     assign_template = ast.Assign(
         value=parsing.Wildcard("value", (ast.Dict, ast.DictComp)),
-        targets=[ast.Name(id=parsing.Wildcard("target", str))]
+        targets=[ast.Name(id=parsing.Wildcard("target", str))],
     )
 
     root = parsing.parse(source)
@@ -1477,9 +1476,7 @@ def replace_for_loops_with_dict_comp(source: str) -> str:
             yield value, comp
             yield n2, None
         elif parsing.match_template(value, ast.Dict(values=list, keys={None})):
-            yield value, ast.Dict(
-                keys=value.keys + [None], values=value.values + [comp]
-            )
+            yield value, ast.Dict(keys=value.keys + [None], values=value.values + [comp])
             yield n2, None
         elif parsing.match_template(value, ast.Dict(values=list, keys=list)):
             yield value, ast.Dict(keys=[None, None], values=[value, comp])
@@ -1889,7 +1886,7 @@ def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
                     value=ast.Name(id=parsing.Wildcard("obj", str)),
                     slice=slice_value,
                 ),
-                attr=parsing.Wildcard("call", str)
+                attr=parsing.Wildcard("call", str),
             ),
             args=[parsing.Wildcard("value", object)],
         )
@@ -2089,9 +2086,9 @@ def format_inlined_sql(source: str) -> str:
         if code != formatted_code:
             if len(formatted_code.splitlines()) > 1:
                 delimiter = delimiter[0] * 3
-                replacement = 'f' + delimiter + '\n' + formatted_code + '\n' + delimiter
+                replacement = "f" + delimiter + "\n" + formatted_code + "\n" + delimiter
             else:
-                replacement = 'f' + delimiter + formatted_code + delimiter
+                replacement = "f" + delimiter + formatted_code + delimiter
             yield (node, replacement)
 
     for node, code in parsing.walk_wildcard(root, str_template):
@@ -2106,7 +2103,7 @@ def format_inlined_sql(source: str) -> str:
         if code != formatted_code:
             if len(formatted_code.splitlines()) > 1:
                 delimiter = delimiter[0] * 3
-                replacement = delimiter + '\n' + formatted_code + '\n' + delimiter
+                replacement = delimiter + "\n" + formatted_code + "\n" + delimiter
             else:
                 replacement = ast.Constant(value=formatted_code, kind=None)
 
