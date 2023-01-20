@@ -499,11 +499,11 @@ def fix_isort(content: str, *, line_length: int = 100) -> str:
     return isort.code(content, config=isort.Config(profile="black", line_length=line_length))
 
 
+@processing.fix
 def fix_line_lengths(content: str, *, max_line_length: int = 100) -> str:
 
     root = parsing.parse(content)
 
-    replacements = {}
     formatted_nodes = set()
     formatted_ranges = set()
 
@@ -532,12 +532,8 @@ def fix_line_lengths(content: str, *, max_line_length: int = 100) -> str:
         if new_code != current_code and (
             not any((e >= start and s <= end for s, e in formatted_ranges))
         ):
-            replacements[node] = new_code
+            yield node, new_code
             formatted_ranges.add((start, end))
-
-    content = processing.replace_nodes(content, replacements)
-
-    return content
 
 
 def align_variable_names_with_convention(
@@ -1048,6 +1044,7 @@ def remove_redundant_else(content: str) -> str:
     return content
 
 
+@processing.fix
 def singleton_eq_comparison(content: str) -> str:
     """Replace singleton comparisons using "==" with "is".
 
@@ -1059,7 +1056,6 @@ def singleton_eq_comparison(content: str) -> str:
     """
     root = parsing.parse(content)
 
-    replacements = {}
     for node in parsing.walk(root, ast.Compare):
         changes = False
         operators = []
@@ -1077,16 +1073,11 @@ def singleton_eq_comparison(content: str) -> str:
                 operators.append(node_operator)
 
         if changes:
-            replacements[node] = ast.Compare(
+            yield node, ast.Compare(
                 left=node.left,
                 ops=operators,
                 comparators=node.comparators,
             )
-
-    if replacements:
-        content = processing.replace_nodes(content, replacements)
-
-    return content
 
 
 def _negate_condition(node: ast.AST) -> ast.AST:
@@ -1353,10 +1344,10 @@ def early_continue(content: str) -> str:
         additions=additions,
         replacements=replacements,
     )
-
     return content
 
 
+@processing.fix
 def remove_redundant_comprehensions(content: str) -> str:
     root = parsing.parse(content)
 
@@ -1382,17 +1373,14 @@ def remove_redundant_comprehensions(content: str) -> str:
             )
 
         if elt_generator_equal:
-            replacements[node] = ast.Call(
+            yield node, ast.Call(
                 func=ast.Name(id=wrapper, ctx=ast.Load()),
                 args=[node.generators[0].iter],
                 keywords=[],
             )
 
-    content = processing.replace_nodes(content, replacements)
 
-    return content
-
-
+@processing.fix
 def replace_functions_with_literals(content: str) -> str:
 
     root = parsing.parse(content)
@@ -1403,11 +1391,11 @@ def replace_functions_with_literals(content: str) -> str:
     )
     for node, func in parsing.walk_wildcard(root, func_literal_template):
         if func == "list":
-            replacements[node] = ast.List(elts=[], ctx=ast.Load())
+            yield node, ast.List(elts=[], ctx=ast.Load())
         elif func == "tuple":
-            replacements[node] = ast.Tuple(elts=[], ctx=ast.Load())
+            yield node, ast.Tuple(elts=[], ctx=ast.Load())
         elif func == "dict":
-            replacements[node] = ast.Dict(keys=[], values=[], ctx=ast.Load())
+            yield node, ast.Dict(keys=[], values=[], ctx=ast.Load())
 
     func_comprehension_template = ast.Call(
         func=ast.Name(id=parsing.Wildcard("func", ("list", "tuple", "set", "iter"))),
@@ -1422,33 +1410,30 @@ def replace_functions_with_literals(content: str) -> str:
     for node, arg, func in parsing.walk_wildcard(root, func_comprehension_template):
         if func == "list":
             if isinstance(arg, (ast.List, ast.ListComp)):
-                replacements[node] = arg
+                yield node, arg
             elif isinstance(arg, ast.Tuple):
-                replacements[node] = ast.List(elts=arg.elts, ctx=arg.ctx)
+                yield node, ast.List(elts=arg.elts, ctx=arg.ctx)
 
         elif func == "tuple":
             if isinstance(arg, ast.Tuple):
-                replacements[node] = arg
+                yield node, arg
             elif isinstance(arg, ast.List):
-                replacements[node] = ast.Tuple(elts=arg.elts, ctx=arg.ctx)
+                yield node, ast.Tuple(elts=arg.elts, ctx=arg.ctx)
 
         elif func == "set":
             if isinstance(arg, (ast.Set, ast.SetComp)):
-                replacements[node] = arg
+                yield node, arg
             elif isinstance(arg, (ast.Tuple, ast.List)):
-                replacements[node] = ast.Set(elts=arg.elts, ctx=arg.ctx)
+                yield node, ast.Set(elts=arg.elts, ctx=arg.ctx)
             elif isinstance(arg, ast.GeneratorExp):
-                replacements[node] = ast.SetComp(elt=arg.elt, generators=arg.generators)
+                yield node, ast.SetComp(elt=arg.elt, generators=arg.generators)
 
         elif func == "iter":
             if isinstance(arg, ast.GeneratorExp):
-                replacements[node] = arg
-
-    content = processing.replace_nodes(content, replacements)
-
-    return content
+                yield node, arg
 
 
+@processing.fix
 def replace_for_loops_with_dict_comp(content: str) -> str:
     replacements = {}
     removals = set()
@@ -1499,25 +1484,26 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
             key=body_node.targets[0].slice, value=body_node.value, generators=generators
         )
         if parsing.match_template(value, ast.Dict(values=[], keys=[])):
-            replacements[value] = comp
-            removals.add(n2)
+            yield value, comp
+            yield n2, None
         elif parsing.match_template(value, ast.Dict(values=list, keys={None})):
-            replacements[value] = ast.Dict(
+            yield value, ast.Dict(
                 keys=value.keys + [None], values=value.values + [comp]
             )
-            removals.add(n2)
+            yield n2, None
         elif parsing.match_template(value, ast.Dict(values=list, keys=list)):
-            replacements[value] = ast.Dict(keys=[None, None], values=[value, comp])
-            removals.add(n2)
+            yield value, ast.Dict(keys=[None, None], values=[value, comp])
+            yield n2, None
         elif isinstance(value, ast.DictComp):
-            replacements[value] = ast.Dict(keys=[None, None], values=[value, comp])
-            removals.add(n2)
+            yield value, ast.Dict(keys=[None, None], values=[value, comp])
+            yield n2, None
 
     content = processing.alter_code(content, root, removals=removals, replacements=replacements)
 
     return content
 
 
+@processing.fix
 def replace_for_loops_with_set_list_comp(content: str) -> str:
     replacements = {}
     removals = set()
@@ -1575,11 +1561,11 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
             else:
                 continue
 
-            replacements[value] = comp_type(
+            yield value, comp_type(
                 elt=body_node.value.args[0],
                 generators=generators,
             )
-            removals.add(n2)
+            yield n2, None
 
         elif parsing.match_template(body_node, augass_template):
             if isinstance(value, ast.List):
@@ -1598,20 +1584,16 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
                 if not parsing.literal_value(value):
                     if isinstance(body_node.op, ast.Sub):
                         replacement = ast.UnaryOp(op=body_node.op, operand=replacement)
-                    replacements[value] = replacement
-                    removals.add(n2)
+                    yield value, replacement
+                    yield n2, None
                     continue
 
             except ValueError:
                 pass
 
             replacement = ast.BinOp(left=value, op=body_node.op, right=replacement)
-            replacements[value] = replacement
-            removals.add(n2)
-
-    content = processing.alter_code(content, root, removals=removals, replacements=replacements)
-
-    return content
+            yield value, replacement
+            yield n2, None
 
 
 def inline_math_comprehensions(content: str) -> str:
@@ -1744,6 +1726,7 @@ def remove_dead_ifs(content: str) -> str:
     return content
 
 
+@processing.fix(restart_on_replace=True)
 def delete_commented_code(content: str) -> str:
     matches = list(re.finditer(r"(?<![^\n])(\s*(#.*))+", content))
     root = parsing.parse(content)
@@ -1814,15 +1797,10 @@ def delete_commented_code(content: str) -> str:
                     continue
 
                 print("Deleting commented code")
-                print(content[start + start_offset : end - end_offset])
-                content = content[: start + start_offset] + "\n" + content[end - end_offset :]
-
-                # Recursion due to likely race conditions
-                return delete_commented_code(content)
-
-    return content
+                yield processing.Range(start + start_offset, end - end_offset), None
 
 
+@processing.fix
 def replace_with_filter(content: str) -> str:
     root = parsing.parse(content)
 
@@ -1845,21 +1823,21 @@ def replace_with_filter(content: str) -> str:
             if isinstance(node.target, ast.Name) and parsing.match_template(
                 test, ast.Call(args=[ast.Name(id=node.target.id)], keywords=[])
             ):
-                replacements[node.iter] = ast.Call(
+                yield node.iter, ast.Call(
                     func=ast.Name(id="filter"),
                     args=[test.func, node.iter],
                     keywords=[],
                 )
-                replacements[node.body[0].test] = ast.Constant(value=not negative, kind=None)
+                yield node.body[0].test, ast.Constant(value=not negative, kind=None)
             elif isinstance(test, ast.Name) and parsing.match_template(
                 node.target, ast.Name(id=test.id)
             ):
-                replacements[node.iter] = ast.Call(
+                yield node.iter, ast.Call(
                     func=ast.Name(id="filter"),
                     args=[ast.Constant(value=None, kind=None), node.iter],
                     keywords=[],
                 )
-                replacements[node.body[0].test] = ast.Constant(value=not negative, kind=None)
+                yield node.body[0].test, ast.Constant(value=not negative, kind=None)
             continue
         if len(node.body) < 2:
             continue
@@ -1884,16 +1862,12 @@ def replace_with_filter(content: str) -> str:
                     ast.If(body=[ast.Continue], test=ast.UnaryOp(op=ast.Not, operand=ast.Call)),
                 )
             ):
-                replacements[node.iter] = ast.Call(
+                yield node.iter, ast.Call(
                     func=ast.Name(id="filter"),
                     args=[test.operand.func, node.iter],
                     keywords=[],
                 )
-                removals.add(first_node)
-
-    content = processing.alter_code(content, root, replacements=replacements, removals=removals)
-
-    return content
+                yield first_node, None
 
 
 def _get_contains_args(node: ast.Compare) -> Tuple[str, str, bool]:
@@ -2081,6 +2055,7 @@ def implicit_defaultdict(content: str) -> str:
     return content
 
 
+@processing.fix
 def simplify_redundant_lambda(content: str) -> str:
     root = parsing.parse(content)
 
@@ -2098,19 +2073,16 @@ def simplify_redundant_lambda(content: str) -> str:
 
     for node in parsing.walk(root, template):
         if isinstance(node.body, ast.Call):
-            replacements[node] = node.body.func
+            yield node, node.body.func
         elif isinstance(node.body, ast.List):
-            replacements[node] = ast.Name(id="list")
+            yield node, ast.Name(id="list")
         elif isinstance(node.body, ast.Tuple):
-            replacements[node] = ast.Name(id="tuple")
+            yield node, ast.Name(id="tuple")
         elif isinstance(node.body, ast.Dict):
-            replacements[node] = ast.Name(id="dict")
-
-    content = processing.replace_nodes(content, replacements)
-
-    return content
+            yield node, ast.Name(id="dict")
 
 
+@processing.fix
 def format_inlined_sql(content: str) -> str:
 
     root = parsing.parse(content)
@@ -2136,7 +2108,8 @@ def format_inlined_sql(content: str) -> str:
                     replacement = "f" + delimiter + '\n' + formatted_code + '\n' + delimiter
                 else:
                     replacement = "f" + delimiter + formatted_code + delimiter
-                replacements[node] = replacement
+
+                yield node, replacement
 
     for node, code in parsing.walk_wildcard(root, str_template):
         if node not in blacklist and sql.is_sql_syntax(code):
@@ -2151,7 +2124,5 @@ def format_inlined_sql(content: str) -> str:
                     replacement = delimiter + '\n' + formatted_code + '\n' + delimiter
                 else:
                     replacement = ast.Constant(value=formatted_code, kind=None)
-                replacements[node] = replacement
 
-    content = processing.replace_nodes(content, replacements)
-    return content
+                yield node, replacement

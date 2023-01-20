@@ -1,12 +1,23 @@
 import ast
+import functools
 import heapq
 import re
 from types import MappingProxyType
-from typing import Collection, Iterable, Mapping, Union
+from typing import Callable, Collection, Iterable, Mapping, NamedTuple, Union
 
 import black
 
 from pyrefact import constants, parsing
+
+
+class Range(NamedTuple):
+    start: int  # Character number
+    end: int  # Character number
+
+
+class Rewrite(NamedTuple):
+    old: Union[ast.AST, Range]  # TODO replace with (start_char, end_char)
+    new: Union[ast.AST, str]  # "" indicates a removal
 
 
 def _get_indent(content: str) -> int:
@@ -133,33 +144,41 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     return "".join(chars)
 
 
+def do_rewrite(content: str, rewrite: Rewrite) -> str:
+    old, new = rewrite
+    start, end = _get_charnos(rewrite, content)
+    code = content[start:end]
+    if isinstance(new, str):
+        new_code = new
+        if new_code == code:
+            return content
+    elif isinstance(new, ast.AST):
+        new_code = unparse(new)
+    else:
+        raise TypeError(f"Invalid replacement type: {type(new)}")
+    lines = new_code.splitlines(keepends=True)
+    indent = " " * getattr(old, "col_offset", 0)
+    start_indent = " " * (len(code) - len(code.lstrip(" ")))
+    new_code = "".join(
+        f"{indent if i > 0 else start_indent}{code}".rstrip()
+        + ("\n" if code.endswith("\n") else "")
+        for i, code in enumerate(lines)
+    )
+    if new_code:
+        print(f"Replacing \n{code}\nWith      \n{new_code}")
+    else:
+        print(f"Removing \n{code}")
+
+    return content[:start] + new_code + content[end:]
+
+
 def replace_nodes(content: str, replacements: Mapping[ast.AST, Union[ast.AST, str]]) -> str:
-    for node, replacement in sorted(
+    rewrites = sorted(
         replacements.items(), key=lambda tup: (tup[0].lineno, tup[0].end_lineno), reverse=True
-    ):
-        start, end = parsing.get_charnos(node, content)
-        code = content[start:end]
-        if isinstance(replacement, str):
-            new_code = replacement
-            if new_code == code:
-                continue
-        elif isinstance(replacement, ast.AST):
-            new_code = unparse(replacement)
-        else:
-            raise TypeError(f"Invalid replacement type: {type(replacement)}")
-        lines = new_code.splitlines(keepends=True)
-        indent = " " * node.col_offset
-        start_indent = " " * (len(code) - len(code.lstrip(" ")))
-        new_code = "".join(
-            f"{indent if i > 0 else start_indent}{code}".rstrip()
-            + ("\n" if code.endswith("\n") else "")
-            for i, code in enumerate(lines)
-        )
-        if new_code:
-            print(f"Replacing \n{code}\nWith      \n{new_code}")
-        else:
-            print(f"Removing \n{code}")
-        content = content[:start] + new_code + content[end:]
+    )
+    for old, new in rewrites:
+        rewrite = Rewrite(old, new)
+        content = do_rewrite(content, rewrite)
 
     return content
 
@@ -237,3 +256,55 @@ def alter_code(
             raise ValueError(f"Invalid action: {action}")
 
     return content
+
+
+def _get_charnos(obj: Rewrite, content: str):
+    old, new = obj
+    if isinstance(old, Range):
+        return old.start, old.end
+
+    if old is not None:
+        return parsing.get_charnos(old, content)
+    
+    return parsing.get_charnos(new, content)
+
+
+def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) -> Callable:
+    def _fix(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(content, *args, **kwargs):
+
+            # Track rewrite history as an infinite loop guard
+            history = set()
+            if restart_on_replace:
+                while True:
+                    try:
+                        old, new = next(r for r in func(content, *args, **kwargs) if r not in history)
+                        rewrite = Rewrite(old, new or "")
+                        history.add(rewrite)
+                        content = do_rewrite(content, rewrite)
+                    except StopIteration:
+                        return content
+
+            rewrites = (Rewrite(old, new or "") for old, new in func(content, *args, **kwargs))
+            if sort_order:
+                rewrites = sorted(
+                    rewrites,
+                    key=functools.partial(_get_charnos, content=content),
+                    reverse=True,
+                )
+
+            for rewrite in rewrites:
+                content = do_rewrite(content, rewrite)
+
+            return content
+
+        return wrapper
+
+    if not maybe_func:
+        return _fix
+
+    if len(maybe_func) == 1 and callable(maybe_func[0]):
+        return _fix(maybe_func[0])
+
+    raise ValueError(f"Exactly 1 or 0 arguments must be given as maybe_func, not {len(maybe_func)}")
