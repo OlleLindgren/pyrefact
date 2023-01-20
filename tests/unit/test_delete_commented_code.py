@@ -187,12 +187,12 @@ def uses_numpy(root: ast.Module) -> bool:
 
 
 def _only_if_uses_numpy(f: Callable) -> Callable:
-    def wrapper(content: str) -> str:
-        root = parsing.parse(content)
+    def wrapper(source: str) -> str:
+        root = parsing.parse(source)
         if not uses_numpy(root):
-            return content
+            return source
 
-        return f(content)
+        return f(source)
 
     return wrapper
 
@@ -278,10 +278,10 @@ def wrap_transpose(node: ast.AST) -> ast.Attribute:
     return ast.Attribute(value=node, attr="T")
 
 
-def simplify_matmul_transposes(content: str) -> str:
+def simplify_matmul_transposes(source: str) -> str:
     '''Replace np.matmul(a.T, b.T).T with np.matmul(b, a), if found.'''
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     replacements = {}
 
     for node in parsing.walk(root, ast.Attribute):
@@ -299,14 +299,14 @@ def simplify_matmul_transposes(content: str) -> str:
                     matmul.keywords = target.keywords
                     replacements[node] = matmul
 
-    content = processing.replace_nodes(content, replacements)
+    source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
 
 # @_only_if_uses_numpy
-# def replace_implicit_dot(content: str) -> str:
-#     root = parsing.parse(content)
+# def replace_implicit_dot(source: str) -> str:
+#     root = parsing.parse(source)
 
 #     replacements = {}
 
@@ -320,14 +320,14 @@ def simplify_matmul_transposes(content: str) -> str:
 #                 zip_args = call.args[0].generators[0].iter.args
 #                 replacements[call] = _wrap_np_dot(*zip_args)
 
-#     content = processing.replace_nodes(content, replacements)
+#     source = processing.replace_nodes(source, replacements)
 
-#     return content
+#     return source
 
 
 @_only_if_uses_numpy
-def replace_implicit_matmul(content: str) -> str:
-    root = parsing.parse(content)
+def replace_implicit_matmul(source: str) -> str:
+    root = parsing.parse(source)
 
     replacements = {}
 
@@ -385,9 +385,9 @@ def replace_implicit_matmul(content: str) -> str:
                         #         )
                         #     )
 
-    content = processing.replace_nodes(content, replacements)
+    source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
             """,
             """
@@ -408,12 +408,12 @@ def uses_numpy(root: ast.Module) -> bool:
 
 
 def _only_if_uses_numpy(f: Callable) -> Callable:
-    def wrapper(content: str) -> str:
-        root = parsing.parse(content)
+    def wrapper(source: str) -> str:
+        root = parsing.parse(source)
         if not uses_numpy(root):
-            return content
+            return source
 
-        return f(content)
+        return f(source)
 
     return wrapper
 
@@ -461,10 +461,10 @@ def wrap_transpose(node: ast.AST) -> ast.Attribute:
     return ast.Attribute(value=node, attr="T")
 
 
-def simplify_matmul_transposes(content: str) -> str:
+def simplify_matmul_transposes(source: str) -> str:
     '''Replace np.matmul(a.T, b.T).T with np.matmul(b, a), if found.'''
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     replacements = {}
 
     for node in parsing.walk(root, ast.Attribute):
@@ -482,14 +482,14 @@ def simplify_matmul_transposes(content: str) -> str:
                     matmul.keywords = target.keywords
                     replacements[node] = matmul
 
-    content = processing.replace_nodes(content, replacements)
+    source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
 
 @_only_if_uses_numpy
-def replace_implicit_matmul(content: str) -> str:
-    root = parsing.parse(content)
+def replace_implicit_matmul(source: str) -> str:
+    root = parsing.parse(source)
 
     replacements = {}
 
@@ -524,17 +524,17 @@ def replace_implicit_matmul(content: str) -> str:
                             else comp_outer.generators[0].target.value.id
                         )
 
-    content = processing.replace_nodes(content, replacements)
+    source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
             """,
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = fixes.delete_commented_code(content)
+        processed_content = fixes.delete_commented_code(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

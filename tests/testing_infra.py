@@ -8,10 +8,10 @@ from typing import Iterable
 from pyrefact import processing
 
 
-def _remove_multi_whitespace(content: str) -> str:
-    content = re.sub(r"(?<![^\n]) *\n", "", f"\n{content}\n")
-    content = "".join(line for line in content.splitlines(keepends=True) if line.strip())
-    return content
+def _remove_multi_whitespace(source: str) -> str:
+    source = re.sub(r"(?<![^\n]) *\n", "", f"\n{source}\n")
+    source = "".join(line for line in source.splitlines(keepends=True) if line.strip())
+    return source
 
 
 def _create_diff_view(processed_content: str, expected_content: str) -> str:

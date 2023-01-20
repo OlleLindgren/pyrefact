@@ -32,13 +32,13 @@ DROP_TABLE_SYNTAX = _create_pattern(("drop", "table", STUFF))
 DROP_VIEW_SYNTAX = _create_pattern(("drop", "view", STUFF))
 
 
-def format_sql(content: str) -> str:
-    return sqlparse.format(content, reindent=True, keyword_case='lower')
+def format_sql(source: str) -> str:
+    return sqlparse.format(source, reindent=True, keyword_case='lower')
 
 
-def is_sql_syntax(content: str) -> bool:
+def is_sql_syntax(source: str) -> bool:
     return any(
-        syntax.match(content.lower())
+        syntax.match(source.lower())
         for syntax in (
             SELECT_SYNTAX,
             INSERT_SYNTAX,

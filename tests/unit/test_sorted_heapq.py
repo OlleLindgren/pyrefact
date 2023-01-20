@@ -45,8 +45,8 @@ print(list(reversed(heapq.nlargest(4, z, key=lambda x: -x))))
         ),
     )
 
-    for content, expected_abstraction in test_cases:
-        processed_content = performance.replace_sorted_heapq(content)
+    for source, expected_abstraction in test_cases:
+        processed_content = performance.replace_sorted_heapq(source)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

@@ -105,9 +105,9 @@ print(u)
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = performance_numpy.replace_implicit_dot(content)
+        processed_content = performance_numpy.replace_implicit_dot(source)
         processed_content = fixes.simplify_transposes(processed_content)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):

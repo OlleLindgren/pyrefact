@@ -115,8 +115,8 @@ print(w)
         ),
     )
 
-    for content, expected_abstraction in test_cases:
-        processed_content = performance.remove_redundant_iter(content)
+    for source, expected_abstraction in test_cases:
+        processed_content = performance.remove_redundant_iter(source)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

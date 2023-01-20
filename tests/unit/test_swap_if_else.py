@@ -145,8 +145,8 @@ def foo(x):
         ),
     )
 
-    for content, expected_abstraction in test_cases:
-        processed_content = fixes.swap_if_else(content)
+    for source, expected_abstraction in test_cases:
+        processed_content = fixes.swap_if_else(source)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

@@ -11,8 +11,8 @@ from integration_test_cases import INTEGRATION_TEST_CASES
 
 
 def main() -> int:
-    for content, expected_abstraction in INTEGRATION_TEST_CASES:
-        processed_content = pyrefact.format_code(content)
+    for source, expected_abstraction in INTEGRATION_TEST_CASES:
+        processed_content = pyrefact.format_code(source)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

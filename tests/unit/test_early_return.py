@@ -62,8 +62,8 @@ def f(x) -> int:
         ),
     )
 
-    for content, expected_abstraction in test_cases:
-        processed_content = fixes.early_return(content)
+    for source, expected_abstraction in test_cases:
+        processed_content = fixes.early_return(source)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

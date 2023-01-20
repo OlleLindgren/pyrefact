@@ -46,9 +46,9 @@ x in [1, 2, 3]
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = performance.optimize_contains_types(content)
+        processed_content = performance.optimize_contains_types(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

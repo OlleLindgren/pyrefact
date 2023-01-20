@@ -237,12 +237,12 @@ def filter_nodes(
 
 
 def iter_similar_nodes(
-    root: ast.AST, content: str, node_type: ast.AST, count: int, length: int
+    root: ast.AST, source: str, node_type: ast.AST, count: int, length: int
 ) -> Collection[ast.AST]:
     for sequence in walk_sequence(root, *[node_type] * count):
         sequence = [node for node, *_ in sequence]
         for i, chars in enumerate(
-            zip(*(re.sub(r"\s", "", get_code(node, content)) for node in sequence))
+            zip(*(re.sub(r"\s", "", get_code(node, source)) for node in sequence))
         ):
             if len(set(chars)) != 1:
                 break
@@ -251,17 +251,17 @@ def iter_similar_nodes(
                 break
 
 
-def is_valid_python(content: str) -> bool:
+def is_valid_python(source: str) -> bool:
     """Determine if source code is valid python.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
-        bool: True if content is valid python.
+        bool: True if source is valid python.
     """
     try:
-        parse(content)
+        parse(source)
         return True
     except SyntaxError:
         return False
@@ -300,7 +300,7 @@ def iter_assignments(ast_tree: ast.Module) -> Iterable[ast.Name]:
     """Iterate over defined variables in code
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Yields:
         ast.Name: A name that is being assigned.
@@ -317,7 +317,7 @@ def iter_funcdefs(ast_tree: ast.Module) -> Iterable[ast.FunctionDef]:
     """Iterate over defined variables in code
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Yields:
         ast.FunctionDef: A function definition node
@@ -561,26 +561,26 @@ def has_side_effect(
 
 
 @functools.lru_cache(maxsize=1)
-def _get_line_start_charnos(content: str) -> Sequence[int]:
+def _get_line_start_charnos(source: str) -> Sequence[int]:
     start = 0
     charnos = []
-    for line in content.splitlines(keepends=True):
+    for line in source.splitlines(keepends=True):
         charnos.append(start)
         start += len(line)
     return charnos
 
 
-def get_charnos(node: ast.AST, content: str, keep_first_indent: bool=False) -> Tuple[int, int]:
+def get_charnos(node: ast.AST, source: str, keep_first_indent: bool=False) -> Tuple[int, int]:
     """Get start and end character numbers in source code from ast node.
 
     Args:
         node (ast.AST): Node to fetch character numbers for
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         Tuple[int, int]: start, end
     """
-    line_start_charnos = _get_line_start_charnos(content)
+    line_start_charnos = _get_line_start_charnos(source)
     if match_template(node, ast.AST(decorator_list=list)) and node.decorator_list:
         start = min(node.decorator_list, key=lambda n: (n.lineno, n.col_offset))
     else:
@@ -589,24 +589,24 @@ def get_charnos(node: ast.AST, content: str, keep_first_indent: bool=False) -> T
     start_charno = line_start_charnos[start.lineno - 1] + start.col_offset
     end_charno = line_start_charnos[node.end_lineno - 1] + node.end_col_offset
 
-    code = content[start_charno:end_charno]
+    code = source[start_charno:end_charno]
     if code[0] == " ":
         whitespace = max(re.findall(r"\A^ *", code), key=len)
         start_charno += len(whitespace)
     if code[-1] == " ":
         whitespace = max(re.findall(r" *\Z$", code), key=len)
         end_charno -= len(whitespace)
-    if content[start_charno - 1] == "@" and isinstance(
+    if source[start_charno - 1] == "@" and isinstance(
         node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
     ):
         start_charno -= 1
     if keep_first_indent:
-        whitespace = max(re.findall(r" *\Z$", content[:start_charno]), key=len)
+        whitespace = max(re.findall(r" *\Z$", source[:start_charno]), key=len)
         start_charno -= len(whitespace)
 
     if (
         constants.PYTHON_VERSION < (3, 9)
-        and not is_valid_python(content[start_charno:end_charno])
+        and not is_valid_python(source[start_charno:end_charno])
         and not isinstance(
             node,
             (
@@ -628,19 +628,19 @@ def get_charnos(node: ast.AST, content: str, keep_first_indent: bool=False) -> T
     return start_charno, end_charno
 
 
-def get_code(node: ast.AST, content: str) -> str:
+def get_code(node: ast.AST, source: str) -> str:
     """Get python code from ast
 
     Args:
         node (ast.AST): ast to get code from
-        content (str): Python source code that ast was parsed from
+        source (str): Python source code that ast was parsed from
 
     Returns:
         str: Python source code
 
     """
-    start_charno, end_charno = get_charnos(node, content)
-    return content[start_charno:end_charno]
+    start_charno, end_charno = get_charnos(node, source)
+    return source[start_charno:end_charno]
 
 
 def literal_value(node: ast.AST) -> bool:

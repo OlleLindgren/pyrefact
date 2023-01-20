@@ -115,9 +115,9 @@ def _main() -> None:
         """,
         ),
     )
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = fixes.align_variable_names_with_convention(content, set())
+        processed_content = fixes.align_variable_names_with_convention(source, set())
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

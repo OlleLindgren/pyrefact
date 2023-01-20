@@ -135,9 +135,9 @@ x = -(k - w) * (a + b + c + d)
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = symbolic_math.simplify_math_iterators(content)
+        processed_content = symbolic_math.simplify_math_iterators(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

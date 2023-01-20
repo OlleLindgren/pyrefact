@@ -11,11 +11,11 @@ from integration_test_cases import INTEGRATION_TEST_CASES
 
 
 def main() -> int:
-    for content, expected_abstraction in INTEGRATION_TEST_CASES:
+    for source, expected_abstraction in INTEGRATION_TEST_CASES:
         with tempfile.NamedTemporaryFile() as temp:
             temp = temp.name
             with open(temp, "w", encoding="utf-8") as stream:
-                stream.write(content)
+                stream.write(source)
 
             pyrefact.format_file(temp)
 

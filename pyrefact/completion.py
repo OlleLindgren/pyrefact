@@ -18,7 +18,7 @@ if __name__ == "__main__":
     """,
     'with open(filename, "r", encoding="utf-8") as stream:': """
 with open(filename, "r", encoding="utf-8") as stream:
-        content = stream.read()
+        source = stream.read()
     """,
     'if __name__ == "__main__":': """
 if __name__ == "__main__":
@@ -42,17 +42,17 @@ def _match_pattern(line1, line2) -> bool:
     return matching > 5 and non_matching < max(2, matching * 0.1)
 
 
-def autocomplete(content: str) -> None:
+def autocomplete(source: str) -> None:
     """Autocomplete a file according to known patterns.
 
     Args:
         filename (Path): File to run autocomplete on.
 
     """
-    lines = content.splitlines(keepends=True)
+    lines = source.splitlines(keepends=True)
 
     if not lines:
-        return content
+        return source
 
     new_lines = []
 
@@ -78,7 +78,7 @@ def autocomplete(content: str) -> None:
         lines[0] = "#!/usr/bin/env python3"
 
     if n_completes == 0:
-        return content
+        return source
 
-    content = "".join(new_lines)
-    return content
+    source = "".join(new_lines)
+    return source

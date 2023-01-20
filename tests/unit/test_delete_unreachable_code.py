@@ -107,9 +107,9 @@ while 3:
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = fixes.delete_unreachable_code(content)
+        processed_content = fixes.delete_unreachable_code(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

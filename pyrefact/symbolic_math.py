@@ -34,12 +34,12 @@ def _parse_sympy_expr(expression):
 def _simplify_math(f: Callable) -> ast.AST:
     def wrapper(*args, **kwargs):
         expression = f(*args, **kwargs)
-        content = processing.unparse(expression).strip()
+        source = processing.unparse(expression).strip()
 
         # TODO substitute constant calls, attributes and other stuff with variables
 
-        content = str(sympy.simplify(content))
-        return parsing.parse(content)
+        source = str(sympy.simplify(source))
+        return parsing.parse(source)
 
     return wrapper
 
@@ -81,8 +81,8 @@ def _sum_constants(values: Sequence[ast.AST]) -> ast.AST:
 
 
 def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> ast.AST:
-    content = processing.unparse(expr).strip()
-    sym_expr = _parse_sympy_expr(content)
+    source = processing.unparse(expr).strip()
+    sym_expr = _parse_sympy_expr(source)
     for comprehension in generators:
         integrand = _parse_sympy_expr(processing.unparse(comprehension.target).strip())
         if isinstance(comprehension.iter, ast.Call):
@@ -120,11 +120,11 @@ def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> a
     return parsing.parse(str(sym_expr))
 
 
-def simplify_math_iterators(content: str) -> str:
+def simplify_math_iterators(source: str) -> str:
 
     replacements = {}
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
 
     template = ast.Call(
         func=ast.Name(id=tuple(constants.MATH_FUNCTIONS)),
@@ -190,6 +190,6 @@ def simplify_math_iterators(content: str) -> str:
                 continue
             replacements[node] = _integrate_over(arg.elt, arg.generators)
 
-    content = processing.replace_nodes(content, replacements)
+    source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source

@@ -13,8 +13,8 @@ from pyrefact import abstractions, constants, parsing, processing, sql
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
 
-def _get_undefined_variables(content: str) -> Collection[str]:
-    root = parsing.parse(content)
+def _get_undefined_variables(source: str) -> Collection[str]:
+    root = parsing.parse(source)
     imported_names = parsing.get_imported_names(root)
     defined_names = set()
     referenced_names = set()
@@ -86,14 +86,14 @@ def _rename_class(name: str, *, private: bool) -> str:
     return name
 
 
-def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Name]:
+def _get_uses_of(node: ast.AST, scope: ast.AST, source: str) -> Iterable[ast.Name]:
     if isinstance(node, ast.Name):
         name = node.id
         start = (node.lineno, node.col_offset)
         end = (node.end_lineno, node.end_col_offset)
     elif isinstance(node, (ast.ClassDef, ast.AsyncFunctionDef, ast.FunctionDef)):
         name = node.name
-        start_charno, end_charno = _get_func_name_start_end(node, content)
+        start_charno, end_charno = _get_func_name_start_end(node, source)
         start = (node.lineno, start_charno)
         end = (node.lineno, end_charno)
     else:
@@ -132,7 +132,7 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, content: str) -> Iterable[ast.Na
 
 
 def _get_variable_name_substitutions(
-    ast_tree: ast.AST, content: str, preserve: Collection[str]
+    ast_tree: ast.AST, source: str, preserve: Collection[str]
 ) -> Mapping[ast.AST, str]:
     renamings = collections.defaultdict(set)
     classdefs: List[ast.ClassDef] = []
@@ -142,7 +142,7 @@ def _get_variable_name_substitutions(
         substitute = _rename_class(name, private=parsing.is_private(name) or name not in preserve)
         classdefs.append(node)
         renamings[node].add(substitute)
-        for refnode in _get_uses_of(node, ast_tree, content):
+        for refnode in _get_uses_of(node, ast_tree, source):
             renamings[refnode].add(substitute)
 
     typevars = set()
@@ -151,7 +151,7 @@ def _get_variable_name_substitutions(
         target = node.targets[0]
         assert isinstance(target, (ast.Name, ast.Attribute))
         typevars.add(target)
-        for refnode in _get_uses_of(target, ast_tree, content):
+        for refnode in _get_uses_of(target, ast_tree, source):
             typevars.add(refnode)
 
     for node in parsing.iter_funcdefs(ast_tree):
@@ -161,7 +161,7 @@ def _get_variable_name_substitutions(
         )
         funcdefs.append(node)
         renamings[node].add(substitute)
-        for refnode in _get_uses_of(node, ast_tree, content):
+        for refnode in _get_uses_of(node, ast_tree, source):
             renamings[refnode].add(substitute)
 
     for node in parsing.iter_assignments(ast_tree):
@@ -170,7 +170,7 @@ def _get_variable_name_substitutions(
         else:
             substitute = _rename_variable(node.id, private=parsing.is_private(node.id), static=True)
         renamings[node].add(substitute)
-        for refnode in _get_uses_of(node, ast_tree, content):
+        for refnode in _get_uses_of(node, ast_tree, source):
             renamings[refnode].add(substitute)
 
     while funcdefs or classdefs:
@@ -181,7 +181,7 @@ def _get_variable_name_substitutions(
                 classdefs.append(node)
                 substitute = _rename_class(name, private=parsing.is_private(name))
                 renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, content):
+                for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
                 if parsing.is_magic_method(node):
@@ -190,13 +190,13 @@ def _get_variable_name_substitutions(
                 funcdefs.append(node)
                 substitute = _rename_variable(name, private=parsing.is_private(name), static=False)
                 renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, content):
+                for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
                 substitute = _rename_variable(name, private=parsing.is_private(name), static=False)
                 renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, content):
+                for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
         for partial_tree in funcdefs.copy():
             funcdefs.remove(partial_tree)
@@ -205,20 +205,20 @@ def _get_variable_name_substitutions(
                 classdefs.append(node)
                 substitute = _rename_class(name, private=False)
                 renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, content):
+                for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
                 funcdefs.append(node)
                 substitute = _rename_variable(name, private=False, static=False)
                 renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, content):
+                for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
                 substitute = _rename_variable(name, private=False, static=False)
                 renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, content):
+                for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
 
     return renamings
@@ -229,10 +229,10 @@ def _get_variable_re_pattern(variable) -> str:
 
 
 def _get_func_name_start_end(
-    node: Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef], content: str
+    node: Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef], source: str
 ) -> Tuple[int, int]:
-    start, end = parsing.get_charnos(node, content)
-    codeblock = content[start:end]
+    start, end = parsing.get_charnos(node, source)
+    codeblock = source[start:end]
     for match in re.finditer(_get_variable_re_pattern(node.name), codeblock):
         if match.group() == node.name:
             end = start + match.end()
@@ -243,12 +243,12 @@ def _get_func_name_start_end(
 
 
 def _fix_variable_names(
-    content: str,
+    source: str,
     renamings: Mapping[ast.AST, str],
     preserve: Collection[str] = frozenset(),
 ) -> str:
     replacements = []
-    ast_tree = parsing.parse(content)
+    ast_tree = parsing.parse(source)
     blacklisted_names = parsing.get_imported_names(ast_tree) | constants.BUILTIN_FUNCTIONS
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
@@ -260,7 +260,7 @@ def _fix_variable_names(
             continue
         if isinstance(node, ast.Name):
             if node.id != substitute and node.id not in preserve:
-                start, end = parsing.get_charnos(node, content)
+                start, end = parsing.get_charnos(node, source)
                 replacements.append((start, end, substitute))
             continue
 
@@ -270,21 +270,21 @@ def _fix_variable_names(
         if not isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
             raise TypeError(f"Unknown type: {type(node)}")
 
-        start, end = _get_func_name_start_end(node, content)
+        start, end = _get_func_name_start_end(node, source)
 
         replacements.append((start, end, substitute))
 
     for start, end, substitute in sorted(set(replacements), reverse=True):
-        print(f"Replacing {content[start:end]} with {substitute}")
-        content = content[:start] + substitute + content[end:]
+        print(f"Replacing {source[start:end]} with {substitute}")
+        source = source[:start] + substitute + source[end:]
 
-    return content
+    return source
 
 
-def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
+def _fix_undefined_variables(source: str, variables: Collection[str]) -> str:
     variables = set(variables)
 
-    lines = content.splitlines()
+    lines = source.splitlines()
     change_count = -len(lines)
     lineno = next(
         i
@@ -317,25 +317,25 @@ def _fix_undefined_variables(content: str, variables: Collection[str]) -> str:
     assert change_count >= 0
 
     if change_count == 0:
-        return content
+        return source
 
     return "\n".join(lines) + "\n"
 
 
-def add_missing_imports(content: str) -> str:
+def add_missing_imports(source: str) -> str:
     """Attempt to find imports matching all undefined variables.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Source code with added imports
     """
-    undefined_variables = _get_undefined_variables(content)
+    undefined_variables = _get_undefined_variables(source)
     if undefined_variables:
-        return _fix_undefined_variables(content, undefined_variables)
+        return _fix_undefined_variables(source, undefined_variables)
 
-    return content
+    return source
 
 
 def _recursive_attribute_name(attribute: ast.Attribute) -> str:
@@ -421,17 +421,17 @@ def _construct_import_statement(
 
 
 def _remove_unused_imports(
-    ast_tree: ast.Module, content: str, unused_imports: Collection[str]
+    ast_tree: ast.Module, source: str, unused_imports: Collection[str]
 ) -> str:
     completely_unused_imports, partially_unused_imports = _get_unused_imports_split(
         ast_tree, unused_imports
     )
     if completely_unused_imports:
         print("Removing unused imports")
-        content = processing.remove_nodes(content, completely_unused_imports, ast_tree)
+        source = processing.remove_nodes(source, completely_unused_imports, ast_tree)
         if not partially_unused_imports:
-            return content
-        ast_tree = parsing.parse(content)
+            return source
+        ast_tree = parsing.parse(source)
         completely_unused_imports, partially_unused_imports = _get_unused_imports_split(
             ast_tree, unused_imports
         )
@@ -448,73 +448,73 @@ def _remove_unused_imports(
         key=lambda n: (n.lineno, n.col_offset, n.end_lineno, n.end_col_offset),
         reverse=True,
     ):
-        start, end = parsing.get_charnos(node, content)
-        code = content[start:end]
+        start, end = parsing.get_charnos(node, source)
+        code = source[start:end]
         replacement = _construct_import_statement(node, unused_imports)
         print(f"Replacing:\n{code}\nWith:\n{replacement}")
-        content = content[:start] + replacement + content[end:]
+        source = source[:start] + replacement + source[end:]
 
-    return content
+    return source
 
 
-def remove_unused_imports(content: str) -> str:
+def remove_unused_imports(source: str) -> str:
     """Remove unused imports from source code.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Source code, with added imports removed
     """
-    ast_tree = parsing.parse(content)
+    ast_tree = parsing.parse(source)
     unused_imports = _get_unused_imports(ast_tree)
     if unused_imports:
-        content = _remove_unused_imports(ast_tree, content, unused_imports)
+        source = _remove_unused_imports(ast_tree, source, unused_imports)
 
-    return content
+    return source
 
 
-def fix_tabs(content: str) -> str:
+def fix_tabs(source: str) -> str:
     """Replace tabs with 4 spaces in source code
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Formatted source code
     """
-    return content.replace(r"\t", " " * 4)
+    return source.replace(r"\t", " " * 4)
 
 
-def fix_rmspace(content: str) -> str:
+def fix_rmspace(source: str) -> str:
     """Remove trailing whitespace from source code.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Source code, without trailing whitespace
     """
-    return rmspace.format_str(content)
+    return rmspace.format_str(source)
 
 
-def fix_isort(content: str, *, line_length: int = 100) -> str:
+def fix_isort(source: str, *, line_length: int = 100) -> str:
     """Format source code with isort
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
         line_length (int, optional): Line length. Defaults to 100.
 
     Returns:
         str: Source code, formatted with isort
     """
-    return isort.code(content, config=isort.Config(profile="black", line_length=line_length))
+    return isort.code(source, config=isort.Config(profile="black", line_length=line_length))
 
 
 @processing.fix
-def fix_line_lengths(content: str, *, max_line_length: int = 100) -> str:
+def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
 
     formatted_nodes = set()
     formatted_ranges = set()
@@ -536,9 +536,9 @@ def fix_line_lengths(content: str, *, max_line_length: int = 100) -> str:
         if node in formatted_nodes or max_node_line_length <= max_line_length:
             continue
 
-        start, end = parsing.get_charnos(node, content, keep_first_indent=True)
+        start, end = parsing.get_charnos(node, source, keep_first_indent=True)
 
-        current_code = content[start:end]
+        current_code = source[start:end]
         new_code = processing.format_with_black(current_code, line_length=max_line_length)
 
         if new_code != current_code and (
@@ -549,7 +549,7 @@ def fix_line_lengths(content: str, *, max_line_length: int = 100) -> str:
 
 
 def align_variable_names_with_convention(
-    content: str, preserve: Collection[str] = frozenset()
+    source: str, preserve: Collection[str] = frozenset()
 ) -> str:
     """Align variable names with normal convention
 
@@ -562,18 +562,18 @@ def align_variable_names_with_convention(
     __magic__ names may only be defined in global scope
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Source code, where all variable names comply with normal convention
     """
-    ast_tree = parsing.parse(content)
-    renamings = _get_variable_name_substitutions(ast_tree, content, preserve)
+    ast_tree = parsing.parse(source)
+    renamings = _get_variable_name_substitutions(ast_tree, source, preserve)
 
     if renamings:
-        content = _fix_variable_names(content, renamings, preserve)
+        source = _fix_variable_names(source, renamings, preserve)
 
-    return content
+    return source
 
 
 def _unique_assignment_targets(
@@ -589,17 +589,17 @@ def _unique_assignment_targets(
     raise TypeError(f"Expected Assignment type, got {type(node)}")
 
 
-def undefine_unused_variables(content: str, preserve: Collection[str] = frozenset()) -> str:
+def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset()) -> str:
     """Remove definitions of unused variables
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
         preserve (Collection[str], optional): Variable names to preserve
 
     Returns:
         str: Python source code, with no definitions of unused variables
     """
-    ast_tree = parsing.parse(content)
+    ast_tree = parsing.parse(source)
     renamings = collections.defaultdict(set)
     imports = set()
     for node in parsing.walk(ast_tree, (ast.Import, ast.ImportFrom)):
@@ -633,15 +633,15 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
             if containing_loop_node is None:
                 loop_start = loop_end = -1
             else:
-                (loop_start, loop_end) = parsing.get_charnos(containing_loop_node, content)
+                (loop_start, loop_end) = parsing.get_charnos(containing_loop_node, source)
             for target_node in target_nodes:
-                (s, e) = parsing.get_charnos(target_node, content)
+                (s, e) = parsing.get_charnos(target_node, source)
                 starts.append(s)
                 ends.append(e)
             start = min(starts)
             end = max(ends)
             for refnode in reference_nodes:
-                (n_start, n_end) = parsing.get_charnos(refnode, content)
+                (n_start, n_end) = parsing.get_charnos(refnode, source)
                 if (
                     end < n_start
                     or (isinstance(def_node, (ast.ClassDef, ast.Module)) and n_end < start)
@@ -659,8 +659,8 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
                     renamings[target_node].add("_")
 
     if renamings:
-        content = _fix_variable_names(content, renamings, preserve)
-        ast_tree = parsing.parse(content)
+        source = _fix_variable_names(source, renamings, preserve)
+        ast_tree = parsing.parse(source)
 
     for node in parsing.walk(ast_tree, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
         target_nodes = _unique_assignment_targets(node)
@@ -668,14 +668,14 @@ def undefine_unused_variables(content: str, preserve: Collection[str] = frozense
         if target_names != {"_"}:
             continue
 
-        (start_charno, end_charno) = parsing.get_charnos(node, content)
-        code = parsing.get_code(node, content)
+        (start_charno, end_charno) = parsing.get_charnos(node, source)
+        code = parsing.get_code(node, source)
         changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
         if code != changed_code:
             print(f"Removing redundant assignments in {code}")
-            content = content[:start_charno] + changed_code + content[end_charno:]
+            source = source[:start_charno] + changed_code + source[end_charno:]
 
-    return content
+    return source
 
 
 def _is_pointless_string(node: ast.AST) -> bool:
@@ -692,16 +692,16 @@ def _is_pointless_string(node: ast.AST) -> bool:
     return parsing.match_template(node, ast.Expr(value=ast.Constant(value=str)))
 
 
-def delete_pointless_statements(content: str) -> str:
+def delete_pointless_statements(source: str) -> str:
     """Delete pointless statements with no side effects from code
 
     Args:
-        content (str): Python source code.
+        source (str): Python source code.
 
     Returns:
         str: Modified code
     """
-    ast_tree = parsing.parse(content)
+    ast_tree = parsing.parse(source)
     delete = []
     safe_callables = parsing.safe_callable_names(ast_tree)
     for node in itertools.chain([ast_tree], parsing.iter_bodies_recursive(ast_tree)):
@@ -712,9 +712,9 @@ def delete_pointless_statements(content: str) -> str:
 
     if delete:
         print("Removing pointless statements")
-        content = processing.remove_nodes(content, delete, ast_tree)
+        source = processing.remove_nodes(source, delete, ast_tree)
 
-    return content
+    return source
 
 
 def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> Iterable[ast.AST]:
@@ -787,38 +787,38 @@ def _iter_unreachable_nodes(body: Iterable[ast.AST]) -> Iterable[ast.AST]:
 
 
 def delete_unused_functions_and_classes(
-    content: str, preserve: Collection[str] = frozenset()
+    source: str, preserve: Collection[str] = frozenset()
 ) -> str:
     """Delete unused functions and classes from code.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
         preserve (Collection[str], optional): Names to preserve
 
     Returns:
         str: Python source code, where unused functions and classes have been deleted.
     """
-    root = parsing.parse(content)
+    root = parsing.parse(source)
 
     delete = set(_get_unused_functions_classes(root, preserve))
 
     if delete:
         print("Removing unused functions and classes")
-        content = processing.remove_nodes(content, delete, root)
+        source = processing.remove_nodes(source, delete, root)
 
-    return content
+    return source
 
 
-def delete_unreachable_code(content: str) -> str:
+def delete_unreachable_code(source: str) -> str:
     """Find and delete dead code.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Source code with dead code deleted
     """
-    root = parsing.parse(content)
+    root = parsing.parse(source)
 
     delete = set()
     for node in parsing.iter_bodies_recursive(root):
@@ -845,9 +845,9 @@ def delete_unreachable_code(content: str) -> str:
 
     if delete:
         print("Removing unreachable code")
-        content = processing.remove_nodes(content, delete, root)
+        source = processing.remove_nodes(source, delete, root)
 
-    return content
+    return source
 
 
 def _get_package_names(node: Union[ast.Import, ast.ImportFrom]):
@@ -857,8 +857,8 @@ def _get_package_names(node: Union[ast.Import, ast.ImportFrom]):
     return [alias.name for alias in node.names]
 
 
-def move_imports_to_toplevel(content: str) -> str:
-    root = parsing.parse(content)
+def move_imports_to_toplevel(source: str) -> str:
+    root = parsing.parse(source)
     toplevel_imports = set(parsing.filter_nodes(root.body, (ast.Import, ast.ImportFrom)))
     all_imports = set(parsing.walk(root, (ast.Import, ast.ImportFrom)))
     toplevel_packages = set()
@@ -928,24 +928,24 @@ def move_imports_to_toplevel(content: str) -> str:
 
     if removals or additions:
         print("Moving imports to toplevel")
-        content = processing.alter_code(content, root, removals=removals, additions=additions)
+        source = processing.alter_code(source, root, removals=removals, additions=additions)
 
     # Isort will remove redundant imports
 
-    return content
+    return source
 
 
-def remove_duplicate_functions(content: str, preserve: Collection[str]) -> str:
+def remove_duplicate_functions(source: str, preserve: Collection[str]) -> str:
     """Remove duplicate function definitions.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
         preserve (Collection[str]): Names to preserve
 
     Returns:
         str: Modified code
     """
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     function_defs = collections.defaultdict(set)
 
     for node in parsing.filter_nodes(root.body, ast.FunctionDef):
@@ -970,7 +970,7 @@ def remove_duplicate_functions(content: str, preserve: Collection[str]) -> str:
             renamings[node.name] = replacement.name
 
     if not delete and not renamings:
-        return content
+        return source
 
     names = collections.defaultdict(list)
     for node in parsing.walk(root, ast.Name):
@@ -982,91 +982,91 @@ def remove_duplicate_functions(content: str, preserve: Collection[str]) -> str:
             node_renamings[node].add(substitute)
 
     if node_renamings:
-        content = _fix_variable_names(content, node_renamings, preserve)
+        source = _fix_variable_names(source, node_renamings, preserve)
     if delete:
-        content = processing.remove_nodes(content, delete, root)
+        source = processing.remove_nodes(source, delete, root)
 
-    return content
+    return source
 
 
-def _de_indent_from_else(content: str, orelse: Sequence[ast.AST]) -> str:
-    ranges = [parsing.get_charnos(child, content) for child in orelse]
+def _de_indent_from_else(source: str, orelse: Sequence[ast.AST]) -> str:
+    ranges = [parsing.get_charnos(child, source) for child in orelse]
     start = min((s for (s, _) in ranges))
     end = max((e for (_, e) in ranges))
-    last_else = list(re.finditer("(?<![^\\n]) *else: *\\n?", content[:start]))[-1]
+    last_else = list(re.finditer("(?<![^\\n]) *else: *\\n?", source[:start]))[-1]
     indent = len(re.findall("^ *", last_else.group())[0])
-    modified_pre_else = content[: last_else.start()].rstrip() + "\n\n"
-    modified_orelse = " " * indent + re.sub("(?<![^\\n])    ", "", content[start:end]).lstrip()
-    content = modified_pre_else + modified_orelse + content[end:]
+    modified_pre_else = source[: last_else.start()].rstrip() + "\n\n"
+    modified_orelse = " " * indent + re.sub("(?<![^\\n])    ", "", source[start:end]).lstrip()
+    source = modified_pre_else + modified_orelse + source[end:]
 
-    return content
+    return source
 
 
-def _de_indent_body(content: str, node: ast.AST, body: Sequence[ast.AST]) -> str:
-    ranges = [parsing.get_charnos(child, content) for child in body]
+def _de_indent_body(source: str, node: ast.AST, body: Sequence[ast.AST]) -> str:
+    ranges = [parsing.get_charnos(child, source) for child in body]
     start = min((s for (s, _) in ranges))
     end = max((e for (_, e) in ranges))
     indent = node.col_offset
-    node_start, node_end = parsing.get_charnos(node, content)
-    modified_pre = content[:node_start].rstrip() + "\n\n"
-    modified_body = " " * indent + re.sub("(?<![^\\n])    ", "", content[start:end]).lstrip()
-    modified_post = "\n\n" + content[node_end:]
-    content = modified_pre + modified_body + modified_post
+    node_start, node_end = parsing.get_charnos(node, source)
+    modified_pre = source[:node_start].rstrip() + "\n\n"
+    modified_body = " " * indent + re.sub("(?<![^\\n])    ", "", source[start:end]).lstrip()
+    modified_post = "\n\n" + source[node_end:]
+    source = modified_pre + modified_body + modified_post
 
-    return content
+    return source
 
 
-def remove_redundant_else(content: str) -> str:
+def remove_redundant_else(source: str) -> str:
     """Remove redundante else and elif statements in code.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Code with no redundant else/elifs.
     """
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     for node in parsing.walk(root, ast.If):
         if not node.orelse:
             continue
-        if not parsing.get_code(node, content).startswith("if"):  # Otherwise we get FPs on elif
+        if not parsing.get_code(node, source).startswith("if"):  # Otherwise we get FPs on elif
             continue
         if not any((parsing.is_blocking(child) for child in node.body)):
             continue
 
         if parsing.match_template(node.orelse, [ast.If]):
-            (start, end) = parsing.get_charnos(node.orelse[0], content)
-            orelse = content[start:end]
+            (start, end) = parsing.get_charnos(node.orelse[0], source)
+            orelse = source[start:end]
             if orelse.startswith("elif"):  # Regular elif
                 modified_orelse = re.sub("^elif", "if", orelse)
                 print("Found redundant elif:")
-                print(parsing.get_code(node, content))
-                content = content[:start] + modified_orelse + content[end:]
+                print(parsing.get_code(node, source))
+                source = source[:start] + modified_orelse + source[end:]
                 continue
 
             # Otherwise it's an else: if:, which is handled below
 
         # else
         print("Found redundant else:")
-        print(parsing.get_code(node, content))
+        print(parsing.get_code(node, source))
 
-        content = _de_indent_from_else(content, node.orelse)
-        return remove_redundant_else(content)
+        source = _de_indent_from_else(source, node.orelse)
+        return remove_redundant_else(source)
 
-    return content
+    return source
 
 
 @processing.fix
-def singleton_eq_comparison(content: str) -> str:
+def singleton_eq_comparison(source: str) -> str:
     """Replace singleton comparisons using "==" with "is".
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Fixed code
     """
-    root = parsing.parse(content)
+    root = parsing.parse(source)
 
     for node in parsing.walk(root, ast.Compare):
         changes = False
@@ -1162,19 +1162,19 @@ def _orelse_preferred_as_body(body: Sequence[ast.AST], orelse: Sequence[ast.AST]
     return False
 
 
-def _sequential_similar_ifs(content: str, root: ast.AST) -> Collection[ast.If]:
+def _sequential_similar_ifs(source: str, root: ast.AST) -> Collection[ast.If]:
     return set.union(
         set(),
-        *map(set, parsing.iter_similar_nodes(root, content, ast.If, count=2, length=15)),
-        *map(set, parsing.iter_similar_nodes(root, content, ast.If, count=3, length=10)),
+        *map(set, parsing.iter_similar_nodes(root, source, ast.If, count=2, length=15)),
+        *map(set, parsing.iter_similar_nodes(root, source, ast.If, count=3, length=10)),
     )
 
 
-def _swap_explicit_if_else(content: str) -> str:
+def _swap_explicit_if_else(source: str) -> str:
     replacements = {}
 
-    root = parsing.parse(content)
-    sequential_similar_ifs = _sequential_similar_ifs(content, root)
+    root = parsing.parse(source)
+    sequential_similar_ifs = _sequential_similar_ifs(source, root)
 
     for stmt, body, orelse in _iter_explicit_if_elses(root):
         if isinstance(stmt.test, ast.NamedExpr):
@@ -1187,7 +1187,7 @@ def _swap_explicit_if_else(content: str) -> str:
             and not any(parsing.is_blocking(node) for node in orelse)
         ):
             continue  # Redundant else
-        if parsing.get_code(stmt, content).startswith("elif"):
+        if parsing.get_code(stmt, source).startswith("elif"):
             continue
         if _orelse_preferred_as_body(body, orelse):
             if orelse:
@@ -1200,18 +1200,18 @@ def _swap_explicit_if_else(content: str) -> str:
                 break
 
     if replacements:
-        content = processing.replace_nodes(content, replacements)
-        return _swap_explicit_if_else(content)
+        source = processing.replace_nodes(source, replacements)
+        return _swap_explicit_if_else(source)
 
-    return content
+    return source
 
 
-def _swap_implicit_if_else(content: str) -> str:
+def _swap_implicit_if_else(source: str) -> str:
     replacements = {}
     removals = set()
 
-    root = parsing.parse(content)
-    sequential_similar_ifs = _sequential_similar_ifs(content, root)
+    root = parsing.parse(source)
+    sequential_similar_ifs = _sequential_similar_ifs(source, root)
 
     for stmt, body, orelse in _iter_implicit_if_elses(root):
         if stmt in sequential_similar_ifs:
@@ -1224,7 +1224,7 @@ def _swap_implicit_if_else(content: str) -> str:
             and not any(parsing.is_blocking(node) for node in orelse)
         ):
             continue  # body is blocking but orelse is not
-        if parsing.get_code(stmt, content).startswith("elif"):
+        if parsing.get_code(stmt, source).startswith("elif"):
             continue
         if _orelse_preferred_as_body(body, orelse):
             if orelse:
@@ -1238,25 +1238,25 @@ def _swap_implicit_if_else(content: str) -> str:
                 break
 
     if replacements or removals:
-        content = processing.alter_code(content, root, replacements=replacements, removals=removals)
-        return _swap_explicit_if_else(content)
+        source = processing.alter_code(source, root, replacements=replacements, removals=removals)
+        return _swap_explicit_if_else(source)
 
-    return content
-
-
-def swap_if_else(content: str) -> str:
-    content = _swap_implicit_if_else(content)
-    content = _swap_explicit_if_else(content)
-
-    return content
+    return source
 
 
-def early_return(content: str) -> str:
+def swap_if_else(source: str) -> str:
+    source = _swap_implicit_if_else(source)
+    source = _swap_explicit_if_else(source)
+
+    return source
+
+
+def early_return(source: str) -> str:
 
     replacements = {}
     removals = []
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     for funcdef in parsing.iter_funcdefs(root):
         if not parsing.match_template(funcdef.body[-2:], [ast.If, ast.Return(value=ast.Name)]):
             continue
@@ -1289,14 +1289,14 @@ def early_return(content: str) -> str:
                 replacements[node] = ast.Return(value=node.value, lineno=node.lineno)
             removals.append(ret_stmt)
 
-    content = processing.alter_code(
-        content,
+    source = processing.alter_code(
+        source,
         root,
         replacements=replacements,
         removals=removals,
     )
 
-    return content
+    return source
 
 
 def _total_linenos(nodes: Iterable[ast.AST]) -> int:
@@ -1310,13 +1310,13 @@ def _total_linenos(nodes: Iterable[ast.AST]) -> int:
     return max(end_lineno - start_lineno, 0)
 
 
-def early_continue(content: str) -> str:
+def early_continue(source: str) -> str:
 
     additions = []
     replacements = {}
 
-    root = parsing.parse(content)
-    blacklisted_ifs = _sequential_similar_ifs(content, root)
+    root = parsing.parse(source)
+    blacklisted_ifs = _sequential_similar_ifs(source, root)
 
     for loop in parsing.walk(root, ast.For):
         stmt = loop.body[-1]
@@ -1350,18 +1350,18 @@ def early_continue(content: str) -> str:
                     test=_negate_condition(stmt.test),
                 )
 
-    content = processing.alter_code(
-        content,
+    source = processing.alter_code(
+        source,
         root,
         additions=additions,
         replacements=replacements,
     )
-    return content
+    return source
 
 
 @processing.fix
-def remove_redundant_comprehensions(content: str) -> str:
-    root = parsing.parse(content)
+def remove_redundant_comprehensions(source: str) -> str:
+    root = parsing.parse(source)
 
     replacements = {}
 
@@ -1393,9 +1393,9 @@ def remove_redundant_comprehensions(content: str) -> str:
 
 
 @processing.fix
-def replace_functions_with_literals(content: str) -> str:
+def replace_functions_with_literals(source: str) -> str:
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     replacements = {}
 
     func_literal_template = ast.Call(
@@ -1446,7 +1446,7 @@ def replace_functions_with_literals(content: str) -> str:
 
 
 @processing.fix
-def replace_for_loops_with_dict_comp(content: str) -> str:
+def replace_for_loops_with_dict_comp(source: str) -> str:
     replacements = {}
     removals = set()
 
@@ -1455,7 +1455,7 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
         targets=[ast.Name(id=parsing.Wildcard("target", str))]
     )
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     for (_, target, value), (n2,) in parsing.walk_sequence(
         root,
         assign_template,
@@ -1510,13 +1510,13 @@ def replace_for_loops_with_dict_comp(content: str) -> str:
             yield value, ast.Dict(keys=[None, None], values=[value, comp])
             yield n2, None
 
-    content = processing.alter_code(content, root, removals=removals, replacements=replacements)
+    source = processing.alter_code(source, root, removals=removals, replacements=replacements)
 
-    return content
+    return source
 
 
 @processing.fix
-def replace_for_loops_with_set_list_comp(content: str) -> str:
+def replace_for_loops_with_set_list_comp(source: str) -> str:
     replacements = {}
     removals = set()
 
@@ -1530,7 +1530,7 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
     set_init_template = ast.Call(func=ast.Name(id="set"), args=[], keywords=[])
     list_init_template = ast.List(elts=[])  # list() should have been replaced by [] elsewhere.
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     for (n1, target, value), (n2,) in parsing.walk_sequence(root, assign_template, for_template):
         body_node = n2
         generators = []
@@ -1608,8 +1608,8 @@ def replace_for_loops_with_set_list_comp(content: str) -> str:
             yield n2, None
 
 
-def inline_math_comprehensions(content: str) -> str:
-    root = parsing.parse(content)
+def inline_math_comprehensions(source: str) -> str:
+    root = parsing.parse(source)
 
     replacements = {}
     blacklist = set()
@@ -1630,15 +1630,15 @@ def inline_math_comprehensions(content: str) -> str:
     scope_types = (ast.Module, ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)
     for scope in parsing.walk(root, scope_types):
         for assignment, target, value in comprehension_assignments:
-            uses = list(_get_uses_of(target, scope, content))
+            uses = list(_get_uses_of(target, scope, source))
             if len(uses) != 1:
                 blacklist.add(assignment)
                 continue
 
             use = uses.pop()
 
-            _, set_end_charno = parsing.get_charnos(value, content)
-            use_start_charno, _ = parsing.get_charnos(use, content)
+            _, set_end_charno = parsing.get_charnos(value, source)
+            use_start_charno, _ = parsing.get_charnos(use, source)
 
             # May be in a loop and the below dependency check won't be reliable.
             if use_start_charno < set_end_charno:
@@ -1649,7 +1649,7 @@ def inline_math_comprehensions(content: str) -> str:
             # Perhaps some of these could be skipped, but I'm not sure that's a good idea.
             value_dependencies = tuple({node.id for node in parsing.walk(value, ast.Name)})
             for node in parsing.walk(scope, ast.Name(id=value_dependencies)):
-                start, end = parsing.get_charnos(node, content)
+                start, end = parsing.get_charnos(node, source)
                 if set_end_charno < start <= end < use_start_charno:
                     blacklist.add(use)
                     break
@@ -1669,13 +1669,13 @@ def inline_math_comprehensions(content: str) -> str:
         if assignment in replacements:
             del replacements[assignment]
 
-    content = processing.replace_nodes(content, replacements)
+    source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
 
-def simplify_transposes(content: str) -> str:
-    root = parsing.parse(content)
+def simplify_transposes(source: str) -> str:
+    root = parsing.parse(source)
 
     replacements = {}
 
@@ -1692,15 +1692,15 @@ def simplify_transposes(content: str) -> str:
             replacements[node] = second_transpose_target
             break
 
-    content = processing.replace_nodes(content, replacements)
+    source = processing.replace_nodes(source, replacements)
     if replacements:
-        return simplify_transposes(content)
+        return simplify_transposes(source)
 
-    return content
+    return source
 
 
-def remove_dead_ifs(content: str) -> str:
-    root = parsing.parse(content)
+def remove_dead_ifs(source: str) -> str:
+    root = parsing.parse(source)
 
     removals = set()
     replacements = {}
@@ -1720,12 +1720,12 @@ def remove_dead_ifs(content: str) -> str:
         if isinstance(node, ast.If):
             if value and node.body:
                 # Replace node with node.body, node.orelse is dead if exists
-                content = _de_indent_body(content, node, node.body)
-                return remove_dead_ifs(content)
+                source = _de_indent_body(source, node, node.body)
+                return remove_dead_ifs(source)
             if not value and node.orelse:
                 # Replace node with node.orelse, node.body is dead
-                content = _de_indent_body(content, node, node.orelse)
-                return remove_dead_ifs(content)
+                source = _de_indent_body(source, node, node.orelse)
+                return remove_dead_ifs(source)
 
             # Both body and orelse are dead => node is dead
             if value and not node.body:
@@ -1733,17 +1733,17 @@ def remove_dead_ifs(content: str) -> str:
             elif not value and not node.orelse:
                 removals.add(node)
 
-    content = processing.alter_code(content, root, replacements=replacements, removals=removals)
+    source = processing.alter_code(source, root, replacements=replacements, removals=removals)
 
-    return content
+    return source
 
 
 @processing.fix(restart_on_replace=True)
-def delete_commented_code(content: str) -> str:
-    matches = list(re.finditer(r"(?<![^\n])(\s*(#.*))+", content))
-    root = parsing.parse(content)
+def delete_commented_code(source: str) -> str:
+    matches = list(re.finditer(r"(?<![^\n])(\s*(#.*))+", source))
+    root = parsing.parse(source)
     code_string_ranges = {
-        parsing.get_charnos(node, content)
+        parsing.get_charnos(node, source)
         for node in parsing.walk(root, (ast.Constant(value=str), ast.JoinedStr))
     }
     for commented_block in matches:
@@ -1772,7 +1772,7 @@ def delete_commented_code(content: str) -> str:
                     continue
 
                 uncommented_block = re.sub(
-                    r"(?<![^\n])(\s*#)", "", content[start + start_offset : end - end_offset]
+                    r"(?<![^\n])(\s*#)", "", source[start + start_offset : end - end_offset]
                 )
                 indentation_lengths = [
                     x.end() - x.start() for x in re.finditer("(?<![^\n]) +", uncommented_block)
@@ -1813,8 +1813,8 @@ def delete_commented_code(content: str) -> str:
 
 
 @processing.fix
-def replace_with_filter(content: str) -> str:
-    root = parsing.parse(content)
+def replace_with_filter(source: str) -> str:
+    root = parsing.parse(source)
 
     replacements = {}
     removals = set()
@@ -1952,7 +1952,7 @@ def _preferred_comprehension_type(node: ast.AST) -> Union[ast.AST, ast.SetComp, 
     return node
 
 
-def implicit_defaultdict(content: str) -> str:
+def implicit_defaultdict(source: str) -> str:
     replacements = {}
     removals = set()
 
@@ -1962,7 +1962,7 @@ def implicit_defaultdict(content: str) -> str:
     )
     if_template = ast.If(body=[object], orelse=[])
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     for (_, target, value), (n2,) in parsing.walk_sequence(root, assign_template, ast.For):
         loop_replacements = {}
         loop_removals = set()
@@ -2062,14 +2062,14 @@ def implicit_defaultdict(content: str) -> str:
                 keywords=[],
             )
 
-    content = processing.alter_code(content, root, replacements=replacements, removals=removals)
+    source = processing.alter_code(source, root, replacements=replacements, removals=removals)
 
-    return content
+    return source
 
 
 @processing.fix
-def simplify_redundant_lambda(content: str) -> str:
-    root = parsing.parse(content)
+def simplify_redundant_lambda(source: str) -> str:
+    root = parsing.parse(source)
 
     replacements = {}
 
@@ -2095,9 +2095,9 @@ def simplify_redundant_lambda(content: str) -> str:
 
 
 @processing.fix
-def format_inlined_sql(content: str) -> str:
+def format_inlined_sql(source: str) -> str:
 
-    root = parsing.parse(content)
+    root = parsing.parse(source)
     replacements = {}
 
     blacklist = set()
@@ -2106,7 +2106,7 @@ def format_inlined_sql(content: str) -> str:
     fstr_template = ast.JoinedStr(values={ast.Constant, ast.FormattedValue})
     for node in parsing.walk(root, fstr_template):
         blacklist.update(parsing.walk(node, str_template))
-        code = parsing.get_code(node, content)
+        code = parsing.get_code(node, source)
         delimiter = code[-1]
         if set(code[-3:]) == {code[-1]}:
             delimiter = delimiter * 3
@@ -2125,7 +2125,7 @@ def format_inlined_sql(content: str) -> str:
 
     for node, code in parsing.walk_wildcard(root, str_template):
         if node not in blacklist and sql.is_sql_syntax(code):
-            code_with_delimiters = parsing.get_code(node, content)
+            code_with_delimiters = parsing.get_code(node, source)
             delimiter = code_with_delimiters[-1]
             if set(code_with_delimiters[-3:]) == {code_with_delimiters[-1]}:
                 delimiter = delimiter * 3

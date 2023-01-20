@@ -34,9 +34,9 @@ ww = {x: y for y, x in zip((1, 2, 3), range(3))}
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = fixes.remove_redundant_comprehensions(content)
+        processed_content = fixes.remove_redundant_comprehensions(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

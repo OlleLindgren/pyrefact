@@ -20,21 +20,21 @@ class _Rewrite(NamedTuple):
     new: Union[ast.AST, str]  # "" indicates a removal
 
 
-def _get_indent(content: str) -> int:
-    indentation_whitespace = [x.group() for x in re.finditer(r"(?<![^\n]) *(?=[^\n])", content)]
+def _get_indent(source: str) -> int:
+    indentation_whitespace = [x.group() for x in re.finditer(r"(?<![^\n]) *(?=[^\n])", source)]
     if indentation_whitespace:
         return min(len(x) for x in indentation_whitespace)
 
     return 0
 
 
-def _deindent_code(content: str, indent: int) -> str:
-    lines = content.splitlines(keepends=True)
+def _deindent_code(source: str, indent: int) -> str:
+    lines = source.splitlines(keepends=True)
     return "".join(line[indent:] if line.strip() else line for line in lines)
 
 
-def _indent_code(content: str, indent: int) -> str:
-    lines = content.splitlines(keepends=True)
+def _indent_code(source: str, indent: int) -> str:
+    lines = source.splitlines(keepends=True)
     return "".join(" " * indent + line for line in lines)
 
 
@@ -44,22 +44,22 @@ def _match_wrapping_whitespace(new: str, initial: str) -> str:
     return prefix_whitespace + new.strip() + suffix_whitespace
 
 
-def format_with_black(content: str, *, line_length: int = 100) -> str:
+def format_with_black(source: str, *, line_length: int = 100) -> str:
     """Format code with black.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Formatted source code.
     """
-    indent = _get_indent(content)
-    deindented_code = _deindent_code(content, indent)
+    indent = _get_indent(source)
+    deindented_code = _deindent_code(source, indent)
     formatted_deindented_code = black.format_str(
         deindented_code, mode=black.Mode(line_length=max(60, line_length - indent))
     )
     formatted_content = _indent_code(formatted_deindented_code, indent)
-    whitespace_adjusted_content = _match_wrapping_whitespace(formatted_content, content)
+    whitespace_adjusted_content = _match_wrapping_whitespace(formatted_content, source)
 
     return whitespace_adjusted_content
 
@@ -70,7 +70,7 @@ def unparse(node: ast.AST) -> str:
 
     import astunparse
 
-    content = astunparse.unparse(node)
+    source = astunparse.unparse(node)
 
     if not isinstance(
         node,
@@ -86,35 +86,35 @@ def unparse(node: ast.AST) -> str:
             ast.IfExp,
         ),
     ):
-        content = content.rstrip()
+        source = source.rstrip()
 
     line_length = max(60, 100 - getattr(node, "col_offset", 0))
-    content = format_with_black(content, line_length=line_length)
-    indent = _get_indent(content)
-    content = _deindent_code(content, indent).lstrip()
+    source = format_with_black(source, line_length=line_length)
+    indent = _get_indent(source)
+    source = _deindent_code(source, indent).lstrip()
 
-    return content
+    return source
 
 
-def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> str:
+def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str:
     """Remove ast nodes from code
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
         nodes (Iterable[ast.AST]): Nodes to delete from code
         root (ast.Module): Complete corresponding module
 
     Returns:
         str: Code after deleting nodes
     """
-    keep_mask = [True] * len(content)
+    keep_mask = [True] * len(source)
     nodes = list(nodes)
     for node in nodes:
-        start, end = parsing.get_charnos(node, content)
-        print(f"Removing:\n{content[start:end]}")
+        start, end = parsing.get_charnos(node, source)
+        print(f"Removing:\n{source[start:end]}")
         keep_mask[start:end] = [False] * (end - start)
 
-    passes = [len(content) + 1]
+    passes = [len(source) + 1]
 
     for node in ast.walk(root):
         if isinstance(node, ast.Module):
@@ -123,14 +123,14 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
             if body := getattr(node, bodytype, []):
                 if isinstance(body, list) and all(child in nodes for child in body):
                     print(f"Found empty {bodytype}")
-                    start_charno, _ = parsing.get_charnos(body[0], content)
+                    start_charno, _ = parsing.get_charnos(body[0], source)
                     passes.append(start_charno)
 
     heapq.heapify(passes)
 
     next_pass = heapq.heappop(passes)
     chars = []
-    for i, char, keep in zip(range(len(content)), content, keep_mask):
+    for i, char, keep in zip(range(len(source)), source, keep_mask):
         if i == next_pass:
             chars.extend("pass\n")
         elif next_pass < i < next_pass + 3:
@@ -144,14 +144,14 @@ def remove_nodes(content: str, nodes: Iterable[ast.AST], root: ast.Module) -> st
     return "".join(chars)
 
 
-def _do_rewrite(content: str, rewrite: _Rewrite) -> str:
+def _do_rewrite(source: str, rewrite: _Rewrite) -> str:
     old, new = rewrite
-    start, end = _get_charnos(rewrite, content)
-    code = content[start:end]
+    start, end = _get_charnos(rewrite, source)
+    code = source[start:end]
     if isinstance(new, str):
         new_code = new
         if new_code == code:
-            return content
+            return source
     elif isinstance(new, ast.AST):
         new_code = unparse(new)
     else:
@@ -169,31 +169,31 @@ def _do_rewrite(content: str, rewrite: _Rewrite) -> str:
     else:
         print(f"Removing \n{code}")
 
-    return content[:start] + new_code + content[end:]
+    return source[:start] + new_code + source[end:]
 
 
-def replace_nodes(content: str, replacements: Mapping[ast.AST, Union[ast.AST, str]]) -> str:
+def replace_nodes(source: str, replacements: Mapping[ast.AST, Union[ast.AST, str]]) -> str:
     rewrites = sorted(
         replacements.items(), key=lambda tup: (tup[0].lineno, tup[0].end_lineno), reverse=True
     )
     for old, new in rewrites:
         rewrite = _Rewrite(old, new)
-        content = _do_rewrite(content, rewrite)
+        source = _do_rewrite(source, rewrite)
 
-    return content
+    return source
 
 
-def insert_nodes(content: str, additions: Collection[ast.AST]) -> str:
+def insert_nodes(source: str, additions: Collection[ast.AST]) -> str:
     """Insert ast nodes in python source code.
 
     Args:
-        content (str): Python source code before insertions.
+        source (str): Python source code before insertions.
         additions (Collection[ast.AST]): Ast nodes to add. Linenos must be accurate.
 
     Returns:
         str: Code with added asts.
     """
-    lines = content.splitlines(keepends=True)
+    lines = source.splitlines(keepends=True)
 
     for node in sorted(additions, key=lambda n: n.lineno, reverse=True):
         addition = unparse(node)
@@ -211,7 +211,7 @@ def insert_nodes(content: str, additions: Collection[ast.AST]) -> str:
 
 
 def alter_code(
-    content: str,
+    source: str,
     root: ast.AST,
     *,
     additions: Collection[ast.AST] = frozenset(),
@@ -223,7 +223,7 @@ def alter_code(
     This coordinates additions, removals and replacements in a safe way.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
         root (ast.AST): Parsed AST tree corresponding to source code
         additions (Collection[ast.AST], optional): Nodes to add
         removals (Collection[ast.AST], optional): Nodes to remove
@@ -247,32 +247,32 @@ def alter_code(
     # a < d => deletions will go before additions if same lineno and reversed sorting.
     for _, action, _, value in sorted(actions, reverse=True):
         if action == "add":
-            content = insert_nodes(content, [value])
+            source = insert_nodes(source, [value])
         elif action == "delete":
-            content = remove_nodes(content, [value], root)
+            source = remove_nodes(source, [value], root)
         elif action == "replace":
-            content = replace_nodes(content, value)
+            source = replace_nodes(source, value)
         else:
             raise ValueError(f"Invalid action: {action}")
 
-    return content
+    return source
 
 
-def _get_charnos(obj: _Rewrite, content: str):
+def _get_charnos(obj: _Rewrite, source: str):
     old, new = obj
     if isinstance(old, Range):
         return old.start, old.end
 
     if old is not None:
-        return parsing.get_charnos(old, content)
+        return parsing.get_charnos(old, source)
 
-    return parsing.get_charnos(new, content)
+    return parsing.get_charnos(new, source)
 
 
 def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) -> Callable:
     def fix_decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        def wrapper(content, *args, **kwargs):
+        def wrapper(source, *args, **kwargs):
 
             # Track rewrite history as an infinite loop guard
             history = set()
@@ -280,26 +280,26 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
                 while True:
                     try:
                         old, new = next(
-                            r for r in func(content, *args, **kwargs) if r not in history
+                            r for r in func(source, *args, **kwargs) if r not in history
                         )
                         rewrite = _Rewrite(old, new or "")
                         history.add(rewrite)
-                        content = _do_rewrite(content, rewrite)
+                        source = _do_rewrite(source, rewrite)
                     except StopIteration:
-                        return content
+                        return source
 
-            rewrites = (_Rewrite(old, new or "") for old, new in func(content, *args, **kwargs))
+            rewrites = (_Rewrite(old, new or "") for old, new in func(source, *args, **kwargs))
             if sort_order:
                 rewrites = sorted(
                     rewrites,
-                    key=functools.partial(_get_charnos, content=content),
+                    key=functools.partial(_get_charnos, source=source),
                     reverse=True,
                 )
 
             for rewrite in rewrites:
-                content = _do_rewrite(content, rewrite)
+                source = _do_rewrite(source, rewrite)
 
-            return content
+            return source
 
         return wrapper
 

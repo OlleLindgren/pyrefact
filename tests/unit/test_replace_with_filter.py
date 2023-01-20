@@ -171,8 +171,8 @@ for x in itertools.filterfalse(int, range(10)):
         ),
     )
 
-    for content, expected_abstraction in test_cases:
-        processed_content = fixes.replace_with_filter(content)
+    for source, expected_abstraction in test_cases:
+        processed_content = fixes.replace_with_filter(source)
         processed_content = fixes.remove_dead_ifs(processed_content)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

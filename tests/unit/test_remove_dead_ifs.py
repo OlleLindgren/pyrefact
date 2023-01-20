@@ -97,8 +97,8 @@ print(2)
         ),
     )
 
-    for content, expected_abstraction in test_cases:
-        processed_content = fixes.remove_dead_ifs(content)
+    for source, expected_abstraction in test_cases:
+        processed_content = fixes.remove_dead_ifs(source)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

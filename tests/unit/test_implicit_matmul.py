@@ -86,9 +86,9 @@ print(np.sum((z - np.matmul(b.T, a.T)).ravel()))
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = performance.replace_subscript_looping(content)
+        processed_content = performance.replace_subscript_looping(source)
         processed_content = performance_numpy.replace_implicit_matmul(processed_content)
         processed_content = fixes.simplify_transposes(processed_content)
 

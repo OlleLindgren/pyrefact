@@ -56,9 +56,9 @@ assert list(arr) == [[1, 2, 3], [4, 5, 6]]
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = fixes.simplify_transposes(content)
+        processed_content = fixes.simplify_transposes(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

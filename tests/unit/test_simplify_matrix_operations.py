@@ -28,9 +28,9 @@ np.matmul(a.T, b.T)
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = fixes.simplify_transposes(content)
+        processed_content = fixes.simplify_transposes(source)
         processed_content = performance_numpy.simplify_matmul_transposes(processed_content)
         processed_content = fixes.simplify_transposes(processed_content)
 

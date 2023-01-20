@@ -32,16 +32,16 @@ def _can_be_evaluated_safe(node: ast.AST) -> bool:
     return True
 
 
-def optimize_contains_types(content: str) -> str:
+def optimize_contains_types(source: str) -> str:
     """Replace inlined lists with sets.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Modified python source code
     """
-    root = parsing.parse(content)
+    root = parsing.parse(source)
 
     replacements = {}
 
@@ -72,13 +72,13 @@ def optimize_contains_types(content: str) -> str:
             replacements[comp] = replacement
 
     if replacements:
-        content = processing.replace_nodes(content, replacements)
+        source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
 
-def remove_redundant_iter(content: str) -> str:
-    root = parsing.parse(content)
+def remove_redundant_iter(source: str) -> str:
+    root = parsing.parse(source)
     replacements = {
         node.iter: node.iter.args[0]
         for node in parsing.walk(root, (ast.For, ast.comprehension))
@@ -89,13 +89,13 @@ def remove_redundant_iter(content: str) -> str:
     }
 
     if replacements:
-        content = processing.replace_nodes(content, replacements)
+        source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
 
-def remove_redundant_chained_calls(content: str) -> str:
-    root = parsing.parse(content)
+def remove_redundant_chained_calls(source: str) -> str:
+    root = parsing.parse(source)
 
     function_chain_redundancy_mapping = {
         "sorted": {"list", "sorted", "tuple", "iter", "reversed"},
@@ -132,9 +132,9 @@ def remove_redundant_chained_calls(content: str) -> str:
             touched_linenos.update(node_lineno_range)
 
     if replacements:
-        content = processing.replace_nodes(content, replacements)
+        source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
 
 def _is_sorted_subscript(node) -> bool:
@@ -149,8 +149,8 @@ def _is_sorted_subscript(node) -> bool:
     return True
 
 
-def replace_sorted_heapq(content: str) -> str:
-    root = parsing.parse(content)
+def replace_sorted_heapq(source: str) -> str:
+    root = parsing.parse(source)
 
     replacements = {}
     heapq_nlargest = ast.Attribute(
@@ -224,17 +224,17 @@ def replace_sorted_heapq(content: str) -> str:
         replacements[node] = replacement
 
     if replacements:
-        content = processing.replace_nodes(content, replacements)
+        source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
 
 def _wrap_transpose(node: ast.AST) -> ast.Call:
     return ast.Call(func=ast.Name(id="zip"), args=[ast.Starred(value=node)], keywords=[])
 
 
-def replace_subscript_looping(content: str) -> str:
-    root = parsing.parse(content)
+def replace_subscript_looping(source: str) -> str:
+    root = parsing.parse(source)
 
     replacements = {}
 
@@ -379,9 +379,9 @@ def replace_subscript_looping(content: str) -> str:
             replacements[subscript] = target_name
         break
 
-    content = processing.replace_nodes(content, replacements)
+    source = processing.replace_nodes(source, replacements)
 
     if replacements:
-        return replace_subscript_looping(content)
+        return replace_subscript_looping(source)
 
-    return content
+    return source

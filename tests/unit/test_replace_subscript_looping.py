@@ -68,9 +68,9 @@ import numpy as np
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = performance.replace_subscript_looping(content)
+        processed_content = performance.replace_subscript_looping(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

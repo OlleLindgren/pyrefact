@@ -124,8 +124,8 @@ def foo() -> int:
         ),
     )
 
-    for content, expected_abstraction in test_cases:
-        processed_content = pyrefact.format_code(content, safe=True)
+    for source, expected_abstraction in test_cases:
+        processed_content = pyrefact.format_code(source, safe=True)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

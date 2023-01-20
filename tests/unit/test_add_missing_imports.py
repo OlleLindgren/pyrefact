@@ -80,8 +80,8 @@ w = numpy.zeros(10, dtype=numpy.float32)
         ),
     )
 
-    for content, expected_abstraction in test_cases:
-        processed_content = fixes.add_missing_imports(content)
+    for source, expected_abstraction in test_cases:
+        processed_content = fixes.add_missing_imports(source)
         processed_content = fixes.fix_isort(processed_content)  # Or the order will be random
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

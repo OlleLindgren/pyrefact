@@ -42,37 +42,37 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
 
 
 def format_code(
-    content: str,
+    source: str,
     *,
     preserve: Collection[str] = frozenset(),
     safe: bool = False,
     keep_imports: bool = False,
 ) -> str:
-    if not parsing.is_valid_python(content):
-        content = completion.autocomplete(content)
+    if not parsing.is_valid_python(source):
+        source = completion.autocomplete(source)
 
-    content = fixes.fix_tabs(content)
-    content = fixes.fix_rmspace(content)
+    source = fixes.fix_tabs(source)
+    source = fixes.fix_rmspace(source)
 
-    if not content.strip():
-        return content
+    if not source.strip():
+        return source
 
-    if parsing.is_valid_python(content):
+    if parsing.is_valid_python(source):
         minimum_indent = 0
     else:
-        lines = content.splitlines()
+        lines = source.splitlines()
         minimum_indent = min(len(line) - len(line.lstrip()) for line in lines if line)
-        content = "".join(
-            line[minimum_indent:] if line else line for line in content.splitlines(keepends=True)
+        source = "".join(
+            line[minimum_indent:] if line else line for line in source.splitlines(keepends=True)
         )
 
-    if not parsing.is_valid_python(content):
+    if not parsing.is_valid_python(source):
         print("Result is not valid python.")
-        return content
+        return source
 
     if safe:
         # Code may not be deleted from module level
-        module = parsing.parse(content)
+        module = parsing.parse(source)
         preserve = set.union(
             set(preserve),
             (node.name for node in module.body if isinstance(node, ast.FunctionDef)),
@@ -91,71 +91,71 @@ def format_code(
     # Remember past versions of source code.
     # This lets us break if it stops making changes, or if it enters a cycle where it returns
     # to a previous version again.
-    content_history = {content}
+    content_history = {source}
 
     for _ in range(1, 1 + MAX_FILE_PASSES):
 
-        content = fixes.delete_commented_code(content)
-        content = fixes.remove_dead_ifs(content)
-        content = fixes.delete_unreachable_code(content)
-        content = fixes.undefine_unused_variables(content, preserve=preserve)
-        content = fixes.delete_pointless_statements(content)
+        source = fixes.delete_commented_code(source)
+        source = fixes.remove_dead_ifs(source)
+        source = fixes.delete_unreachable_code(source)
+        source = fixes.undefine_unused_variables(source, preserve=preserve)
+        source = fixes.delete_pointless_statements(source)
 
-        content = fixes.delete_unused_functions_and_classes(content, preserve=preserve)
+        source = fixes.delete_unused_functions_and_classes(source, preserve=preserve)
 
-        content = object_oriented.remove_unused_self_cls(content)
-        content = object_oriented.move_staticmethod_static_scope(content, preserve=preserve)
-        content = fixes.singleton_eq_comparison(content)
-        content = fixes.move_imports_to_toplevel(content)
-        content = fixes.swap_if_else(content)
-        content = fixes.early_return(content)
-        content = fixes.early_continue(content)
-        content = fixes.replace_with_filter(content)
-        content = fixes.remove_redundant_else(content)
-        content = fixes.replace_functions_with_literals(content)
-        content = fixes.replace_for_loops_with_set_list_comp(content)
-        content = fixes.replace_for_loops_with_dict_comp(content)
-        content = performance.replace_subscript_looping(content)
-        content = performance_numpy.replace_implicit_dot(content)
-        content = performance_numpy.replace_implicit_matmul(content)
-        content = fixes.simplify_transposes(content)
-        content = performance_numpy.simplify_matmul_transposes(content)
-        content = fixes.simplify_transposes(content)
-        content = fixes.implicit_defaultdict(content)
-        content = fixes.simplify_redundant_lambda(content)
-        content = fixes.remove_redundant_comprehensions(content)
-        content = fixes.inline_math_comprehensions(content)
-        content = symbolic_math.simplify_math_iterators(content)
-        content = performance.optimize_contains_types(content)
-        content = performance.remove_redundant_chained_calls(content)
-        content = performance.remove_redundant_iter(content)
-        content = performance.replace_sorted_heapq(content)
-        content = abstractions.create_abstractions(content)
+        source = object_oriented.remove_unused_self_cls(source)
+        source = object_oriented.move_staticmethod_static_scope(source, preserve=preserve)
+        source = fixes.singleton_eq_comparison(source)
+        source = fixes.move_imports_to_toplevel(source)
+        source = fixes.swap_if_else(source)
+        source = fixes.early_return(source)
+        source = fixes.early_continue(source)
+        source = fixes.replace_with_filter(source)
+        source = fixes.remove_redundant_else(source)
+        source = fixes.replace_functions_with_literals(source)
+        source = fixes.replace_for_loops_with_set_list_comp(source)
+        source = fixes.replace_for_loops_with_dict_comp(source)
+        source = performance.replace_subscript_looping(source)
+        source = performance_numpy.replace_implicit_dot(source)
+        source = performance_numpy.replace_implicit_matmul(source)
+        source = fixes.simplify_transposes(source)
+        source = performance_numpy.simplify_matmul_transposes(source)
+        source = fixes.simplify_transposes(source)
+        source = fixes.implicit_defaultdict(source)
+        source = fixes.simplify_redundant_lambda(source)
+        source = fixes.remove_redundant_comprehensions(source)
+        source = fixes.inline_math_comprehensions(source)
+        source = symbolic_math.simplify_math_iterators(source)
+        source = performance.optimize_contains_types(source)
+        source = performance.remove_redundant_chained_calls(source)
+        source = performance.remove_redundant_iter(source)
+        source = performance.replace_sorted_heapq(source)
+        source = abstractions.create_abstractions(source)
 
-        content = fixes.remove_duplicate_functions(content, preserve=preserve)
+        source = fixes.remove_duplicate_functions(source, preserve=preserve)
 
-        if content in content_history:
+        if source in content_history:
             break
 
-        content_history.add(content)
+        content_history.add(source)
 
     if minimum_indent == 0:
-        content = fixes.align_variable_names_with_convention(content, preserve=preserve)
+        source = fixes.align_variable_names_with_convention(source, preserve=preserve)
 
-    content = fixes.format_inlined_sql(content)
+    source = fixes.format_inlined_sql(source)
 
     if minimum_indent == 0:
-        content = fixes.fix_isort(content, line_length=10_000)
-        content = fixes.add_missing_imports(content)
+        source = fixes.fix_isort(source, line_length=10_000)
+        source = fixes.add_missing_imports(source)
         if not keep_imports:
-            content = fixes.remove_unused_imports(content)
+            source = fixes.remove_unused_imports(source)
 
-        content = fixes.fix_isort(content)
+        source = fixes.fix_isort(source)
 
-    content = fixes.fix_line_lengths(content)
-    content = fixes.fix_rmspace(content)
+    source = fixes.fix_line_lengths(source)
+    source = fixes.fix_rmspace(source)
 
-    return "".join(f"{' ' * minimum_indent}{line}" for line in content.splitlines(keepends=True))
+    return "".join(f"{' ' * minimum_indent}{line}" for line in source.splitlines(keepends=True))
 
 
 def format_file(
@@ -177,13 +177,13 @@ def format_file(
         initial_content = stream.read()
 
     keep_imports = filename.name == "__init__.py"
-    content = format_code(initial_content, preserve=preserve, safe=safe, keep_imports=keep_imports)
+    source = format_code(initial_content, preserve=preserve, safe=safe, keep_imports=keep_imports)
 
-    if content != initial_content and (
-        parsing.is_valid_python(content) or not parsing.is_valid_python(initial_content)
+    if source != initial_content and (
+        parsing.is_valid_python(source) or not parsing.is_valid_python(initial_content)
     ):
         with open(filename, "w", encoding="utf-8") as stream:
-            stream.write(content)
+            stream.write(source)
 
         return True
 
@@ -221,8 +221,8 @@ def main(args: Sequence[str]) -> int:
     used_names = collections.defaultdict(set)
     for filename in _iter_python_files(args.preserve):
         with open(filename, "r", encoding="utf-8") as stream:
-            content = stream.read()
-        ast_root = parsing.parse(content)
+            source = stream.read()
+        ast_root = parsing.parse(source)
         imported_names = parsing.get_imported_names(ast_root)
         for node in parsing.walk(ast_root, (ast.Name, ast.Attribute)):
             if isinstance(node, ast.Name) and node.id in imported_names:
@@ -236,16 +236,16 @@ def main(args: Sequence[str]) -> int:
                 used_names[_namespace_name(filename)].add(node.value.id)
 
     if args.from_stdin:
-        content = sys.stdin.read()
+        source = sys.stdin.read()
         temp_stdout = io.StringIO()
         sys_stdout = sys.stdout
         preserve = set.union(*used_names.values()) if used_names else set()
         try:
             sys.stdout = temp_stdout
-            content = format_code(content, preserve=preserve, safe=args.safe)
+            source = format_code(source, preserve=preserve, safe=args.safe)
         finally:
             sys.stdout = sys_stdout
-        print(content)
+        print(source)
         return 0
 
     folder_contents = collections.defaultdict(list)

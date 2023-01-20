@@ -122,9 +122,9 @@ x = {**u, **v, **w, **{i: 10 ** i - 1 for i in range(2, 4)}}
         ),
     )
 
-    for content, expected_abstraction in test_cases:
+    for source, expected_abstraction in test_cases:
 
-        processed_content = fixes.replace_for_loops_with_dict_comp(content)
+        processed_content = fixes.replace_for_loops_with_dict_comp(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

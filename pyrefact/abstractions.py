@@ -406,8 +406,8 @@ def _get_function_insertion_lineno(
     return containing_node.lineno - 1
 
 
-def create_abstractions(content: str) -> str:
-    root = parsing.parse(content)
+def create_abstractions(source: str) -> str:
+    root = parsing.parse(source)
     global_names = (
         _scoped_dependencies(root) | parsing.get_imported_names(root) | constants.BUILTIN_FUNCTIONS
     )
@@ -622,8 +622,8 @@ def create_abstractions(content: str) -> str:
             removals.extend(nodes)
             additions.append(function_def)
 
-    content = processing.alter_code(
-        content, root, additions=additions, removals=removals, replacements=replacements
+    source = processing.alter_code(
+        source, root, additions=additions, removals=removals, replacements=replacements
     )
 
-    return content
+    return source

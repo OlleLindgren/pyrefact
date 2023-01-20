@@ -7,16 +7,16 @@ from typing import Collection, Iterable
 from pyrefact import parsing, processing
 
 
-def remove_unused_self_cls(content: str) -> str:
+def remove_unused_self_cls(source: str) -> str:
     """Remove unused self and cls arguments from classes.
 
     Args:
-        content (str): Python source code
+        source (str): Python source code
 
     Returns:
         str: Python source code without any unused self or cls arguments.
     """
-    root = parsing.parse(content)
+    root = parsing.parse(source)
 
     replacements = {}
 
@@ -94,9 +94,9 @@ def remove_unused_self_cls(content: str) -> str:
             replacements[funcdef] = funcdef_copy
 
     if replacements:
-        content = processing.replace_nodes(content, replacements)
+        source = processing.replace_nodes(source, replacements)
 
-    return content
+    return source
 
 
 def _decorators_of_type(node: ast.FunctionDef, name: str) -> Iterable[ast.AST]:
@@ -105,8 +105,8 @@ def _decorators_of_type(node: ast.FunctionDef, name: str) -> Iterable[ast.AST]:
             yield decorator
 
 
-def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> str:
-    root = parsing.parse(content)
+def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> str:
+    root = parsing.parse(source)
 
     attributes_to_preserve = set()
     for name in preserve:
@@ -184,14 +184,14 @@ def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> s
                 )
 
     if not name_replacements:
-        return content
+        return source
 
     if len(name_replacements) != len(set(name_replacements.values())):
-        return content
+        return source
 
     if replacements:
-        content = processing.replace_nodes(content, replacements)
-        root = parsing.parse(content)
+        source = processing.replace_nodes(source, replacements)
+        root = parsing.parse(source)
 
     for classdef in sorted(parsing.iter_classdefs(root), key=lambda cd: cd.lineno, reverse=True):
         delete = []
@@ -218,7 +218,7 @@ def move_staticmethod_static_scope(content: str, preserve: Collection[str]) -> s
             )
 
         if delete or additions:
-            content = processing.remove_nodes(content, delete, root)
-            content = processing.insert_nodes(content, reversed(additions))
+            source = processing.remove_nodes(source, delete, root)
+            source = processing.insert_nodes(source, reversed(additions))
 
-    return content
+    return source
