@@ -71,23 +71,21 @@ def optimize_contains_types(source: str) -> str:
             yield comp, replacement
 
 
+@processing.fix
 def remove_redundant_iter(source: str) -> str:
     root = parsing.parse(source)
-    replacements = {
-        node.iter: node.iter.args[0]
-        for node in parsing.walk(root, (ast.For, ast.comprehension))
-        if isinstance(node.iter, ast.Call)
-        and isinstance(node.iter.func, ast.Name)
-        and (node.iter.func.id in {"iter", "list", "tuple"})
-        and (len(node.iter.args) == 1)
-    }
 
-    if replacements:
-        source = processing.replace_nodes(source, replacements)
-
-    return source
+    for node in parsing.walk(root, (ast.For, ast.comprehension)):
+        if (
+            isinstance(node.iter, ast.Call)
+            and isinstance(node.iter.func, ast.Name)
+            and (node.iter.func.id in {"iter", "list", "tuple"})
+            and (len(node.iter.args) == 1)
+        ):
+            yield node.iter, node.iter.args[0]
 
 
+@processing.fix(restart_on_replace=True)
 def remove_redundant_chained_calls(source: str) -> str:
     root = parsing.parse(source)
 
@@ -101,16 +99,10 @@ def remove_redundant_chained_calls(source: str) -> str:
         "sum": {"list", "tuple", "iter", "sorted", "reversed"},
     }
 
-    replacements = {}
-    touched_linenos = set()
-
     for node in parsing.walk(root, ast.Call):
         if not (isinstance(node.func, ast.Name) and node.args):
             continue
 
-        node_lineno_range = set(range(node.lineno, node.end_lineno + 1))
-        if node_lineno_range & touched_linenos:
-            continue
         redundant_call_names = function_chain_redundancy_mapping.get(node.func.id)
         if not redundant_call_names:
             continue
@@ -120,15 +112,7 @@ def remove_redundant_chained_calls(source: str) -> str:
             and isinstance(modified_node.args[0].func, ast.Name)
             and (modified_node.args[0].func.id in redundant_call_names)
         ):
-            modified_node = replacements[node] = ast.Call(
-                func=node.func, args=modified_node.args[0].args, keywords=[]
-            )
-            touched_linenos.update(node_lineno_range)
-
-    if replacements:
-        source = processing.replace_nodes(source, replacements)
-
-    return source
+            yield node, ast.Call(func=node.func, args=modified_node.args[0].args, keywords=[])
 
 
 def _is_sorted_subscript(node) -> bool:
