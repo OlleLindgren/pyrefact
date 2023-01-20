@@ -7,6 +7,7 @@ from typing import Collection, Iterable
 from pyrefact import parsing, processing
 
 
+@processing.fix
 def remove_unused_self_cls(source: str) -> str:
     """Remove unused self and cls arguments from classes.
 
@@ -17,8 +18,6 @@ def remove_unused_self_cls(source: str) -> str:
         str: Python source code without any unused self or cls arguments.
     """
     root = parsing.parse(source)
-
-    replacements = {}
 
     for classdef in parsing.iter_classdefs(root):
         class_non_instance_methods = {
@@ -91,12 +90,7 @@ def remove_unused_self_cls(source: str) -> str:
                         if isinstance(child, ast.Name) and child.id == first_arg_name:
                             child.id = "cls"
 
-            replacements[funcdef] = funcdef_copy
-
-    if replacements:
-        source = processing.replace_nodes(source, replacements)
-
-    return source
+            yield funcdef, funcdef_copy
 
 
 def _decorators_of_type(node: ast.FunctionDef, name: str) -> Iterable[ast.AST]:

@@ -120,9 +120,8 @@ def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> a
     return parsing.parse(str(sym_expr))
 
 
+@processing.fix
 def simplify_math_iterators(source: str) -> str:
-
-    replacements = {}
 
     root = parsing.parse(source)
 
@@ -138,7 +137,7 @@ def simplify_math_iterators(source: str) -> str:
                 continue
             if node.func.id != "sum":
                 continue
-            replacements[node] = _sum_range(arg)
+            yield node, _sum_range(arg)
         elif isinstance(arg, (ast.Tuple, ast.List)) and all(
             (isinstance(elt, (ast.Constant, ast.UnaryOp, ast.BinOp)) for elt in arg.elts)
         ):
@@ -151,7 +150,7 @@ def simplify_math_iterators(source: str) -> str:
                 )
             ):
                 continue
-            replacements[node] = _sum_constants(arg.elts)
+            yield node, _sum_constants(arg.elts)
         elif isinstance(arg, (ast.GeneratorExp, ast.ListComp)) and all(
             (
                 (
@@ -188,8 +187,4 @@ def simplify_math_iterators(source: str) -> str:
                 )
             ):
                 continue
-            replacements[node] = _integrate_over(arg.elt, arg.generators)
-
-    source = processing.replace_nodes(source, replacements)
-
-    return source
+            yield node, _integrate_over(arg.elt, arg.generators)

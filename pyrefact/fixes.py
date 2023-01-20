@@ -1170,8 +1170,8 @@ def _sequential_similar_ifs(source: str, root: ast.AST) -> Collection[ast.If]:
     )
 
 
+@processing.fix(restart_on_replace=True)
 def _swap_explicit_if_else(source: str) -> str:
-    replacements = {}
 
     root = parsing.parse(source)
     sequential_similar_ifs = _sequential_similar_ifs(source, root)
@@ -1191,19 +1191,12 @@ def _swap_explicit_if_else(source: str) -> str:
             continue
         if _orelse_preferred_as_body(body, orelse):
             if orelse:
-                replacements[stmt] = ast.If(
+                yield stmt, ast.If(
                     test=_negate_condition(stmt.test),
                     body=orelse,
                     orelse=[node for node in body if not isinstance(node, ast.Pass)],
                     lineno=stmt.lineno,
                 )
-                break
-
-    if replacements:
-        source = processing.replace_nodes(source, replacements)
-        return _swap_explicit_if_else(source)
-
-    return source
 
 
 def _swap_implicit_if_else(source: str) -> str:
@@ -1253,9 +1246,6 @@ def swap_if_else(source: str) -> str:
 
 @processing.fix
 def early_return(source: str) -> str:
-
-    replacements = {}
-    removals = []
 
     root = parsing.parse(source)
     for funcdef in parsing.iter_funcdefs(root):
@@ -1356,8 +1346,6 @@ def early_continue(source: str) -> str:
 def remove_redundant_comprehensions(source: str) -> str:
     root = parsing.parse(source)
 
-    replacements = {}
-
     for node in parsing.walk(root, (ast.DictComp, ast.ListComp, ast.SetComp, ast.GeneratorExp)):
         wrapper = parsing.get_comp_wrapper_func_equivalent(node)
 
@@ -1389,7 +1377,6 @@ def remove_redundant_comprehensions(source: str) -> str:
 def replace_functions_with_literals(source: str) -> str:
 
     root = parsing.parse(source)
-    replacements = {}
 
     func_literal_template = ast.Call(
         func=ast.Name(id=parsing.Wildcard("func", ("list", "tuple", "dict"))), args=[], keywords=[]
@@ -1440,8 +1427,6 @@ def replace_functions_with_literals(source: str) -> str:
 
 @processing.fix
 def replace_for_loops_with_dict_comp(source: str) -> str:
-    replacements = {}
-    removals = set()
 
     assign_template = ast.Assign(
         value=parsing.Wildcard("value", (ast.Dict, ast.DictComp)),
@@ -1503,19 +1488,13 @@ def replace_for_loops_with_dict_comp(source: str) -> str:
             yield value, ast.Dict(keys=[None, None], values=[value, comp])
             yield n2, None
 
-    source = processing.alter_code(source, root, removals=removals, replacements=replacements)
-
-    return source
-
 
 @processing.fix
 def replace_for_loops_with_set_list_comp(source: str) -> str:
-    replacements = {}
-    removals = set()
 
     assign_template = ast.Assign(
         value=parsing.Wildcard("value", object),
-        targets=[ast.Name(id=parsing.Wildcard("target", str))]
+        targets=[ast.Name(id=parsing.Wildcard("target", str))],
     )
     for_template = ast.For(body=[object])
     if_template = ast.If(body=[object], orelse=[])
@@ -1524,7 +1503,7 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
     list_init_template = ast.List(elts=[])  # list() should have been replaced by [] elsewhere.
 
     root = parsing.parse(source)
-    for (n1, target, value), (n2,) in parsing.walk_sequence(root, assign_template, for_template):
+    for (_, target, value), (n2,) in parsing.walk_sequence(root, assign_template, for_template):
         body_node = n2
         generators = []
 
@@ -1551,7 +1530,9 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
 
         target_alter_template = ast.Expr(
             value=ast.Call(
-                func=ast.Attribute(value=ast.Name(id=target), attr=parsing.Wildcard("attr", ("add", "append"))),
+                func=ast.Attribute(
+                    value=ast.Name(id=target), attr=parsing.Wildcard("attr", ("add", "append"))
+                ),
                 args=[object],
             )
         )
@@ -1559,9 +1540,13 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
         augass_template = ast.AugAssign(op=(ast.Add, ast.Sub), target=ast.Name(id=target))
 
         if template_match := parsing.match_template(body_node, target_alter_template):
-            if parsing.match_template(value, list_init_template) and (template_match.attr == "append"):
+            if parsing.match_template(value, list_init_template) and (
+                template_match.attr == "append"
+            ):
                 comp_type = ast.ListComp
-            elif parsing.match_template(value, set_init_template) and (template_match.attr == "add"):
+            elif parsing.match_template(value, set_init_template) and (
+                template_match.attr == "add"
+            ):
                 comp_type = ast.SetComp
             else:
                 continue
@@ -1611,14 +1596,18 @@ def inline_math_comprehensions(source: str) -> str:
     augassign_template = ast.AugAssign(target=parsing.Wildcard("target", ast.Name))
     annassign_template = ast.AnnAssign(target=parsing.Wildcard("target", ast.Name))
 
-    comprehension_assignments = []
-    for assignment, target in parsing.walk_wildcard(root, (assign_template, augassign_template, annassign_template)):
-        if isinstance(assignment.value, (ast.GeneratorExp, ast.ListComp, ast.SetComp)) or (
+    comprehension_assignments = [
+        (assignment, target, assignment.value)
+        for (assignment, target) in parsing.walk_wildcard(
+            root, (assign_template, augassign_template, annassign_template)
+        )
+        if isinstance(assignment.value, (ast.GeneratorExp, ast.ListComp, ast.SetComp))
+        or (
             isinstance(assignment.value, ast.Call)
             and isinstance(assignment.value.func, ast.Name)
-            and assignment.value.func.id in constants.ITERATOR_FUNCTIONS
-        ):
-            comprehension_assignments.append((assignment, target, assignment.value))
+            and (assignment.value.func.id in constants.ITERATOR_FUNCTIONS)
+        )
+    ]
 
     scope_types = (ast.Module, ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)
     for scope in parsing.walk(root, scope_types):
@@ -1650,7 +1639,9 @@ def inline_math_comprehensions(source: str) -> str:
             if use in blacklist:
                 break
 
-            for call in parsing.walk(scope, ast.Call(func=ast.Name(id=tuple(constants.MATH_FUNCTIONS)), args=[type(use)])):
+            for call in parsing.walk(
+                scope, ast.Call(func=ast.Name(id=tuple(constants.MATH_FUNCTIONS)), args=[type(use)])
+            ):
                 if call.args[0] is use:
                     if use in replacements:
                         blacklist.add(use)
@@ -1667,10 +1658,9 @@ def inline_math_comprehensions(source: str) -> str:
     return source
 
 
+@processing.fix(restart_on_replace=True)
 def simplify_transposes(source: str) -> str:
     root = parsing.parse(source)
-
-    replacements = {}
 
     calls = parsing.walk(root, ast.Call)
     attributes = parsing.walk(root, ast.Attribute)
@@ -1682,14 +1672,7 @@ def simplify_transposes(source: str) -> str:
         first_transpose_target = parsing.transpose_target(node)
         if parsing.is_transpose_operation(first_transpose_target):
             second_transpose_target = parsing.transpose_target(first_transpose_target)
-            replacements[node] = second_transpose_target
-            break
-
-    source = processing.replace_nodes(source, replacements)
-    if replacements:
-        return simplify_transposes(source)
-
-    return source
+            yield node, second_transpose_target
 
 
 def remove_dead_ifs(source: str) -> str:
@@ -1808,9 +1791,6 @@ def delete_commented_code(source: str) -> str:
 @processing.fix
 def replace_with_filter(source: str) -> str:
     root = parsing.parse(source)
-
-    replacements = {}
-    removals = set()
 
     for node in parsing.walk(root, ast.For):
         if parsing.is_call(node.iter, ("filter", "filterfalse", "itertools.filterfalse")):
@@ -2064,8 +2044,6 @@ def implicit_defaultdict(source: str) -> str:
 def simplify_redundant_lambda(source: str) -> str:
     root = parsing.parse(source)
 
-    replacements = {}
-
     template = ast.Lambda(
         args=ast.arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]),
         body=(
@@ -2091,7 +2069,6 @@ def simplify_redundant_lambda(source: str) -> str:
 def format_inlined_sql(source: str) -> str:
 
     root = parsing.parse(source)
-    replacements = {}
 
     blacklist = set()
 
@@ -2105,29 +2082,32 @@ def format_inlined_sql(source: str) -> str:
             delimiter = delimiter * 3
         code = code.lstrip("frb")
         code = code.strip(delimiter)  # strip string modifiers and delimiters '"
-        if sql.is_sql_syntax(code):
-            formatted_code = sql.format_sql(code)
-            if code != formatted_code:
-                if len(formatted_code.splitlines()) > 1:
-                    delimiter = delimiter[0] * 3  # If not already 3 length, make it 3 length
-                    replacement = "f" + delimiter + '\n' + formatted_code + '\n' + delimiter
-                else:
-                    replacement = "f" + delimiter + formatted_code + delimiter
+        if not sql.is_sql_syntax(code):
+            continue
 
-                yield node, replacement
+        formatted_code = sql.format_sql(code)
+        if code != formatted_code:
+            if len(formatted_code.splitlines()) > 1:
+                delimiter = delimiter[0] * 3
+                replacement = 'f' + delimiter + '\n' + formatted_code + '\n' + delimiter
+            else:
+                replacement = 'f' + delimiter + formatted_code + delimiter
+            yield (node, replacement)
 
     for node, code in parsing.walk_wildcard(root, str_template):
-        if node not in blacklist and sql.is_sql_syntax(code):
-            code_with_delimiters = parsing.get_code(node, source)
-            delimiter = code_with_delimiters[-1]
-            if set(code_with_delimiters[-3:]) == {code_with_delimiters[-1]}:
-                delimiter = delimiter * 3
-            formatted_code = sql.format_sql(code).strip()
-            if code != formatted_code:
-                if len(formatted_code.splitlines()) > 1:
-                    delimiter = delimiter[0] * 3  # If not already 3 length, make it 3 length
-                    replacement = delimiter + '\n' + formatted_code + '\n' + delimiter
-                else:
-                    replacement = ast.Constant(value=formatted_code, kind=None)
+        if node in blacklist or not sql.is_sql_syntax(code):
+            continue
 
-                yield node, replacement
+        code_with_delimiters = parsing.get_code(node, source)
+        delimiter = code_with_delimiters[-1]
+        if set(code_with_delimiters[-3:]) == {code_with_delimiters[-1]}:
+            delimiter = delimiter * 3
+        formatted_code = sql.format_sql(code).strip()
+        if code != formatted_code:
+            if len(formatted_code.splitlines()) > 1:
+                delimiter = delimiter[0] * 3
+                replacement = delimiter + '\n' + formatted_code + '\n' + delimiter
+            else:
+                replacement = ast.Constant(value=formatted_code, kind=None)
+
+            yield node, replacement

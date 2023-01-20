@@ -32,6 +32,7 @@ def _can_be_evaluated_safe(node: ast.AST) -> bool:
     return True
 
 
+@processing.fix
 def optimize_contains_types(source: str) -> str:
     """Replace inlined lists with sets.
 
@@ -42,8 +43,6 @@ def optimize_contains_types(source: str) -> str:
         str: Modified python source code
     """
     root = parsing.parse(source)
-
-    replacements = {}
 
     for node in filter(_is_contains_comparison, parsing.walk(root, ast.Compare)):
 
@@ -69,12 +68,7 @@ def optimize_contains_types(source: str) -> str:
             else:
                 continue
 
-            replacements[comp] = replacement
-
-    if replacements:
-        source = processing.replace_nodes(source, replacements)
-
-    return source
+            yield comp, replacement
 
 
 def remove_redundant_iter(source: str) -> str:
@@ -149,10 +143,10 @@ def _is_sorted_subscript(node) -> bool:
     return True
 
 
+@processing.fix
 def replace_sorted_heapq(source: str) -> str:
     root = parsing.parse(source)
 
-    replacements = {}
     heapq_nlargest = ast.Attribute(
         value=ast.Name(id="heapq", ctx=ast.Load()), attr="nlargest", ctx=ast.Load()
     )
@@ -221,12 +215,7 @@ def replace_sorted_heapq(source: str) -> str:
                 continue
         else:
             continue
-        replacements[node] = replacement
-
-    if replacements:
-        source = processing.replace_nodes(source, replacements)
-
-    return source
+        yield node, replacement
 
 
 def _wrap_transpose(node: ast.AST) -> ast.Call:
