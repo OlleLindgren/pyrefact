@@ -51,6 +51,7 @@ def format_code(
     if not parsing.is_valid_python(content):
         content = completion.autocomplete(content)
 
+    content = fixes.fix_tabs(content)
     content = fixes.fix_rmspace(content)
 
     if not content.strip():

@@ -474,6 +474,18 @@ def remove_unused_imports(content: str) -> str:
     return content
 
 
+def fix_tabs(content: str) -> str:
+    """Replace tabs with 4 spaces in source code
+
+    Args:
+        content (str): Python source code
+
+    Returns:
+        str: Formatted source code
+    """
+    return content.replace(r"\t", " " * 4)
+
+
 def fix_rmspace(content: str) -> str:
     """Remove trailing whitespace from source code.
 
