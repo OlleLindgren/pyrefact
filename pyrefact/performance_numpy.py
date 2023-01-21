@@ -128,13 +128,9 @@ def replace_implicit_matmul(source: str) -> str:
                     if isinstance(comp_outer.generators[0].target, ast.Name)
                     else comp_outer.generators[0].target.value.id
                 )
-                if (
-                    left_id == comp_inner.generators[0].target.id
-                    and right_id == comp_outer.generators[0].target.id
-                    or (
-                        right_id == comp_inner.generators[0].target.id
-                        and left_id == comp_outer.generators[0].target.id
-                    )
+                if (comp_inner.generators[0].target.id, comp_outer.generators[0].target.id) in (
+                    (left_id, right_id),
+                    (right_id, left_id),
                 ):
                     yield call, wrap_transpose(
                         _wrap_np_matmul(

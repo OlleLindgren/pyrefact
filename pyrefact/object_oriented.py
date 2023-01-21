@@ -115,12 +115,8 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
             class_function_names.add((classdef.name, funcdef.name))
 
     for node in parsing.walk(root, ast.Attribute):
-        if isinstance(node.value, ast.Call):
-            if (
-                isinstance(node.value.func, ast.Name)
-                and (node.value.func.id, node.attr) in class_function_names
-            ):
-                class_attribute_accesses.add(node)
+        if parsing.match_template(node.value, ast.Call(func=ast.Name)) and (node.value.func.id, node.attr) in class_function_names:
+            class_attribute_accesses.add(node)
         elif isinstance(node.value, ast.Name):
             if (
                 node.value.id in {"self", "cls"}
@@ -155,24 +151,21 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
             name_replacements[(classdef.name, funcdef.name)] = new_name
 
         moved_function_names = {fname: name for ((_, fname), name) in name_replacements.items()}
+
         for node in class_attribute_accesses:
-            if (
-                (
-                    isinstance(node.value, ast.Name)
-                    and node.value.id == classdef.name
-                    and node.attr in moved_function_names
-                )
-                or (
-                    isinstance(node.value, ast.Call)
-                    and node.value.func.id == classdef.name
-                    and node.attr in moved_function_names
-                )
-                or (
-                    classdef.lineno < node.lineno < classdef.end_lineno
-                    and node.value.id in {"self", "cls"}
-                    and node.attr in moved_function_names
-                )
-            ):
+            classdef_aliases = [classdef.name]
+            if classdef.lineno < node.lineno < classdef.end_lineno:
+                classdef_aliases.extend(("self", "cls"))
+
+            template = ast.Attribute(
+                value=(
+                    ast.Name(id=tuple(classdef_aliases)),
+                    ast.Call(func=ast.Name(id=classdef.name)),
+                ),
+                attr=tuple(moved_function_names),
+            )
+
+            if parsing.match_template(node, template):
                 replacements[node] = ast.Name(
                     id=moved_function_names[node.attr], ctx=node.ctx, lineno=node.lineno
                 )
