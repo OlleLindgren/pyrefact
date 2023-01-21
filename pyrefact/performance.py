@@ -109,15 +109,8 @@ def remove_redundant_chained_calls(source: str) -> str:
 
 
 def _is_sorted_subscript(node) -> bool:
-    if not isinstance(node, ast.Subscript):
-        return False
-    if not isinstance(node.value, ast.Call):
-        return False
-    if not isinstance(node.value.func, ast.Name):
-        return False
-    if node.value.func.id != "sorted":
-        return False
-    return True
+    template = ast.Subscript(value=ast.Call(func=ast.Name(id="sorted")))
+    return parsing.match_template(node, template)
 
 
 @processing.fix
