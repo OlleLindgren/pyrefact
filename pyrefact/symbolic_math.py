@@ -132,17 +132,15 @@ def simplify_math_iterators(source: str) -> str:
     )
     basic_types_template = {ast.Name, ast.Constant, ast.UnaryOp, ast.BinOp}
     basic_iter_template = (
-        ast.Call(
-            func=ast.Name(id="range"),
-            args=basic_types_template
-        ),
+        ast.Call(func=ast.Name(id="range"), args=basic_types_template),
         ast.Set(elts=basic_types_template),
         ast.List(elts=basic_types_template),
         ast.Tuple(elts=basic_types_template),
     )
+    basic_generator_template = ast.comprehension(iter=basic_iter_template, ifs=[], target=ast.Name)
     basic_comprehension_template = (
-        ast.GeneratorExp(generators={ast.comprehension(iter=basic_iter_template, ifs=[], target=ast.Name)}),
-        ast.ListComp(generators={ast.comprehension(iter=basic_iter_template, ifs=[], target=ast.Name)}),
+        ast.GeneratorExp(generators={basic_generator_template}),
+        ast.ListComp(generators={basic_generator_template}),
     )
     basic_collection_template = (
         ast.Tuple(elts={ast.Constant, ast.UnaryOp, ast.BinOp}),

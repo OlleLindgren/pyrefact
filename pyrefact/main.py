@@ -74,20 +74,16 @@ def format_code(
     if safe:
         # Code may not be deleted from module level
         module = parsing.parse(source)
-        preserve = set.union(
-            set(preserve),
-            (node.name for node in module.body if isinstance(node, ast.FunctionDef)),
-            (node.name for node in module.body if isinstance(node, ast.AsyncFunctionDef)),
-            (node.name for node in module.body if isinstance(node, ast.ClassDef)),
-            (  # Function definitions directly under a class definition in module scope
-                f"{node.name}.{funcdef.name}"
-                for node in module.body
-                if isinstance(node, ast.ClassDef)
-                for funcdef in node.body
-                if isinstance(funcdef, ast.FunctionDef)
-            ),
-            (node.id for node in parsing.iter_assignments(module)),
-        )
+        def_types = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+        fdef_types = (ast.FunctionDef, ast.AsyncFunctionDef)
+        defs = {node.name for node in parsing.filter_nodes(module.body,def_types)}
+        class_funcs = {  # Function definitions directly under a class definition in module scope
+            f"{node.name}.{funcdef.name}"
+            for node in parsing.filter_nodes(module.body, ast.ClassDef)
+            for funcdef in parsing.filter_nodes(node.body, fdef_types)
+        }
+        assignments = {node.id for node in parsing.iter_assignments(module)}
+        preserve = set(preserve) | defs | class_funcs | assignments
 
     # Remember past versions of source code.
     # This lets us break if it stops making changes, or if it enters a cycle where it returns

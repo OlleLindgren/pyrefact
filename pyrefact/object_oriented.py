@@ -115,7 +115,10 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
             class_function_names.add((classdef.name, funcdef.name))
 
     for node in parsing.walk(root, ast.Attribute):
-        if parsing.match_template(node.value, ast.Call(func=ast.Name)) and (node.value.func.id, node.attr) in class_function_names:
+        if (
+            parsing.match_template(node.value, ast.Call(func=ast.Name))
+            and (node.value.func.id, node.attr) in class_function_names
+        ):
             class_attribute_accesses.add(node)
         elif isinstance(node.value, ast.Name):
             if (
