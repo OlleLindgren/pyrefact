@@ -61,10 +61,10 @@ def _sum_int_squares_to(value: ast.AST) -> ast.AST:
 def _sum_range(rng: ast.Call) -> ast.AST:
     start, end, step = _get_range_start_end(rng)
 
-    if not (isinstance(step, ast.Constant) and step.value == 1):
+    if not parsing.match_template(step, ast.Constant(value=1)):
         return rng
 
-    if isinstance(end, ast.Constant) and end.value == 0:
+    if parsing.match_template(end, ast.Constant(value=0)):
         return _sum_int_squares_to(end)
 
     return ast.BinOp(
@@ -130,61 +130,50 @@ def simplify_math_iterators(source: str) -> str:
         keywords=[],
         args=[object],
     )
+    basic_types_template = {ast.Name, ast.Constant, ast.UnaryOp, ast.BinOp}
+    basic_iter_template = (
+        ast.Call(
+            func=ast.Name(id="range"),
+            args=basic_types_template
+        ),
+        ast.Set(elts=basic_types_template),
+        ast.List(elts=basic_types_template),
+        ast.Tuple(elts=basic_types_template),
+    )
+    basic_comprehension_template = (
+        ast.GeneratorExp(generators={ast.comprehension(iter=basic_iter_template, ifs=[], target=ast.Name)}),
+        ast.ListComp(generators={ast.comprehension(iter=basic_iter_template, ifs=[], target=ast.Name)}),
+    )
+    basic_collection_template = (
+        ast.Tuple(elts={ast.Constant, ast.UnaryOp, ast.BinOp}),
+        ast.List(elts={ast.Constant, ast.UnaryOp, ast.BinOp}),
+    )
+
     for node in parsing.walk(root, template):
         arg = node.args[0]
-        if parsing.is_call(arg, "range"):
+        if parsing.match_template(arg, ast.Call(func=ast.Name(id="range"))):
             if any((node is not arg for node in parsing.walk(arg, (ast.Attribute, ast.Call)))):
                 continue
             if node.func.id != "sum":
                 continue
             yield node, _sum_range(arg)
-        elif isinstance(arg, (ast.Tuple, ast.List)) and all(
-            (isinstance(elt, (ast.Constant, ast.UnaryOp, ast.BinOp)) for elt in arg.elts)
-        ):
+
+        elif parsing.match_template(arg, basic_collection_template):
             if any(parsing.walk(arg, ast.Attribute)):
                 continue
-            if any(
-                (
-                    not isinstance(node.func, ast.Name) or node.func.id not in "range"
-                    for node in parsing.walk(arg, ast.Call)
-                )
+            if not all(
+                parsing.match_template(node.func, ast.Name(id="range"))
+                for node in parsing.walk(arg, ast.Call)
             ):
                 continue
             yield node, _sum_constants(arg.elts)
-        elif isinstance(arg, (ast.GeneratorExp, ast.ListComp)) and all(
-            (
-                (
-                    isinstance(gen.iter, ast.Call)
-                    and isinstance(gen.iter.func, ast.Name)
-                    and (gen.iter.func.id == "range")
-                    and all(
-                        (
-                            isinstance(arg, (ast.Name, ast.Constant, ast.UnaryOp, ast.BinOp))
-                            for arg in gen.iter.args
-                        )
-                    )
-                    or (
-                        isinstance(gen.iter, (ast.Set, ast.List, ast.Tuple))
-                        and all(
-                            (
-                                isinstance(value, (ast.Name, ast.Constant, ast.UnaryOp, ast.BinOp))
-                                for value in gen.iter.elts
-                            )
-                        )
-                    )
-                )
-                and (not gen.ifs)
-                and isinstance(gen.target, ast.Name)
-                for gen in arg.generators
-            )
-        ):
+
+        elif parsing.match_template(arg, basic_comprehension_template):
             if any(parsing.walk(arg, ast.Attribute)):
                 continue
-            if any(
-                (
-                    not isinstance(node.func, ast.Name) or node.func.id not in "range"
-                    for node in parsing.walk(arg, ast.Call)
-                )
+            if not all(
+                parsing.match_template(node.func, ast.Name(id="range"))
+                for node in parsing.walk(arg, ast.Call)
             ):
                 continue
             yield node, _integrate_over(arg.elt, arg.generators)
