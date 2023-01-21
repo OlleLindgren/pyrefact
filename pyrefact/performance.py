@@ -128,64 +128,53 @@ def replace_sorted_heapq(source: str) -> str:
     builtin_list = ast.Name(id="list", ctx=ast.Load())
     builtin_reversed = ast.Name(id="reversed", ctx=ast.Load())
 
-    for node in filter(_is_sorted_subscript, parsing.walk(root, ast.Subscript)):
+    template_sorted_subscript = ast.Subscript(
+        value=ast.Call(func=ast.Name(id="sorted"), args=[object], keywords={ast.keyword(arg="key")})
+    )
+
+    # Slice templates
+    template_first_element = ast.Constant(value=0)
+    template_last_element = ast.UnaryOp(op=ast.USub, operand=ast.Constant(value=1))
+    template_first_n = ast.Slice(lower=None, upper=ast.AST)
+    template_last_n = ast.Slice(lower=ast.UnaryOp(op=ast.USub), upper=None)
+
+    for node in parsing.walk(root, template_sorted_subscript):
 
         args = node.value.args
         keywords = node.value.keywords
-        if len(args) > 1:
-            continue
-        if len(keywords) > 1 or any(kw.arg != "key" for kw in keywords):
-            continue
         node_slice = parsing.slice_of(node)
-        if isinstance(node_slice, ast.Constant):
-            value = node_slice.value
-            if value != 0:
-                continue
+        if parsing.match_template(node_slice, template_first_element):
             replacement = ast.Call(
                 func=builtin_min, args=args, keywords=keywords, lineno=node.lineno
             )
-        elif (
-            isinstance(node_slice, ast.UnaryOp)
-            and isinstance(node_slice.op, ast.USub)
-            and isinstance(node_slice.operand, ast.Constant)
-        ):
-            value = node_slice.operand.value
-            if value != 1:
-                continue
+            yield node, replacement
+        elif parsing.match_template(node_slice, template_last_element):
             replacement = ast.Call(
                 func=builtin_max, args=args, keywords=keywords, lineno=node.lineno
             )
-        elif isinstance(node_slice, ast.Slice):
-            lower = node_slice.lower
-            upper = node_slice.upper
-            if lower is None and upper is not None and not isinstance(upper, ast.UnaryOp):
-                func = heapq_nsmallest
-                value = upper
-                replacement = ast.Call(func=func, args=[value] + args, keywords=keywords)
-            elif (
-                lower is not None
-                and upper is None
-                and isinstance(lower, ast.UnaryOp)
-                and isinstance(lower.op, ast.USub)
-            ):
-                func = heapq_nlargest
-                value = lower.operand
-                replacement = ast.Call(
-                    func=builtin_list,
-                    keywords=[],
-                    args=[
-                        ast.Call(
-                            func=builtin_reversed,
-                            keywords=[],
-                            args=[ast.Call(func=func, args=[value] + args, keywords=keywords)],
-                        )
-                    ],
-                )
-            else:
-                continue
-        else:
-            continue
-        yield node, replacement
+            yield node, replacement
+        elif parsing.match_template(node_slice, template_first_n) and not isinstance(
+            node_slice.upper, ast.UnaryOp
+        ):
+            func = heapq_nsmallest
+            value = node_slice.upper
+            replacement = ast.Call(func=func, args=[value] + args, keywords=keywords)
+            yield node, replacement
+        elif parsing.match_template(node_slice, template_last_n):
+            func = heapq_nlargest
+            value = node_slice.lower.operand
+            replacement = ast.Call(
+                func=builtin_list,
+                keywords=[],
+                args=[
+                    ast.Call(
+                        func=builtin_reversed,
+                        keywords=[],
+                        args=[ast.Call(func=func, args=[value] + args, keywords=keywords)],
+                    )
+                ],
+            )
+            yield node, replacement
 
 
 def _wrap_transpose(node: ast.AST) -> ast.Call:
