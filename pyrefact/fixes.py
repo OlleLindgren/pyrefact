@@ -486,11 +486,11 @@ def fix_tabs(source: str) -> str:
     return source.replace(r"\t", " " * 4)
 
 
-def fix_too_many_blank_lines(content: str) -> str:
-    content = re.sub(r"\n{4,}", "\n" * 3, content)
-    content = re.sub(r"\n{2,}\Z", "\n", content)
+def fix_too_many_blank_lines(source: str) -> str:
+    source = re.sub(r"\n{4,}", "\n" * 3, source)
+    source = re.sub(r"\n{2,}\Z", "\n", source)
 
-    return content
+    return source
 
 
 def fix_rmspace(source: str) -> str:
