@@ -44,31 +44,29 @@ def optimize_contains_types(source: str) -> str:
     """
     root = parsing.parse(source)
 
-    for node in filter(_is_contains_comparison, parsing.walk(root, ast.Compare)):
+    sorted_list_tuple_call_template = ast.Call(
+        func=ast.Name(id=("sorted", "list", "tuple"), ctx=ast.Load),
+        args=[object],
+        keywords=[],
+    )
 
+    for node in filter(_is_contains_comparison, parsing.walk(root, ast.Compare)):
         for comp in node.comparators:
-            if isinstance(comp, (ast.ListComp)):
-                replacement = ast.GeneratorExp(elt=comp.elt, generators=comp.generators)
+            if isinstance(comp, ast.ListComp):
+                yield comp, ast.GeneratorExp(elt=comp.elt, generators=comp.generators)
+
             elif isinstance(comp, ast.DictComp):
-                replacement = ast.SetComp(elt=comp.key, generators=comp.generators)
+                yield comp, ast.SetComp(elt=comp.key, generators=comp.generators)
+
             elif isinstance(comp, (ast.List, ast.Tuple)):
                 preferred_type = (
                     ast.Set if _can_be_evaluated_safe(ast.Set(elts=comp.elts)) else ast.Tuple
                 )
-                if isinstance(comp, preferred_type):
-                    continue
-                replacement = preferred_type(elts=comp.elts)
-            elif (
-                parsing.is_call(comp, ("sorted", "list", "tuple"))
-                and isinstance(comp.func.ctx, ast.Load)
-                and len(comp.args) == 1
-                and not comp.keywords
-            ):
-                replacement = comp.args[0]
-            else:
-                continue
+                if not isinstance(comp, preferred_type):
+                    yield comp, preferred_type(elts=comp.elts)
 
-            yield comp, replacement
+            elif parsing.match_template(comp, sorted_list_tuple_call_template):
+                yield comp, comp.args[0]
 
 
 @processing.fix
