@@ -2,7 +2,7 @@
 
 import ast
 
-from pyrefact import constants, parsing, performance_numpy, processing
+from pyrefact import parsing, performance_numpy, processing
 
 
 def _is_contains_comparison(node) -> bool:
@@ -179,14 +179,18 @@ def replace_subscript_looping(source: str) -> str:
 
     replacements = {}
 
-    for comp in parsing.walk(root, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+    generator_comp_template = ast.comprehension(
+        target=ast.Name, iter=ast.Call(func=ast.Name(id="range"))
+    )
+
+    generator_template = (
+        ast.ListComp(generators=[generator_comp_template]),
+        ast.SetComp(generators=[generator_comp_template]),
+        ast.GeneratorExp(generators=[generator_comp_template]),
+    )
+
+    for comp in parsing.walk(root, generator_template):
         wrapper_function = parsing.get_comp_wrapper_func_equivalent(comp)
-
-        if len(comp.generators) != 1:
-            continue
-
-        if not isinstance(comp.generators[0].target, ast.Name):
-            continue
 
         elt_subscripts = {
             node
@@ -198,10 +202,8 @@ def replace_subscript_looping(source: str) -> str:
             )
         }
         if not all(
-            isinstance(subscript.value, ast.Name)
-            or (
-                isinstance(subscript.value, ast.Attribute)
-                and isinstance(subscript.value.value, ast.Name)
+            parsing.match_template(
+                subscript, ast.Subscript(value=(ast.Name, ast.Attribute(value=ast.Name)))
             )
             for subscript in elt_subscripts
         ):
@@ -219,27 +221,23 @@ def replace_subscript_looping(source: str) -> str:
         subscripted_name = subscripted_names.pop()
 
         if not all(
-            isinstance(subscript.value, ast.Name)
-            and subscript.value.id == subscripted_name
+            parsing.match_template(subscript, ast.Subscript(value=ast.Name(id=subscripted_name)))
             and (
-                (
-                    isinstance(parsing.slice_of(subscript), ast.Tuple)
-                    and len(parsing.slice_of(subscript).elts) == 2
-                    and all(
-                        isinstance(elt, ast.Slice)
-                        or (isinstance(elt, ast.Name) and elt.id == subscript_name)
-                        or (
-                            constants.PYTHON_VERSION < (3, 9)
-                            and isinstance(elt, ast.Index)
-                            and isinstance(elt.value, ast.Name)
-                            and elt.value.id == subscript_name
-                        )
-                        for elt in parsing.slice_of(subscript).elts
-                    )
-                )
-                or (
-                    isinstance(parsing.slice_of(subscript), ast.Name)
-                    and parsing.slice_of(subscript).id == subscript_name
+                parsing.match_template(
+                    parsing.slice_of(subscript),
+                    (
+                        ast.Name(id=subscript_name),
+                        ast.Tuple(
+                            elts=[
+                                (
+                                    ast.Slice,
+                                    ast.Name(id=subscript_name),
+                                    ast.Index(value=ast.Name(id=subscript_name)),
+                                )
+                            ]
+                            * 2
+                        ),
+                    ),
                 )
             )
             for subscript in elt_subscripts
@@ -247,9 +245,7 @@ def replace_subscript_looping(source: str) -> str:
             # All subscripts are not a[i, :], a[:, i] or a[i]
             continue
 
-        uses_of_subscript_name = {
-            name for name in parsing.walk(comp.elt, ast.Name) if name.id == subscript_name
-        }
+        uses_of_subscript_name = set(parsing.walk(comp.elt, ast.Name(id=subscript_name)))
         for subscript in parsing.walk(comp.elt, ast.Subscript):
             for value in parsing.walk(parsing.slice_of(subscript), ast.Name):
                 uses_of_subscript_name.discard(value)
@@ -258,22 +254,11 @@ def replace_subscript_looping(source: str) -> str:
             # i is used for something other than subscripting a
             continue
 
-        if len(comp.generators) != 1:
-            continue
-
         iterated_node = comp.generators[0].iter
 
-        if not parsing.is_call(iterated_node, "range"):
-            continue
-
-        if (
-            len(iterated_node.args) == 1
-            and isinstance(iterated_node.args[0], ast.Call)
-            and isinstance(iterated_node.args[0].func, ast.Name)
-            and iterated_node.args[0].func.id == "len"
-            and len(iterated_node.args[0].args) == 1
-            and isinstance(iterated_node.args[0].args[0], ast.Name)
-            and iterated_node.args[0].args[0].id == subscripted_name
+        if parsing.match_template(
+            iterated_node.args,
+            [ast.Call(func=ast.Name(id="len"), args=[ast.Name(id=subscripted_name)])],
         ):
             replacements[comp] = ast.Call(
                 func=ast.Name(id=wrapper_function),
@@ -282,20 +267,13 @@ def replace_subscript_looping(source: str) -> str:
             )
             break
 
-        if not (
-            len(iterated_node.args) == 1
-            and isinstance(iterated_node.args[0], ast.Subscript)
-            and isinstance(iterated_node.args[0].value, ast.Attribute)
-            and isinstance(iterated_node.args[0].value.value, ast.Name)
-            and iterated_node.args[0].value.value.id == subscripted_name
-            and iterated_node.args[0].value.attr == "shape"
+        if not parsing.match_template(
+            iterated_node.args,
+            [ast.Subscript(value=ast.Attribute(value=ast.Name(id=subscripted_name), attr="shape"))],
         ):
             continue
 
-        if (
-            isinstance(parsing.slice_of(iterated_node.args[0]), ast.Constant)
-            and parsing.slice_of(iterated_node.args[0]).value == 1
-        ):
+        if parsing.match_template(parsing.slice_of(iterated_node.args[0]), ast.Constant(value=1)):
             if performance_numpy.uses_numpy(root):
                 transposed_name = performance_numpy.wrap_transpose(ast.Name(id=subscripted_name))
             else:
@@ -307,18 +285,13 @@ def replace_subscript_looping(source: str) -> str:
                 replacements[subscript] = target_name
             break
 
-        if not (
-            isinstance(parsing.slice_of(iterated_node.args[0]), ast.Constant)
-            and parsing.slice_of(iterated_node.args[0]).value == 0
-        ):
-            continue
-
-        replacements[comp.generators[0].iter] = ast.Name(id=subscripted_name)
-        target_name = ast.Name(id=f"{subscripted_name}_")
-        replacements[comp.generators[0].target] = target_name
-        for subscript in elt_subscripts:
-            replacements[subscript] = target_name
-        break
+        if parsing.match_template(parsing.slice_of(iterated_node.args[0]), ast.Constant(value=0)):
+            replacements[comp.generators[0].iter] = ast.Name(id=subscripted_name)
+            target_name = ast.Name(id=f"{subscripted_name}_")
+            replacements[comp.generators[0].target] = target_name
+            for subscript in elt_subscripts:
+                replacements[subscript] = target_name
+            break
 
     source = processing.replace_nodes(source, replacements)
 
