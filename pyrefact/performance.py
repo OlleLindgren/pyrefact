@@ -106,11 +106,6 @@ def remove_redundant_chained_calls(source: str) -> str:
         yield node, ast.Call(func=node.func, args=[arg], keywords=[])
 
 
-def _is_sorted_subscript(node) -> bool:
-    template = ast.Subscript(value=ast.Call(func=ast.Name(id="sorted")))
-    return parsing.match_template(node, template)
-
-
 @processing.fix
 def replace_sorted_heapq(source: str) -> str:
     root = parsing.parse(source)
