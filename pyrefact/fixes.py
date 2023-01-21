@@ -486,6 +486,13 @@ def fix_tabs(source: str) -> str:
     return source.replace(r"\t", " " * 4)
 
 
+def fix_too_many_blank_lines(content: str) -> str:
+    content = re.sub(r"\n{4,}", "\n" * 3, content)
+    content = re.sub(r"\n{2,}\Z", "\n", content)
+
+    return content
+
+
 def fix_rmspace(source: str) -> str:
     """Remove trailing whitespace from source code.
 

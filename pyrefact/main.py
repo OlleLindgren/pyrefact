@@ -53,6 +53,7 @@ def format_code(
 
     source = fixes.fix_tabs(source)
     source = fixes.fix_rmspace(source)
+    source = fixes.fix_too_many_blank_lines(source)
 
     if not source.strip():
         return source
@@ -133,6 +134,7 @@ def format_code(
         source = abstractions.create_abstractions(source)
 
         source = fixes.remove_duplicate_functions(source, preserve=preserve)
+        source = fixes.fix_too_many_blank_lines(source)
 
         if source in content_history:
             break
