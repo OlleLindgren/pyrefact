@@ -74,15 +74,11 @@ def optimize_contains_types(source: str) -> str:
 @processing.fix
 def remove_redundant_iter(source: str) -> str:
     root = parsing.parse(source)
+    iter_template = ast.Call(func=ast.Name(id=("iter", "list", "tuple")), args=[object])
+    template = (ast.For(iter=iter_template), ast.comprehension(iter=iter_template))
 
-    for node in parsing.walk(root, (ast.For, ast.comprehension)):
-        if (
-            isinstance(node.iter, ast.Call)
-            and isinstance(node.iter.func, ast.Name)
-            and (node.iter.func.id in {"iter", "list", "tuple"})
-            and (len(node.iter.args) == 1)
-        ):
-            yield node.iter, node.iter.args[0]
+    for node in parsing.walk(root, template):
+        yield node.iter, node.iter.args[0]
 
 
 @processing.fix(restart_on_replace=True)
@@ -99,20 +95,17 @@ def remove_redundant_chained_calls(source: str) -> str:
         "sum": {"list", "tuple", "iter", "sorted", "reversed"},
     }
 
-    for node in parsing.walk(root, ast.Call):
-        if not (isinstance(node.func, ast.Name) and node.args):
-            continue
+    templates = tuple(
+        ast.Call(func=ast.Name(id=key), args=[ast.Call(func=ast.Name(id=value), args=[object])])
+        for key, values in function_chain_redundancy_mapping.items()
+        for value in values
+    )
 
-        redundant_call_names = function_chain_redundancy_mapping.get(node.func.id)
-        if not redundant_call_names:
-            continue
-        modified_node = node
-        while (
-            isinstance(modified_node.args[0], ast.Call)
-            and isinstance(modified_node.args[0].func, ast.Name)
-            and (modified_node.args[0].func.id in redundant_call_names)
-        ):
-            yield node, ast.Call(func=node.func, args=modified_node.args[0].args, keywords=[])
+    for node in parsing.walk(root, templates):
+        arg = node.args[0].args[0]
+        while parsing.match_template(arg, templates):
+            arg = arg.args[0].args[0]
+        yield node, ast.Call(func=node.func, args=[arg], keywords=[])
 
 
 def _is_sorted_subscript(node) -> bool:
