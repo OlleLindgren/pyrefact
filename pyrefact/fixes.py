@@ -433,7 +433,7 @@ def fix_tabs(source: str) -> str:
     Returns:
         str: Formatted source code
     """
-    return source.replace(r"\t", " " * 4)
+    return re.sub(r"\t", " " * 4, source)
 
 
 def fix_too_many_blank_lines(source: str) -> str:
@@ -2190,3 +2190,47 @@ def breakout_common_code_in_ifs(source: str) -> str:
                 return breakout_common_code_in_ifs(source)
 
     return source
+
+
+@processing.fix
+def invalid_escape_sequence(source: str) -> str:
+    """Prepend 'r' to invalid escape sequences
+
+    Args:
+        source (str): Python source code
+
+    Returns:
+        str: Modified source code
+    """
+    # Recognized esc sequences from python.org documentation, Jan 2023
+    # https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals
+    valid_escape_sequences = (
+        r"\\",
+        r"\'",
+        r"\"",
+        r"\a",
+        r"\b",
+        r"\f",
+        r"\n",
+        r"\r",
+        r"\t",
+        r"\v",
+        r"\ooo",
+        r"\xhh",
+        r"\N",
+        r"\u",
+        r"\U",
+    )
+
+    root = parsing.parse(source)
+
+    for node in parsing.walk(root, ast.Constant(value=str)):
+        code = parsing.get_code(node, source)
+        # Normal string containing backslash but no valid escape sequences
+        if (code[0] in "'\""
+            and "\\" in code
+            and not any(
+                sequence in code
+                for sequence in valid_escape_sequences)
+        ):
+            yield node, "r" + code

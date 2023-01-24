@@ -691,7 +691,7 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
     for code, nodes in code_node_mapping.items():
         if len(nodes) < 5:
             continue
-        if len(re.sub("\s", "", code)) < 20:
+        if len(re.sub(r"\s", "", code)) < 20:
             continue
 
         common_scopes = set.intersection(*(scope_node_definitions[node] for node in nodes))
