@@ -9,7 +9,7 @@ from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 import isort
 import rmspace
 
-from pyrefact import abstractions, constants, parsing, processing, sql, style
+from pyrefact import abstractions, constants, parsing, processing, style
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
@@ -2024,54 +2024,6 @@ def simplify_redundant_lambda(source: str) -> str:
             yield node, ast.Name(id="tuple")
         elif isinstance(node.body, ast.Dict):
             yield node, ast.Name(id="dict")
-
-
-@processing.fix
-def format_inlined_sql(source: str) -> str:
-
-    root = parsing.parse(source)
-
-    blacklist = set()
-
-    str_template = ast.Constant(value=parsing.Wildcard("code", str))
-    fstr_template = ast.JoinedStr(values={ast.Constant, ast.FormattedValue})
-    for node in parsing.walk(root, fstr_template):
-        blacklist.update(parsing.walk(node, str_template))
-        code = parsing.get_code(node, source)
-        delimiter = code[-1]
-        if set(code[-3:]) == {code[-1]}:
-            delimiter = delimiter * 3
-        code = code.lstrip("frb")
-        code = code.strip(delimiter)  # strip string modifiers and delimiters '"
-        if not sql.is_sql_syntax(code):
-            continue
-
-        formatted_code = sql.format_sql(code)
-        if code != formatted_code:
-            if len(formatted_code.splitlines()) > 1:
-                delimiter = delimiter[0] * 3
-                replacement = "f" + delimiter + "\n" + formatted_code + "\n" + delimiter
-            else:
-                replacement = "f" + delimiter + formatted_code + delimiter
-            yield (node, replacement)
-
-    for node, code in parsing.walk_wildcard(root, str_template):
-        if node in blacklist or not sql.is_sql_syntax(code):
-            continue
-
-        code_with_delimiters = parsing.get_code(node, source)
-        delimiter = code_with_delimiters[-1]
-        if set(code_with_delimiters[-3:]) == {code_with_delimiters[-1]}:
-            delimiter = delimiter * 3
-        formatted_code = sql.format_sql(code).strip()
-        if code != formatted_code:
-            if len(formatted_code.splitlines()) > 1:
-                delimiter = delimiter[0] * 3
-                replacement = delimiter + "\n" + formatted_code + "\n" + delimiter
-            else:
-                replacement = ast.Constant(value=formatted_code, kind=None)
-
-            yield node, replacement
 
 
 def _is_same_code(*nodes: ast.AST) -> bool:

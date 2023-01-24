@@ -19,7 +19,6 @@ dependencies = [
     "isort==5.11.4",
     "rmspace==7",
     "sympy==1.11.1",
-    "sqlparse==0.4.3",
     'astunparse==1.6.3; python_version<"3.9"'
 ]
 
