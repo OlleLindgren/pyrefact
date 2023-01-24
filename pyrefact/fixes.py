@@ -496,11 +496,11 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
 
         current_code = source[start:end]
         indent = processing.get_indent(current_code)
-        current_code = processing.deindent_code(current_code, indent)
-        if current_code.startswith("elif"):
-            new_code = "el" + processing.format_with_black(current_code[2:], line_length=max(60, max_line_length - indent))
+        deindented_code = processing.deindent_code(current_code, indent)
+        if deindented_code.startswith("elif"):
+            new_code = "el" + processing.format_with_black(deindented_code[2:], line_length=max(60, max_line_length - indent))
         else:
-            new_code = processing.format_with_black(current_code, line_length=max(60, max_line_length - indent))
+            new_code = processing.format_with_black(deindented_code, line_length=max(60, max_line_length - indent))
 
         new_code = processing.indent_code(new_code, indent)
 

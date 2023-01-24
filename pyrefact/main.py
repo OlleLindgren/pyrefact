@@ -11,6 +11,7 @@ from typing import Collection, Iterable, Sequence
 from pyrefact import (
     abstractions,
     completion,
+    constants,
     fixes,
     object_oriented,
     parsing,
@@ -153,7 +154,9 @@ def format_code(
 
         source = fixes.fix_isort(source)
 
-    source = fixes.fix_line_lengths(source)
+    # Indentation problems on 3.8 due to incorrect lineno/col offfset properties
+    if constants.PYTHON_VERSION >= (3, 9):
+        source = fixes.fix_line_lengths(source)
     source = fixes.fix_rmspace(source)
 
     return "".join(f"{' ' * minimum_indent}{line}" for line in source.splitlines(keepends=True))
