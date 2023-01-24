@@ -8,15 +8,16 @@ Pyrefact can break code, and is not suitable for your company's CI chain.
 
 ### Readability
 
-* De-indent code with early `continue` and `return` statements.
+* De-indent code with early `continue` and `return` statements
 * Replace for loops with immediate `if` conditions with `filter`
 * Remove commented code
-* Move code into primitive functions.
-* Replace loops that only fill up lists, dicts or sets with comprehensions.
-* Invert `if`/`else` to put the smaller block first.
-* Rename variables, functions and classes with conventions.
+* Move code into primitive functions
+* Replace loops that only fill up lists, dicts or sets with comprehensions
+* Invert `if`/`else` to put the smaller block first
+* Rename variables, functions and classes with conventions
 * Rewrite defaultdict-like use of dictionaries with `collections.defaultdict()`
 * Formats lines that are longer than 100 characters with `black`
+* Put overused constant expressions in variables
 
 ### Performance
 
