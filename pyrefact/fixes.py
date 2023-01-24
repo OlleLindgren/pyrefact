@@ -1,9 +1,10 @@
 import ast
 import collections
+import copy
 import itertools
 import queue
 import re
-from typing import Collection, Iterable, List, Mapping, Sequence, Tuple, Union
+from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple, Union
 
 import isort
 import rmspace
@@ -2115,3 +2116,121 @@ def format_inlined_sql(source: str) -> str:
                 replacement = ast.Constant(value=formatted_code, kind=None)
 
             yield node, replacement
+
+
+def _is_same_code(*nodes: ast.AST) -> bool:
+    return len({processing.unparse(node) for node in nodes}) == 1
+
+
+def _all_branches(
+    *starting_nodes: ast.AST, expand_ifs_on: Literal["start", "end"]
+) -> Iterable[ast.AST]:
+    if not starting_nodes:
+        raise ValueError("At least one node must be provided.")
+    if expand_ifs_on == "start":
+        index = 0
+    elif expand_ifs_on == "end":
+        index = -1
+    else:
+        raise ValueError(f"Expected 'start' or 'end', not {expand_ifs_on!r}.")
+    for node in starting_nodes:
+        if isinstance(node, ast.If):
+            # If either is empty, this generates an IndexError
+            yield from _all_branches(node.body[index], expand_ifs_on=expand_ifs_on)
+            yield from _all_branches(node.orelse[index], expand_ifs_on=expand_ifs_on)
+
+        else:
+            yield node
+
+
+def _move_before_scope(
+    scope: ast.AST,
+    nodes: Iterable[ast.AST],
+) -> Tuple[Collection[ast.AST], Collection[ast.AST]]:
+    removals = set(nodes)
+    first_node = min(removals, key=lambda node: node.lineno)
+    replacement = copy.copy(first_node)
+    replacement.lineno = scope.lineno - 1
+    replacement.col_offset = scope.col_offset
+    additions = {replacement}
+
+    return additions, removals
+
+
+def _move_after_scope(
+    scope: ast.AST,
+    nodes: Iterable[ast.AST],
+) -> Tuple[Collection[ast.AST], Collection[ast.AST]]:
+    removals = set(nodes)
+    last_node = max(removals, key=lambda node: node.lineno)
+    replacement = copy.copy(last_node)
+    replacement.col_offset = scope.col_offset
+    additions = {replacement}
+
+    return additions, removals
+
+
+def breakout_common_code_in_ifs(source: str) -> str:
+
+    root = parsing.parse(source)
+
+    for node in parsing.walk(root, ast.If):
+        if parsing.get_code(node, source).startswith("elif"):
+            continue
+
+        if node.body and node.orelse:
+            first_body = node.body[0]
+            first_orelse = node.orelse[0]
+            last_body = node.body[-1]
+            last_orelse = node.orelse[-1]
+
+            removals = set()
+            additions = set()
+
+            # If := is used, it may (this is quite probable, even) set a variable that is needed in the
+            # body or orelse.
+            # I suppose there could be some other side effect going on in the test, but in that case I
+            # would consider 99.9% to be robust enough.
+            has_namedexpr = any(parsing.walk(node.test, ast.NamedExpr))
+
+            start_branches = [node.body[0], node.orelse[0]]
+            end_branches = [node.body[-1], node.orelse[-1]]
+
+            if not has_namedexpr and _is_same_code(*start_branches):
+                additions, removals = _move_before_scope(node, start_branches)
+
+            elif _is_same_code(*end_branches):
+                additions, removals = _move_after_scope(node, end_branches)
+
+            try:
+                start_branches = list(
+                    _all_branches(node.body[0], node.orelse[0], expand_ifs_on="start")
+                )
+                end_branches = list(
+                    _all_branches(node.body[-1], node.orelse[-1], expand_ifs_on="end")
+                )
+            except (ValueError, IndexError):
+                pass
+            else:
+                if not has_namedexpr and _is_same_code(*start_branches):
+                    additions, removals = _move_before_scope(node, start_branches)
+
+                elif _is_same_code(*end_branches):
+                    additions, removals = _move_after_scope(node, end_branches)
+
+                else:
+                    end_nonblocking_branches = [
+                        branch for branch in end_branches if not parsing.is_blocking(branch)
+                    ]
+                    count = len(end_nonblocking_branches)
+                    if count >= 2 and _is_same_code(*end_nonblocking_branches):
+                        additions, removals = _move_after_scope(node, end_nonblocking_branches)
+
+            if parsing.match_template(list(additions), [ast.Pass]):
+                continue
+
+            if additions and removals:
+                source = processing.alter_code(source, root, additions=additions, removals=removals)
+                return breakout_common_code_in_ifs(source)
+
+    return source

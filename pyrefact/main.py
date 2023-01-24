@@ -76,7 +76,7 @@ def format_code(
         module = parsing.parse(source)
         def_types = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
         fdef_types = (ast.FunctionDef, ast.AsyncFunctionDef)
-        defs = {node.name for node in parsing.filter_nodes(module.body,def_types)}
+        defs = {node.name for node in parsing.filter_nodes(module.body, def_types)}
         class_funcs = {  # Function definitions directly under a class definition in module scope
             f"{node.name}.{funcdef.name}"
             for node in parsing.filter_nodes(module.body, ast.ClassDef)
@@ -104,6 +104,7 @@ def format_code(
         source = object_oriented.move_staticmethod_static_scope(source, preserve=preserve)
         source = fixes.singleton_eq_comparison(source)
         source = fixes.move_imports_to_toplevel(source)
+        source = fixes.breakout_common_code_in_ifs(source)
         source = fixes.swap_if_else(source)
         source = fixes.early_return(source)
         source = fixes.early_continue(source)
