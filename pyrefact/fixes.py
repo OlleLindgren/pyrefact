@@ -546,7 +546,14 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
         start, end = parsing.get_charnos(node, source, keep_first_indent=True)
 
         current_code = source[start:end]
-        new_code = processing.format_with_black(current_code, line_length=max_line_length)
+        indent = processing.get_indent(current_code)
+        current_code = processing.deindent_code(current_code, indent)
+        if current_code.startswith("elif"):
+            new_code = "el" + processing.format_with_black(current_code[2:], line_length=max(60, max_line_length - indent))
+        else:
+            new_code = processing.format_with_black(current_code, line_length=max(60, max_line_length - indent))
+
+        new_code = processing.indent_code(new_code, indent)
 
         if new_code != current_code and (
             not any((e >= start and s <= end for s, e in formatted_ranges))
