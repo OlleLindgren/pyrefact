@@ -9,7 +9,7 @@ from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 import isort
 import rmspace
 
-from pyrefact import abstractions, constants, parsing, processing, sql
+from pyrefact import abstractions, constants, parsing, processing, sql, style
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
@@ -34,57 +34,6 @@ def _get_undefined_variables(source: str) -> Collection[str]:
         - {name.split(".")[0] for name in imported_names}
         - constants.BUILTIN_FUNCTIONS
     )
-
-
-def _rename_variable(variable: str, *, static: bool, private: bool) -> str:
-    if variable == "_":
-        return variable
-
-    if variable.startswith("__") and variable.endswith("__"):
-        return variable
-
-    renamed_variable = _make_snakecase(variable, uppercase=static)
-
-    if private and not parsing.is_private(renamed_variable):
-        renamed_variable = f"_{renamed_variable}"
-    if not private and parsing.is_private(renamed_variable):
-        renamed_variable = renamed_variable.lstrip("_")
-
-    if renamed_variable:
-        return renamed_variable
-
-    raise RuntimeError(f"Unable to find a replacement name for {variable}")
-
-
-def _list_words(name: str) -> Sequence[str]:
-    return [
-        match.group()
-        for match in re.finditer(r"([A-Z]{2,}(?![a-z])|[A-Z]?[a-z]*)\d*", name)
-        if match.end() > match.start()
-    ]
-
-
-def _make_snakecase(name: str, *, uppercase: bool = False) -> str:
-    return "_".join(word.upper() if uppercase else word.lower() for word in _list_words(name))
-
-
-def _make_camelcase(name: str) -> str:
-    return "".join(word[0].upper() + word[1:].lower() for word in _list_words(name))
-
-
-def _rename_class(name: str, *, private: bool) -> str:
-    name = re.sub("_{1,}", "_", name)
-    if len(name) == 0:
-        raise ValueError("Cannot rename empty name")
-
-    name = _make_camelcase(name)
-
-    if private and not parsing.is_private(name):
-        return f"_{name}"
-    if not private and parsing.is_private(name):
-        return name[1:]
-
-    return name
 
 
 def _get_uses_of(node: ast.AST, scope: ast.AST, source: str) -> Iterable[ast.Name]:
@@ -140,7 +89,7 @@ def _get_variable_name_substitutions(
     funcdefs: List[ast.FunctionDef] = []
     for node in parsing.iter_classdefs(ast_tree):
         name = node.name
-        substitute = _rename_class(name, private=parsing.is_private(name) or name not in preserve)
+        substitute = style.rename_class(name, private=parsing.is_private(name) or name not in preserve)
         classdefs.append(node)
         renamings[node].add(substitute)
         for refnode in _get_uses_of(node, ast_tree, source):
@@ -157,7 +106,7 @@ def _get_variable_name_substitutions(
 
     for node in parsing.iter_funcdefs(ast_tree):
         name = node.name
-        substitute = _rename_variable(
+        substitute = style.rename_variable(
             name, private=parsing.is_private(name) or name not in preserve, static=False
         )
         funcdefs.append(node)
@@ -167,9 +116,9 @@ def _get_variable_name_substitutions(
 
     for node in parsing.iter_assignments(ast_tree):
         if node in typevars:
-            substitute = _rename_class(node.id, private=parsing.is_private(node.id))
+            substitute = style.rename_class(node.id, private=parsing.is_private(node.id))
         else:
-            substitute = _rename_variable(node.id, private=parsing.is_private(node.id), static=True)
+            substitute = style.rename_variable(node.id, private=parsing.is_private(node.id), static=True)
         renamings[node].add(substitute)
         for refnode in _get_uses_of(node, ast_tree, source):
             renamings[refnode].add(substitute)
@@ -180,7 +129,7 @@ def _get_variable_name_substitutions(
             for node in parsing.iter_classdefs(partial_tree):
                 name = node.name
                 classdefs.append(node)
-                substitute = _rename_class(name, private=parsing.is_private(name))
+                substitute = style.rename_class(name, private=parsing.is_private(name))
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
@@ -189,13 +138,13 @@ def _get_variable_name_substitutions(
                     continue
                 name = node.name
                 funcdefs.append(node)
-                substitute = _rename_variable(name, private=parsing.is_private(name), static=False)
+                substitute = style.rename_variable(name, private=parsing.is_private(name), static=False)
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
-                substitute = _rename_variable(name, private=parsing.is_private(name), static=False)
+                substitute = style.rename_variable(name, private=parsing.is_private(name), static=False)
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
@@ -204,20 +153,20 @@ def _get_variable_name_substitutions(
             for node in parsing.iter_classdefs(partial_tree):
                 name = node.name
                 classdefs.append(node)
-                substitute = _rename_class(name, private=False)
+                substitute = style.rename_class(name, private=False)
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
                 name = node.name
                 funcdefs.append(node)
-                substitute = _rename_variable(name, private=False, static=False)
+                substitute = style.rename_variable(name, private=False, static=False)
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
-                substitute = _rename_variable(name, private=False, static=False)
+                substitute = style.rename_variable(name, private=False, static=False)
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
