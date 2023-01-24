@@ -1,9 +1,10 @@
 import ast
+import collections
 import itertools
 import re
 from typing import Collection, Iterable, Sequence, Tuple
 
-from pyrefact import constants, parsing, processing
+from pyrefact import constants, parsing, processing, style
 
 
 class _EverythingContainer:
@@ -406,6 +407,12 @@ def _get_function_insertion_lineno(
     return containing_node.lineno - 1
 
 
+def _get_constant_insertion_lineno(scope: ast.AST) -> int:
+    import_types = (ast.Import, ast.ImportFrom)
+    imports = [node for node in scope.body if not isinstance(node, import_types)]
+    return min((node.lineno for node in imports)) - 1
+
+
 def create_abstractions(source: str) -> str:
     root = parsing.parse(source)
     global_names = (
@@ -625,5 +632,84 @@ def create_abstractions(source: str) -> str:
     source = processing.alter_code(
         source, root, additions=additions, removals=removals, replacements=replacements
     )
+
+    return source
+
+
+def overused_constant(source: str, *, root_is_static: bool) -> str:
+    """Create variables for overused constants
+
+    Args:
+        source (str): Python source code
+        root_is_static (bool): True if the outermost scope is module-level
+
+    Returns:
+        str: Modified source code
+    """
+    root = parsing.parse(source)
+
+    template = (
+        ast.Constant,
+        ast.Dict(keys={ast.Constant}, values={ast.Constant}),
+        ast.Set(elts={ast.Constant}),
+        ast.Tuple(elts={ast.Constant}),
+        ast.List(elts={ast.Constant}),
+    )
+    candidates = set(parsing.walk(root, template))
+
+    for fstring in parsing.walk(root, ast.JoinedStr):
+        for node in parsing.walk(fstring, ast.AST):
+            candidates.discard(node)
+
+    # For every node, all scopes it can be found in
+    scope_node_definitions = collections.defaultdict(set)
+    for scope in itertools.chain(
+        root.body, parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ):
+        for node in parsing.walk(scope, ast.AST):
+            scope_node_definitions[node].add(scope)
+
+    for scope in itertools.chain([root], parsing.walk(root, ast.AST(body=list))):
+        if scope.body and parsing.match_template(scope.body[0], ast.Expr(value=ast.Constant)):
+            candidates.discard(scope.body[0].value)
+
+    code_node_mapping = collections.defaultdict(set)
+    for node in candidates:
+        code_node_mapping[processing.unparse(node)].add(node)
+
+    replacements = {}
+    additions = set()
+
+    i = 0
+    names = {name.id.lower() for name in parsing.walk(root, ast.Name)}
+    while f"pyrefact_overused_constant_{i}" in names and i < 10:
+        i += 1
+
+    if f"pyrefact_overused_constant_{i}" in names:
+        return source
+
+    for code, nodes in code_node_mapping.items():
+        if len(nodes) < 5:
+            continue
+        if len(re.sub("\s", "", code)) < 20:
+            continue
+
+        common_scopes = set.intersection(*(scope_node_definitions[node] for node in nodes))
+        best_common_scope = max(common_scopes, key=lambda node: node.lineno, default=root)
+
+        variable_name = f"pyrefact_overused_constant_{i}"
+        variable_name = style.rename_variable(
+            variable_name, static=best_common_scope is root and root_is_static, private=False
+        )
+
+
+        name = ast.Name(id=variable_name)
+        assign = parsing.parse(f"{variable_name} = {code}").body[0]
+        assign.lineno = _get_constant_insertion_lineno(best_common_scope)
+        assign.col_offset = best_common_scope.body[0].col_offset
+        additions.add(assign)
+        replacements.update({node: name for node in nodes})
+
+    source = processing.alter_code(source, root, additions=additions, replacements=replacements)
 
     return source

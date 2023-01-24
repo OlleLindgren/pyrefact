@@ -242,7 +242,7 @@ def alter_code(
     # performance impact.
     actions.extend((x.lineno, "add", unparse(x), x) for x in additions)
     actions.extend((x.lineno, "delete", unparse(x), x) for x in removals)
-    actions.extend((x.lineno, "replace", unparse(x), {x: y}) for x, y in replacements.items())
+    actions.extend((x.lineno, "replace", unparse(x), (x, y)) for x, y in replacements.items())
 
     # a < d => deletions will go before additions if same lineno and reversed sorting.
     for _, action, _, value in sorted(actions, reverse=True):
@@ -251,7 +251,7 @@ def alter_code(
         elif action == "delete":
             source = remove_nodes(source, [value], root)
         elif action == "replace":
-            source = replace_nodes(source, value)
+            source = replace_nodes(source, {value[0]: value[1]})
         else:
             raise ValueError(f"Invalid action: {action}")
 

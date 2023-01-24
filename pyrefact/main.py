@@ -129,6 +129,7 @@ def format_code(
         source = performance.remove_redundant_iter(source)
         source = performance.replace_sorted_heapq(source)
         source = abstractions.create_abstractions(source)
+        source = abstractions.overused_constant(source, root_is_static=minimum_indent==0)
 
         source = fixes.remove_duplicate_functions(source, preserve=preserve)
         source = fixes.fix_too_many_blank_lines(source)
