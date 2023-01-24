@@ -495,14 +495,17 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
         start, end = parsing.get_charnos(node, source, keep_first_indent=True)
 
         current_code = source[start:end]
-        indent = processing.get_indent(current_code)
-        deindented_code = processing.deindent_code(current_code, indent)
-        if deindented_code.startswith("elif"):
-            new_code = "el" + processing.format_with_black(deindented_code[2:], line_length=max(60, max_line_length - indent))
+        elif_pattern = r"\A[\s\n]*(elif)"
+        if_pattern = r"\A[\s\n]*(if)"
+        elif_matches = list(re.finditer(elif_pattern, current_code))
+        if elif_matches:
+            re_match = elif_matches[0]
+            current_code = re.sub(elif_pattern, re_match.group().replace("elif", "if"), current_code, 1)
+            new_code = processing.format_with_black(current_code, line_length=max(60, max_line_length))
+            if_match = next(re.finditer(if_pattern, new_code))
+            new_code = re.sub(if_pattern, if_match.group().replace("if", "elif"), new_code, 1)
         else:
-            new_code = processing.format_with_black(deindented_code, line_length=max(60, max_line_length - indent))
-
-        new_code = processing.indent_code(new_code, indent)
+            new_code = processing.format_with_black(current_code, line_length=max(60, max_line_length))
 
         if new_code != current_code and (
             not any((e >= start and s <= end for s, e in formatted_ranges))

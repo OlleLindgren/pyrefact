@@ -608,20 +608,8 @@ def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> 
     if (
         constants.PYTHON_VERSION < (3, 9)
         and not is_valid_python(source[start_charno:end_charno])
-        and not isinstance(
-            node,
-            (
-                ast.FunctionDef,
-                ast.ClassDef,
-                ast.AsyncFunctionDef,
-                ast.Expr,
-                ast.Assign,
-                ast.AnnAssign,
-                ast.AugAssign,
-                ast.If,
-                ast.IfExp,
-            ),
-        )
+        and not code.startswith(" ")
+        and not match_template(node, ast.AST(body=list))
     ):
         start_charno += 2
         end_charno += 2

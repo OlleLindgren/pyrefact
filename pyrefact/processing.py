@@ -20,7 +20,7 @@ class _Rewrite(NamedTuple):
     new: Union[ast.AST, str]  # "" indicates a removal
 
 
-def get_indent(source: str) -> int:
+def _get_indent(source: str) -> int:
     indentation_whitespace = [x.group() for x in re.finditer(r"(?<![^\n]) *(?=[^\n])", source)]
     if indentation_whitespace:
         return min(len(x) for x in indentation_whitespace)
@@ -28,12 +28,12 @@ def get_indent(source: str) -> int:
     return 0
 
 
-def deindent_code(source: str, indent: int) -> str:
+def _deindent_code(source: str, indent: int) -> str:
     lines = source.splitlines(keepends=True)
     return "".join(line[indent:] if line.strip() else line for line in lines)
 
 
-def indent_code(source: str, indent: int) -> str:
+def _indent_code(source: str, indent: int) -> str:
     lines = source.splitlines(keepends=True)
     return "".join(" " * indent + line for line in lines)
 
@@ -53,12 +53,12 @@ def format_with_black(source: str, *, line_length: int = 100) -> str:
     Returns:
         str: Formatted source code.
     """
-    indent = get_indent(source)
-    deindented_code = deindent_code(source, indent)
+    indent = _get_indent(source)
+    deindented_code = _deindent_code(source, indent)
     formatted_deindented_code = black.format_str(
         deindented_code, mode=black.Mode(line_length=max(60, line_length - indent))
     )
-    formatted_content = indent_code(formatted_deindented_code, indent)
+    formatted_content = _indent_code(formatted_deindented_code, indent)
     whitespace_adjusted_content = _match_wrapping_whitespace(formatted_content, source)
 
     return whitespace_adjusted_content
@@ -90,8 +90,8 @@ def unparse(node: ast.AST) -> str:
 
     line_length = max(60, 100 - getattr(node, "col_offset", 0))
     source = format_with_black(source, line_length=line_length)
-    indent = get_indent(source)
-    source = deindent_code(source, indent).lstrip()
+    indent = _get_indent(source)
+    source = _deindent_code(source, indent).lstrip()
 
     return source
 
