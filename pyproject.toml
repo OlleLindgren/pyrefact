@@ -16,7 +16,7 @@ authors = [
 classifiers = ["Programming Language :: Python :: 3"]
 dependencies = [
     "black==22.12.0",
-    "isort==5.11.4",
+    "isort==5.12.0",
     "rmspace==7",
     "sympy==1.11.1",
     'astunparse==1.6.3; python_version<"3.9"'
