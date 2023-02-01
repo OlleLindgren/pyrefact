@@ -49,10 +49,7 @@ r = map(lambda: True, (1, 2, 3))  # syntax error?
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.replace_map_lambda_with_comp(source)
-        if not testing_infra.check_fixes_equal(
-            processing.format_with_black(processed_content),
-            processing.format_with_black(expected_abstraction),
-        ):
+        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction, clear_paranthesises=True):
             return 1
 
     return 0
