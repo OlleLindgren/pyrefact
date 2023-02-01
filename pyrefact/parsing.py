@@ -75,7 +75,8 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
     if not all(
         len({unparse(value) if isinstance(value, ast.AST) else str(value) for value in values})
         == 1
-        for values in namedtuple_vars.values()
+        for key, values in namedtuple_vars.items()
+        if key != "root"
     ):
         return ()
 
