@@ -1968,7 +1968,7 @@ def implicit_defaultdict(source: str) -> str:
                 and parsing.match_template(
                     f_value, (ast.List(elts=[object]), ast.Set(elts=[object]))
                 )
-                and (processing.unparse(t_value) == processing.unparse(f_value.elts[0]))
+                and (parsing.unparse(t_value) == parsing.unparse(f_value.elts[0]))
             ):
                 if isinstance(f_value, ast.List) == (t_call == "append"):
                     loop_replacements[condition] = on_true
@@ -1977,7 +1977,7 @@ def implicit_defaultdict(source: str) -> str:
                 break
             t_value_preferred = _preferred_comprehension_type(t_value)
             f_value_preferred = _preferred_comprehension_type(f_value)
-            if processing.unparse(t_value_preferred) == processing.unparse(
+            if parsing.unparse(t_value_preferred) == parsing.unparse(
                 f_value_preferred
             ) and t_call in {"update", "extend"}:
                 loop_replacements[condition] = on_true
@@ -2031,7 +2031,7 @@ def simplify_redundant_lambda(source: str) -> str:
 
 
 def _is_same_code(*nodes: ast.AST) -> bool:
-    return len({processing.unparse(node) for node in nodes}) == 1
+    return len({parsing.unparse(node) for node in nodes}) == 1
 
 
 def _all_branches(
@@ -2301,3 +2301,46 @@ def replace_map_lambda_with_comp(source: str) -> str:
         )
 
         yield node, replacement_node
+
+@processing.fix(restart_on_replace=True)
+def merge_chained_comps(source: str) -> str:
+
+    root = parsing.parse(source)
+
+    template = ast.AST(
+        elt=object,
+        generators=[
+            ast.comprehension(
+                target=parsing.Wildcard("common_target", object),
+                iter=ast.AST(
+                    elt=parsing.Wildcard("common_target", object),
+                    generators=[
+                        ast.comprehension(
+                        target=parsing.Wildcard("common_target", object),
+                        iter=parsing.Wildcard("iter_inner", object),
+                        ifs=parsing.Wildcard("ifs_inner", list),
+                        is_async=0)
+                    ]
+                ),
+                ifs=parsing.Wildcard("ifs_outer", list),
+                is_async=0)
+        ])
+
+    for template_match in parsing.walk_wildcard(root, template):
+        if type(template_match.root) is not type(template_match.root.generators[0].iter):
+            continue
+        if not isinstance(template_match.root, (ast.SetComp, ast.GeneratorExp, ast.ListComp)):
+            continue
+
+        replacement = type(template_match.root)(
+            elt=template_match.root.elt,
+            generators=[
+                ast.comprehension(
+                    target=template_match.common_target,
+                    iter=template_match.iter_inner,
+                    ifs=template_match.ifs_inner + template_match.ifs_outer,
+                    is_async=0
+                )
+            ])
+
+        yield template_match.root, replacement

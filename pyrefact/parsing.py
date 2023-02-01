@@ -9,6 +9,38 @@ from typing import Collection, Iterable, Mapping, Sequence, Tuple, Union
 from pyrefact import constants
 
 
+def unparse(node: ast.AST) -> str:
+    if constants.PYTHON_VERSION >= (3, 9):
+        return ast.unparse(node)
+
+    import astunparse
+
+    source = astunparse.unparse(node)
+
+    if not isinstance(
+        node,
+        (
+            ast.FunctionDef,
+            ast.ClassDef,
+            ast.AsyncFunctionDef,
+            ast.Expr,
+            ast.Assign,
+            ast.AnnAssign,
+            ast.AugAssign,
+            ast.If,
+            ast.IfExp,
+        ),
+    ):
+        source = source.rstrip()
+
+    line_length = max(60, 100 - getattr(node, "col_offset", 0))
+    source = format_with_black(source, line_length=line_length)
+    indent = _get_indent(source)
+    source = _deindent_code(source, indent).lstrip()
+
+    return source
+
+
 @dataclasses.dataclass(eq=True, frozen=True)
 class Wildcard:
     """A wildcard matches a specific template, and extracts its name."""
@@ -41,7 +73,7 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
 
     # Sort in alphabetical order, but always with "root" first.
     if not all(
-        len({ast.dump(value) if isinstance(value, ast.AST) else str(value) for value in values})
+        len({unparse(value) if isinstance(value, ast.AST) else str(value) for value in values})
         == 1
         for values in namedtuple_vars.values()
     ):
@@ -343,7 +375,7 @@ def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
 
 
 def iter_typedefs(ast_tree: ast.Module) -> Iterable[ast.Name]:
-    """Iterate ove all TypeVars and custom type annotations in code
+    """Iterate over all TypeVars and custom type annotations in code
 
     Args:
         ast_tree (ast.Module): Module to parse

@@ -34,7 +34,7 @@ def _parse_sympy_expr(expression):
 def _simplify_math(f: Callable) -> ast.AST:
     def wrapper(*args, **kwargs):
         expression = f(*args, **kwargs)
-        source = processing.unparse(expression).strip()
+        source = parsing.unparse(expression).strip()
 
         # TODO substitute constant calls, attributes and other stuff with variables
 
@@ -76,20 +76,20 @@ def _sum_range(rng: ast.Call) -> ast.AST:
 
 @_simplify_math
 def _sum_constants(values: Sequence[ast.AST]) -> ast.AST:
-    expr = " + ".join(processing.unparse(node).strip() for node in values)
+    expr = " + ".join(parsing.unparse(node).strip() for node in values)
     return parsing.parse(expr)
 
 
 def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> ast.AST:
-    source = processing.unparse(expr).strip()
+    source = parsing.unparse(expr).strip()
     sym_expr = _parse_sympy_expr(source)
     for comprehension in generators:
-        integrand = _parse_sympy_expr(processing.unparse(comprehension.target).strip())
+        integrand = _parse_sympy_expr(parsing.unparse(comprehension.target).strip())
         if isinstance(comprehension.iter, ast.Call):
             start, end, step = _get_range_start_end(comprehension.iter)
-            lower = _parse_sympy_expr(processing.unparse(start).strip())
-            upper = _parse_sympy_expr(processing.unparse(end).strip())
-            step = _parse_sympy_expr(processing.unparse(step).strip())
+            lower = _parse_sympy_expr(parsing.unparse(start).strip())
+            upper = _parse_sympy_expr(parsing.unparse(end).strip())
+            step = _parse_sympy_expr(parsing.unparse(step).strip())
 
             if step == 1:
                 upper -= 1
@@ -103,7 +103,7 @@ def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> a
 
         elif isinstance(comprehension.iter, (ast.Tuple, ast.List, ast.Set)):
             values = [
-                _parse_sympy_expr(processing.unparse(value).strip())
+                _parse_sympy_expr(parsing.unparse(value).strip())
                 for value in comprehension.iter.elts
             ]
             if isinstance(comprehension.iter, ast.Set):

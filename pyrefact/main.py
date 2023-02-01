@@ -111,6 +111,7 @@ def format_code(
         source = fixes.replace_map_lambda_with_comp(source)
         source = fixes.replace_filter_lambda_with_comp(source)
         source = fixes.replace_with_filter(source)
+        source = fixes.merge_chained_comps(source)
         source = fixes.remove_redundant_else(source)
         source = fixes.replace_functions_with_literals(source)
         source = fixes.replace_for_loops_with_set_list_comp(source)

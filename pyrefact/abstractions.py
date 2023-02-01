@@ -358,7 +358,7 @@ def _code_dependencies_outputs(
 
 
 def _code_complexity_length(node: ast.AST) -> int:
-    node_unparse_length = len(re.sub(" *", "", processing.unparse(node)))
+    node_unparse_length = len(re.sub(" *", "", parsing.unparse(node)))
     node_string_length = len(
         re.sub(
             " *",
@@ -675,7 +675,7 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
 
     code_node_mapping = collections.defaultdict(set)
     for node in candidates:
-        code_node_mapping[processing.unparse(node)].add(node)
+        code_node_mapping[parsing.unparse(node)].add(node)
 
     replacements = {}
     additions = set()
