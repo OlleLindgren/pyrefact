@@ -2218,7 +2218,7 @@ def replace_filter_lambda_with_comp(source: str) -> str:
         iterator
         for _, iterator in parsing.walk_wildcard(
             root,
-            ast.For(iter=parsing.Wildcard("iter", object))
+            ast.For(iter=parsing.Wildcard("iterator", object))
         )
     }
 
@@ -2237,6 +2237,62 @@ def replace_filter_lambda_with_comp(source: str) -> str:
                 target=args,
                 iter=iterable,
                 ifs=[condition],
+                is_async=0)])
+
+        yield node, replacement_node
+
+
+@processing.fix
+def replace_map_lambda_with_comp(source: str) -> str:
+    """Replace map(lambda ..., iterable) with equivalent list comprehension
+
+    Args:
+        source (str): Python source code
+
+    Returns:
+        str: Modified source code
+    """
+    root = parsing.parse(source)
+
+    template = ast.Call(
+        func=ast.Name(id="map"),
+        args=[
+            ast.Lambda(
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=parsing.Wildcard("args", list),
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    defaults=[],
+                ),
+                body=parsing.Wildcard("body", object)
+            ),
+            parsing.Wildcard("iterable", object),
+        ],
+        keywords=[],
+    )
+
+    blacklist = {
+        iterator
+        for _, iterator in parsing.walk_wildcard(
+            root,
+            ast.For(iter=parsing.Wildcard("iterator", object))
+        )
+    }
+
+    for node, args, body, iterable in parsing.walk_wildcard(root, template):
+        if node in blacklist:
+            continue
+        if not args:
+            continue
+        args = ast.Tuple(elts=args) if len(args) > 1 else args[0]
+        replacement_node = ast.GeneratorExp(
+            elt=body,
+            generators=[
+            ast.comprehension(
+                target=args,
+                iter=iterable,
+                ifs=[],
                 is_async=0)])
 
         yield node, replacement_node
