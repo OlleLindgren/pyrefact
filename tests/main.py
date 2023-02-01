@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Maing script for running all tests."""
 import itertools
+import logging
 import sys
 from pathlib import Path
 
@@ -9,6 +10,10 @@ sys.path.append(str(Path(__file__).parent / "unit"))
 sys.path.append(str(Path(__file__).parent / "integration"))
 
 import testing_infra
+
+from pyrefact import logs as logger
+
+logger.set_level(logging.DEBUG)
 
 
 def main() -> int:

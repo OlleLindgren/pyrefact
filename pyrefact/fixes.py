@@ -729,7 +729,6 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
             constructor_usages = set()
         recursive_usages = set(parsing.walk(def_node, ast.Name(id=def_node.name)))
         if not (usages | constructor_usages) - recursive_usages:
-            print(f"{def_node.name} is never used")
             yield def_node
 
     for def_node in classdefs:
@@ -738,7 +737,6 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
             parsing.walk(def_node, ast.Name(ctx=ast.Load, id=(def_node.name, "self", "cls")))
         )
         if not usages - internal_usages:
-            print(f"{def_node.name} is never used")
             yield def_node
 
 
@@ -955,33 +953,7 @@ def remove_duplicate_functions(source: str, preserve: Collection[str]) -> str:
     return source
 
 
-def _de_indent_from_else(source: str, orelse: Sequence[ast.AST]) -> str:
-    ranges = [parsing.get_charnos(child, source) for child in orelse]
-    start = min((s for (s, _) in ranges))
-    end = max((e for (_, e) in ranges))
-    last_else = list(re.finditer("(?<![^\\n]) *else: *\\n?", source[:start]))[-1]
-    indent = len(re.findall("^ *", last_else.group())[0])
-    modified_pre_else = source[: last_else.start()].rstrip() + "\n\n"
-    modified_orelse = " " * indent + re.sub("(?<![^\\n])    ", "", source[start:end]).lstrip()
-    source = modified_pre_else + modified_orelse + source[end:]
-
-    return source
-
-
-def _de_indent_body(source: str, node: ast.AST, body: Sequence[ast.AST]) -> str:
-    ranges = [parsing.get_charnos(child, source) for child in body]
-    start = min((s for (s, _) in ranges))
-    end = max((e for (_, e) in ranges))
-    indent = node.col_offset
-    node_start, node_end = parsing.get_charnos(node, source)
-    modified_pre = source[:node_start].rstrip() + "\n\n"
-    modified_body = " " * indent + re.sub("(?<![^\\n])    ", "", source[start:end]).lstrip()
-    modified_post = "\n\n" + source[node_end:]
-    source = modified_pre + modified_body + modified_post
-
-    return source
-
-
+@processing.fix(restart_on_replace=True)
 def remove_redundant_else(source: str) -> str:
     """Remove redundante else and elif statements in code.
 
@@ -1005,21 +977,25 @@ def remove_redundant_else(source: str) -> str:
             orelse = source[start:end]
             if orelse.startswith("elif"):  # Regular elif
                 modified_orelse = re.sub("^elif", "if", orelse)
-                print("Found redundant elif:")
-                print(parsing.get_code(node, source))
+
                 source = source[:start] + modified_orelse + source[end:]
-                continue
+                yield processing.Range(start, end), modified_orelse
 
             # Otherwise it's an else: if:, which is handled below
 
         # else
-        print("Found redundant else:")
-        print(parsing.get_code(node, source))
 
-        source = _de_indent_from_else(source, node.orelse)
-        return remove_redundant_else(source)
+        ranges = [parsing.get_charnos(child, source) for child in node.orelse]
+        start = min((s for (s, _) in ranges))
+        end = max((e for (_, e) in ranges))
+        last_else = list(re.finditer("(?<![^\\n]) *else: *\\n?", source[:start]))[-1]
+        indent = len(re.findall("^ *", last_else.group())[0])
+        modified_orelse = " " * indent + re.sub("(?<![^\\n])    ", "", source[start:end]).lstrip()
 
-    return source
+        pre_else = source[: last_else.start()]
+        start_offset = len(pre_else) - len(pre_else.rstrip())
+
+        yield processing.Range(last_else.start() - start_offset, end), "\n\n" + modified_orelse
 
 
 @processing.fix
@@ -1639,6 +1615,7 @@ def simplify_transposes(source: str) -> str:
             yield node, second_transpose_target
 
 
+@processing.fix(restart_on_replace=True)
 def remove_dead_ifs(source: str) -> str:
     root = parsing.parse(source)
 
@@ -1652,30 +1629,42 @@ def remove_dead_ifs(source: str) -> str:
             continue
 
         if isinstance(node, ast.While) and not value:
-            removals.add(node)
+            yield node, None
 
         if isinstance(node, ast.IfExp):
-            replacements[node] = node.body if value else node.orelse
+            yield node, node.body if value else node.orelse
 
         if isinstance(node, ast.If):
-            if value and node.body:
-                # Replace node with node.body, node.orelse is dead if exists
-                source = _de_indent_body(source, node, node.body)
-                return remove_dead_ifs(source)
-            if not value and node.orelse:
-                # Replace node with node.orelse, node.body is dead
-                source = _de_indent_body(source, node, node.orelse)
-                return remove_dead_ifs(source)
 
             # Both body and orelse are dead => node is dead
             if value and not node.body:
-                removals.add(node)
-            elif not value and not node.orelse:
-                removals.add(node)
+                yield node, None
 
-    source = processing.alter_code(source, root, replacements=replacements, removals=removals)
+            if not value and not node.orelse:
+                yield node, None
 
-    return source
+            if value and node.body:
+                # Replace node with node.body, node.orelse is dead if exists
+                remove = node.body
+
+            elif not value and node.orelse:
+                # Replace node with node.orelse, node.body is dead
+                remove = node.orelse
+
+            else:
+                continue
+
+            ranges = [parsing.get_charnos(child, source) for child in remove]
+            start = min((s for (s, _) in ranges))
+            end = max((e for (_, e) in ranges))
+            indent = node.col_offset
+            node_start, node_end = parsing.get_charnos(node, source)
+            modified_body = " " * indent + re.sub("(?<![^\\n])    ", "", source[start:end]).lstrip()
+
+            pre_else = source[: node_start]
+            start_offset = len(pre_else) - len(pre_else.rstrip())
+
+            yield processing.Range(node_start - start_offset, node_end), "\n\n" + modified_body + "\n\n"
 
 
 @processing.fix(restart_on_replace=True)
@@ -1748,7 +1737,6 @@ def delete_commented_code(source: str) -> str:
                 ):
                     continue
 
-                print("Deleting commented code")
                 yield processing.Range(start + start_offset, end - end_offset), None
 
 
@@ -1889,6 +1877,7 @@ def _preferred_comprehension_type(node: ast.AST) -> Union[ast.AST, ast.SetComp, 
     return node
 
 
+@processing.fix
 def implicit_defaultdict(source: str) -> str:
     replacements = {}
     removals = set()
@@ -1982,26 +1971,22 @@ def implicit_defaultdict(source: str) -> str:
             continue
 
         if subscript_calls and subscript_calls <= {"add", "update"}:
-            replacements.update(loop_replacements)
-            removals.update(loop_removals)
-            replacements[value] = ast.Call(
+            yield from loop_replacements.items()
+            yield from zip(loop_removals, itertools.repeat(None))
+            yield value, ast.Call(
                 func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
                 args=[ast.Name(id="set")],
                 keywords=[],
             )
 
         if subscript_calls and subscript_calls <= {"append", "extend"}:
-            replacements.update(loop_replacements)
-            removals.update(loop_removals)
-            replacements[value] = ast.Call(
+            yield from loop_replacements.items()
+            yield from zip(loop_removals, itertools.repeat(None))
+            yield value, ast.Call(
                 func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
                 args=[ast.Name(id="list")],
                 keywords=[],
             )
-
-    source = processing.alter_code(source, root, replacements=replacements, removals=removals)
-
-    return source
 
 
 @processing.fix

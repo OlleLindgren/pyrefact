@@ -3,21 +3,15 @@ import argparse
 import ast
 import collections
 import io
+import logging
 import os
 import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
 
-from pyrefact import (
-    abstractions,
-    completion,
-    fixes,
-    object_oriented,
-    parsing,
-    performance,
-    performance_numpy,
-    symbolic_math,
-)
+from pyrefact import abstractions, completion, fixes
+from pyrefact import logs as logger
+from pyrefact import object_oriented, parsing, performance, performance_numpy, symbolic_math
 
 MAX_MODULE_PASSES = 5
 MAX_FILE_PASSES = 25
@@ -37,6 +31,9 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--safe", "-s", help="Don't delete or rename anything", action="store_true")
     parser.add_argument(
         "--from-stdin", help="Recieve input source code from stdin", action="store_true"
+    )
+    parser.add_argument(
+        "--verbose", "-v", help="Set logging threshold to DEBUG", action="store_true"
     )
     return parser.parse_args(args)
 
@@ -219,6 +216,8 @@ def main(args: Sequence[str]) -> int:
     """
     args = _parse_args(args)
 
+    logger.set_level(logging.DEBUG if args.verbose else logging.INFO)
+
     used_names = collections.defaultdict(set)
     for filename in _iter_python_files(args.preserve):
         with open(filename, "r", encoding="utf-8") as stream:
@@ -237,6 +236,7 @@ def main(args: Sequence[str]) -> int:
                 used_names[_namespace_name(filename)].add(node.value.id)
 
     if args.from_stdin:
+        logger.set_level(100)  # Higher than critical
         source = sys.stdin.read()
         temp_stdout = io.StringIO()
         sys_stdout = sys.stdout
@@ -264,16 +264,20 @@ def main(args: Sequence[str]) -> int:
                 for name, variables in used_names.items():
                     if name != _namespace_name(filename):
                         preserve.update(variables)
-                print(f"Analyzing {filename}...")
+                logger.info("Analyzing {filename}...", filename=filename)
                 changes |= format_file(filename, preserve=frozenset(preserve), safe=args.safe)
 
             if not changes:
                 break
 
-        print(f"\nPyrefact made {module_passes} passes on {folder}.\n")
+        logger.debug(
+            "\nPyrefact made {module_passes} passes on {folder}.\n",
+            module_passes=module_passes,
+            folder=folder,
+        )
 
     if sum(len(filenames) for filenames in folder_contents.values()) == 0:
-        print("No files provided")
+        logger.info("No files provided")
         return 1
 
     return 0

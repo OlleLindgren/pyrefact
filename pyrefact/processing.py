@@ -7,7 +7,18 @@ from typing import Callable, Collection, Iterable, Mapping, NamedTuple, Union
 
 import black
 
-from pyrefact import constants, parsing
+from pyrefact import constants
+from pyrefact import logs as logger
+from pyrefact import parsing
+
+MSG_INFO_REPLACE = """{fix_function_name:<40}: Replacing code:
+{old_code}
+* -> *****************
+{new_code}
+**********************"""
+MSG_INFO_REMOVE = """{fix_function_name:<40}: Removing code:
+{old_code}
+**********************"""
 
 
 class Range(NamedTuple):
@@ -144,7 +155,7 @@ def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str
     return "".join(chars)
 
 
-def _do_rewrite(source: str, rewrite: _Rewrite) -> str:
+def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") -> str:
     old, new = rewrite
     start, end = _get_charnos(rewrite, source)
     code = source[start:end]
@@ -157,7 +168,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite) -> str:
     else:
         raise TypeError(f"Invalid replacement type: {type(new)}")
     lines = new_code.splitlines(keepends=True)
-    indent = " " * getattr(old, "col_offset", 0)
+    indent = " " * getattr(old, "col_offset", getattr(new, "col_offset", 0))
     start_indent = " " * (len(code) - len(code.lstrip(" ")))
     new_code = "".join(
         f"{indent if i > 0 else start_indent}{code}".rstrip()
@@ -165,9 +176,11 @@ def _do_rewrite(source: str, rewrite: _Rewrite) -> str:
         for i, code in enumerate(lines)
     )
     if new_code:
-        print(f"Replacing \n{code}\nWith      \n{new_code}")
+        logger.info(
+            MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=code, new_code=new_code
+        )
     else:
-        print(f"Removing \n{code}")
+        logger.info(MSG_INFO_REMOVE, fix_function_name=fix_function_name, old_code=code)
 
     return source[:start] + new_code + source[end:]
 
@@ -284,7 +297,7 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
                         )
                         rewrite = _Rewrite(old, new or "")
                         history.add(rewrite)
-                        source = _do_rewrite(source, rewrite)
+                        source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
                     except StopIteration:
                         return source
 
@@ -297,7 +310,7 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
                 )
 
             for rewrite in rewrites:
-                source = _do_rewrite(source, rewrite)
+                source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
 
             return source
 

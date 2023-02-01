@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import sys
 from pathlib import Path
 
@@ -42,6 +43,9 @@ print(re.findall(f"\d{'+'}", "1234x23"))
             """,
         ),
     )
+
+
+    logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.invalid_escape_sequence(source)
