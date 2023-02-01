@@ -25,7 +25,9 @@ def _create_diff_view(processed_content: str, expected_content: str) -> str:
     return "".join(diff_view)
 
 
-def check_fixes_equal(processed_content: str, expected_abstraction: str, clear_paranthesises=False) -> int:
+def check_fixes_equal(
+    processed_content: str, expected_abstraction: str, clear_paranthesises=False
+) -> int:
     processed_content = _remove_multi_whitespace(processed_content)
     expected_abstraction = _remove_multi_whitespace(expected_abstraction)
 
@@ -40,8 +42,8 @@ def check_fixes_equal(processed_content: str, expected_abstraction: str, clear_p
         expected_abstraction = re.sub(r"[()]", "", expected_abstraction)
 
     if clear_paranthesises:
-        processed_content = re.sub("[\(\)]", "", processed_content)
-        expected_abstraction = re.sub("[\(\)]", "", expected_abstraction)
+        processed_content = re.sub(r"[\(\)]", "", processed_content)
+        expected_abstraction = re.sub(r"[\(\)]", "", expected_abstraction)
 
     if processed_content != expected_abstraction:
         print(diff_view)

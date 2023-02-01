@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from pyrefact import fixes, processing
+from pyrefact import fixes
 
 sys.path.append(str(Path(__file__).parents[1]))
 import testing_infra
@@ -49,7 +49,9 @@ r = map(lambda: True, (1, 2, 3))  # syntax error?
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.replace_map_lambda_with_comp(source)
-        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction, clear_paranthesises=True):
+        if not testing_infra.check_fixes_equal(
+            processed_content, expected_abstraction, clear_paranthesises=True
+        ):
             return 1
 
     return 0
