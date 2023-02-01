@@ -108,6 +108,7 @@ def format_code(
         source = fixes.swap_if_else(source)
         source = fixes.early_return(source)
         source = fixes.early_continue(source)
+        source = fixes.replace_filter_lambda_with_comp(source)
         source = fixes.replace_with_filter(source)
         source = fixes.remove_redundant_else(source)
         source = fixes.replace_functions_with_literals(source)

@@ -2174,3 +2174,69 @@ def invalid_escape_sequence(source: str) -> str:
                 for sequence in valid_escape_sequences)
         ):
             yield node, "r" + code
+
+
+@processing.fix
+def replace_filter_lambda_with_comp(source: str) -> str:
+    """Replace filter(lambda ..., iterable) with equivalent list comprehension
+
+    Args:
+        source (str): Python source code
+
+    Returns:
+        str: Modified source code
+    """
+    root = parsing.parse(source)
+
+    filter_template = ast.Name(id="filter")
+    filterfalse_template = (
+        ast.Name(id="filterfalse"),
+        ast.Attribute(
+            value=ast.Name(id="itertools"),
+            attr="filterfalse",
+        ))
+
+    template = ast.Call(
+        func=parsing.Wildcard("func", (filter_template, filterfalse_template)),
+        args=[
+            ast.Lambda(
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=parsing.Wildcard("args", list),
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    defaults=[],
+                ),
+                body=parsing.Wildcard("condition", object)
+            ),
+            parsing.Wildcard("iterable", object),
+        ],
+        keywords=[],
+    )
+
+    blacklist = {
+        iterator
+        for _, iterator in parsing.walk_wildcard(
+            root,
+            ast.For(iter=parsing.Wildcard("iter", object))
+        )
+    }
+
+    for node, args, condition, func, iterable in parsing.walk_wildcard(root, template):
+        if node in blacklist:
+            continue
+        if not args:
+            continue
+        if parsing.match_template(func, filterfalse_template):
+            condition = _negate_condition(condition)
+        args = ast.Tuple(elts=args) if len(args) > 1 else args[0]
+        replacement_node = ast.GeneratorExp(
+            elt=args,
+            generators=[
+            ast.comprehension(
+                target=args,
+                iter=iterable,
+                ifs=[condition],
+                is_async=0)])
+
+        yield node, replacement_node
