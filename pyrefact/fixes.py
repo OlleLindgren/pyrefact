@@ -2344,3 +2344,43 @@ def merge_chained_comps(source: str) -> str:
             ])
 
         yield template_match.root, replacement
+
+
+@processing.fix(restart_on_replace=True)
+def remove_redundant_comprehension_casts(source: str) -> str:
+    root = parsing.parse(source)
+
+    template = ast.Call(
+        func=ast.Name(id=parsing.Wildcard("func", ("list", "set", "iter"))),
+        args=[parsing.Wildcard("comp", (ast.GeneratorExp, ast.ListComp, ast.SetComp))],
+        keywords=[]
+    )
+
+    for node, comp, func in parsing.walk_wildcard(root, template):
+        if func == "set":
+            yield node, ast.SetComp(comp.elt, comp.generators)
+        if func == "list" and not isinstance(comp, ast.SetComp):
+            yield node, ast.ListComp(comp.elt, comp.generators)
+        if func == "iter" and isinstance(comp, ast.GeneratorExp):
+            yield node, comp
+        if func == "iter" and isinstance(comp, ast.ListComp):
+            yield ast.GeneratorExp(comp.elt, comp.generators)
+
+    template = ast.Call(
+        func=ast.Name(id=parsing.Wildcard("func", ("list", "set", "iter", "dict"))),
+        args=[parsing.Wildcard("comp", (ast.DictComp))],
+        keywords=[]
+    )
+
+    for node, comp, func in parsing.walk_wildcard(root, template):
+        equivalent_setcomp = ast.SetComp(comp.key, comp.generators)
+        if func == "dict":
+            yield node, comp
+        if func == "set":
+            yield node, equivalent_setcomp
+        if func in ("list", "iter"):
+            yield node, ast.Call(
+                func=ast.Name(id=func),
+                args=[equivalent_setcomp],
+                keywords=[]
+            )

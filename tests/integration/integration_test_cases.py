@@ -445,7 +445,7 @@ e = list(map(lambda x: x**2, filter(lambda x: x > 7, range(100))))
 print(e)
         """,
         """
-E = list((x ** 2 for x in range(100) if x > 7))
+E = [x ** 2 for x in range(100) if x > 7]
 print(E)
         """,
     ),
