@@ -2077,6 +2077,7 @@ def _move_after_scope(
     last_node = max(removals, key=lambda node: node.lineno)
     replacement = copy.copy(last_node)
     replacement.col_offset = scope.col_offset
+    replacement.lineno = max(x.lineno for x in parsing.walk(scope, ast.AST(lineno=int))) + 1
     additions = {replacement}
 
     return additions, removals

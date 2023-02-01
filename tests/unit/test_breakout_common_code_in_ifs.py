@@ -274,6 +274,28 @@ else:
         print(100)
             """,
         ),
+        (  # nested if, match end due to exception
+            """
+import random
+if random.random() < 2:
+    print(33)
+    print(100)
+elif random.random() >= 2:
+    print(100)
+else:
+    raise Exception()
+            """,
+            """
+import random
+if random.random() < 2:
+    print(33)
+elif random.random() >= 2:
+    pass
+else:
+    raise Exception()
+print(100)
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
