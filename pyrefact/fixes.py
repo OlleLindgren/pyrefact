@@ -89,7 +89,9 @@ def _get_variable_name_substitutions(
     funcdefs: List[ast.FunctionDef] = []
     for node in parsing.iter_classdefs(ast_tree):
         name = node.name
-        substitute = style.rename_class(name, private=parsing.is_private(name) or name not in preserve)
+        substitute = style.rename_class(
+            name, private=parsing.is_private(name) or name not in preserve
+        )
         classdefs.append(node)
         renamings[node].add(substitute)
         for refnode in _get_uses_of(node, ast_tree, source):
@@ -118,7 +120,9 @@ def _get_variable_name_substitutions(
         if node in typevars:
             substitute = style.rename_class(node.id, private=parsing.is_private(node.id))
         else:
-            substitute = style.rename_variable(node.id, private=parsing.is_private(node.id), static=True)
+            substitute = style.rename_variable(
+                node.id, private=parsing.is_private(node.id), static=True
+            )
         renamings[node].add(substitute)
         for refnode in _get_uses_of(node, ast_tree, source):
             renamings[refnode].add(substitute)
@@ -138,13 +142,17 @@ def _get_variable_name_substitutions(
                     continue
                 name = node.name
                 funcdefs.append(node)
-                substitute = style.rename_variable(name, private=parsing.is_private(name), static=False)
+                substitute = style.rename_variable(
+                    name, private=parsing.is_private(name), static=False
+                )
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
-                substitute = style.rename_variable(name, private=parsing.is_private(name), static=False)
+                substitute = style.rename_variable(
+                    name, private=parsing.is_private(name), static=False
+                )
                 renamings[node].add(substitute)
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
@@ -500,12 +508,18 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
         elif_matches = list(re.finditer(elif_pattern, current_code))
         if elif_matches:
             re_match = elif_matches[0]
-            current_code = re.sub(elif_pattern, re_match.group().replace("elif", "if"), current_code, 1)
-            new_code = processing.format_with_black(current_code, line_length=max(60, max_line_length))
+            current_code = re.sub(
+                elif_pattern, re_match.group().replace("elif", "if"), current_code, 1
+            )
+            new_code = processing.format_with_black(
+                current_code, line_length=max(60, max_line_length)
+            )
             if_match = next(re.finditer(if_pattern, new_code))
             new_code = re.sub(if_pattern, if_match.group().replace("if", "elif"), new_code, 1)
         else:
-            new_code = processing.format_with_black(current_code, line_length=max(60, max_line_length))
+            new_code = processing.format_with_black(
+                current_code, line_length=max(60, max_line_length)
+            )
 
         if new_code != current_code and (
             not any((e >= start and s <= end for s, e in formatted_ranges))
@@ -1661,10 +1675,12 @@ def remove_dead_ifs(source: str) -> str:
             node_start, node_end = parsing.get_charnos(node, source)
             modified_body = " " * indent + re.sub("(?<![^\\n])    ", "", source[start:end]).lstrip()
 
-            pre_else = source[: node_start]
+            pre_else = source[:node_start]
             start_offset = len(pre_else) - len(pre_else.rstrip())
 
-            yield processing.Range(node_start - start_offset, node_end), "\n\n" + modified_body + "\n\n"
+            yield processing.Range(
+                node_start - start_offset, node_end
+            ), "\n\n" + modified_body + "\n\n"
 
 
 @processing.fix(restart_on_replace=True)
@@ -2167,11 +2183,10 @@ def invalid_escape_sequence(source: str) -> str:
     for node in parsing.walk(root, ast.Constant(value=str)):
         code = parsing.get_code(node, source)
         # Normal string containing backslash but no valid escape sequences
-        if (code[0] in "'\""
+        if (
+            code[0] in "'\""
             and "\\" in code
-            and not any(
-                sequence in code
-                for sequence in valid_escape_sequences)
+            and not any(sequence in code for sequence in valid_escape_sequences)
         ):
             yield node, "r" + code
 
@@ -2194,7 +2209,8 @@ def replace_filter_lambda_with_comp(source: str) -> str:
         ast.Attribute(
             value=ast.Name(id="itertools"),
             attr="filterfalse",
-        ))
+        ),
+    )
 
     template = ast.Call(
         func=parsing.Wildcard("func", (filter_template, filterfalse_template)),
@@ -2207,7 +2223,7 @@ def replace_filter_lambda_with_comp(source: str) -> str:
                     kw_defaults=[],
                     defaults=[],
                 ),
-                body=parsing.Wildcard("condition", object)
+                body=parsing.Wildcard("condition", object),
             ),
             parsing.Wildcard("iterable", object),
         ],
@@ -2217,8 +2233,7 @@ def replace_filter_lambda_with_comp(source: str) -> str:
     blacklist = {
         iterator
         for _, iterator in parsing.walk_wildcard(
-            root,
-            ast.For(iter=parsing.Wildcard("iterator", object))
+            root, ast.For(iter=parsing.Wildcard("iterator", object))
         )
     }
 
@@ -2232,12 +2247,8 @@ def replace_filter_lambda_with_comp(source: str) -> str:
         args = ast.Tuple(elts=args) if len(args) > 1 else args[0]
         replacement_node = ast.GeneratorExp(
             elt=args,
-            generators=[
-            ast.comprehension(
-                target=args,
-                iter=iterable,
-                ifs=[condition],
-                is_async=0)])
+            generators=[ast.comprehension(target=args, iter=iterable, ifs=[condition], is_async=0)],
+        )
 
         yield node, replacement_node
 
@@ -2265,7 +2276,7 @@ def replace_map_lambda_with_comp(source: str) -> str:
                     kw_defaults=[],
                     defaults=[],
                 ),
-                body=parsing.Wildcard("body", object)
+                body=parsing.Wildcard("body", object),
             ),
             parsing.Wildcard("iterable", object),
         ],
@@ -2275,8 +2286,7 @@ def replace_map_lambda_with_comp(source: str) -> str:
     blacklist = {
         iterator
         for _, iterator in parsing.walk_wildcard(
-            root,
-            ast.For(iter=parsing.Wildcard("iterator", object))
+            root, ast.For(iter=parsing.Wildcard("iterator", object))
         )
     }
 
@@ -2287,12 +2297,7 @@ def replace_map_lambda_with_comp(source: str) -> str:
             continue
         args = ast.Tuple(elts=args) if len(args) > 1 else args[0]
         replacement_node = ast.GeneratorExp(
-            elt=body,
-            generators=[
-            ast.comprehension(
-                target=args,
-                iter=iterable,
-                ifs=[],
-                is_async=0)])
+            elt=body, generators=[ast.comprehension(target=args, iter=iterable, ifs=[], is_async=0)]
+        )
 
         yield node, replacement_node

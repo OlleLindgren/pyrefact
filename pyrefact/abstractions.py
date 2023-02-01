@@ -702,7 +702,6 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
             variable_name, static=best_common_scope is root and root_is_static, private=False
         )
 
-
         name = ast.Name(id=variable_name)
         assign = parsing.parse(f"{variable_name} = {code}").body[0]
         assign.lineno = _get_constant_insertion_lineno(best_common_scope)
