@@ -9,7 +9,7 @@ from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 import isort
 import rmspace
 
-from pyrefact import abstractions, constants, parsing, processing, style
+from pyrefact import abstractions, constants, parsing, processing, style, formatting
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
@@ -511,13 +511,13 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
             current_code = re.sub(
                 elif_pattern, re_match.group().replace("elif", "if"), current_code, 1
             )
-            new_code = processing.format_with_black(
+            new_code = formatting.format_with_black(
                 current_code, line_length=max(60, max_line_length)
             )
             if_match = next(re.finditer(if_pattern, new_code))
             new_code = re.sub(if_pattern, if_match.group().replace("if", "elif"), new_code, 1)
         else:
-            new_code = processing.format_with_black(
+            new_code = formatting.format_with_black(
                 current_code, line_length=max(60, max_line_length)
             )
 

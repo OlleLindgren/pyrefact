@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-from pyrefact import processing
+from pyrefact import formatting
 
 
 def _remove_multi_whitespace(source: str) -> str:
@@ -32,8 +32,8 @@ def check_fixes_equal(
     expected_abstraction = _remove_multi_whitespace(expected_abstraction)
 
     if tuple(sys.version_info) < (3, 9):
-        processed_content = processing.format_with_black(processed_content)
-        expected_abstraction = processing.format_with_black(expected_abstraction)
+        processed_content = formatting.format_with_black(processed_content)
+        expected_abstraction = formatting.format_with_black(expected_abstraction)
 
     diff_view = _create_diff_view(processed_content, expected_abstraction)
 

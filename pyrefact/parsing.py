@@ -6,7 +6,7 @@ import itertools
 import re
 from typing import Collection, Iterable, Mapping, Sequence, Tuple, Union
 
-from pyrefact import constants
+from pyrefact import constants, formatting
 
 
 def unparse(node: ast.AST) -> str:
@@ -34,7 +34,7 @@ def unparse(node: ast.AST) -> str:
         source = source.rstrip()
 
     line_length = max(60, 100 - getattr(node, "col_offset", 0))
-    source = format_with_black(source, line_length=line_length)
+    source = formatting.format_with_black(source, line_length=line_length)
     indent = _get_indent(source)
     source = _deindent_code(source, indent).lstrip()
 
