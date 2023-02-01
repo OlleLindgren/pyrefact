@@ -4,7 +4,7 @@ import re
 import black
 
 
-def _get_indent(source: str) -> int:
+def get_indent(source: str) -> int:
     indentation_whitespace = [x.group() for x in re.finditer(r"(?<![^\n]) *(?=[^\n])", source)]
     if indentation_whitespace:
         return min(len(x) for x in indentation_whitespace)
@@ -12,7 +12,7 @@ def _get_indent(source: str) -> int:
     return 0
 
 
-def _deindent_code(source: str, indent: int) -> str:
+def deindent_code(source: str, indent: int) -> str:
     lines = source.splitlines(keepends=True)
     return "".join(line[indent:] if line.strip() else line for line in lines)
 
@@ -36,8 +36,8 @@ def format_with_black(source: str, *, line_length: int = 100) -> str:
     Returns:
         str: Formatted source code.
     """
-    indent = _get_indent(source)
-    deindented_code = _deindent_code(source, indent)
+    indent = get_indent(source)
+    deindented_code = deindent_code(source, indent)
     formatted_deindented_code = black.format_str(
         deindented_code, mode=black.Mode(line_length=max(60, line_length - indent))
     )
