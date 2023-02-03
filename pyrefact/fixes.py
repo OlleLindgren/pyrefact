@@ -2534,3 +2534,25 @@ def simplify_collection_unpacks(source: str) -> str:
                 yield (node, ast.Call(func=ast.Name(id="set"), args=[], keywords=[]))
             else:
                 yield (node, type(node)(elts=elts))
+
+
+@processing.fix
+def remove_duplicate_dict_keys(source: str) -> str:
+    root = parsing.parse(source)
+
+    for node in parsing.walk(root, ast.Dict):
+        key_occurences = collections.defaultdict(set)
+        for i, key in enumerate(node.keys):
+            if isinstance(key, ast.Constant):
+                key_occurences[key.value].add(i)
+
+        keys = []
+        values = []
+        for i, (key, value) in enumerate(zip(node.keys, node.values)):
+            if not isinstance(key, ast.Constant) or i == max(key_occurences[key.value]):
+                keys.append(key)
+                values.append(value)
+
+        if len(keys) < len(node.keys):
+            yield node, ast.Dict(keys=keys, values=values)
+
