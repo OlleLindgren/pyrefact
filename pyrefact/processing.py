@@ -137,7 +137,7 @@ def insert_nodes(source: str, additions: Collection[ast.AST]) -> str:
             + ["\n"] * 3
             + [" " * col_offset + line for line in addition.splitlines(keepends=True)]
             + ["\n"] * 3
-            + lines[node.lineno :]
+            + lines[node.lineno:]
         )
 
     return "".join(lines)
@@ -176,7 +176,6 @@ def alter_code(
         *((x.lineno, "delete", parsing.unparse(x), x) for x in removals),
         *((x.lineno, "replace", parsing.unparse(x), (x, y)) for x, y in replacements.items()),
     ]
-
 
     # a < d => deletions will go before additions if same lineno and reversed sorting.
     for _, action, _, value in sorted(actions, reverse=True):

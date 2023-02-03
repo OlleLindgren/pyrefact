@@ -35,6 +35,7 @@ def unparse(node: ast.AST) -> str:
 
     line_length = max(60, 100 - getattr(node, "col_offset", 0))
     source = formatting.format_with_black(source, line_length=line_length)
+    source = formatting.collapse_trailing_parentheses(source)
     indent = formatting.get_indent(source)
     source = formatting.deindent_code(source, indent).lstrip()
 
@@ -271,7 +272,7 @@ def walk_sequence(
                 continue
 
             for nodes in zip(
-                *(body[i : len(body) - len(templates) + i + 1] for i in range(len(templates)))
+                *(body[i: len(body) - len(templates) + i + 1] for i in range(len(templates)))
             ):
                 matches = [
                     match_template(node, template) for node, template in zip(nodes, templates)
@@ -307,7 +308,7 @@ def walk_sequence(
                         matches.insert(0, template_match)
 
                 if expand_last:
-                    post = body[body.index(nodes[-1]) + 1 :]
+                    post = body[body.index(nodes[-1]) + 1:]
                     for child in post:
                         template_match = match_template(child, templates[-1])
                         if not template_match or not _all_fields_consistent(

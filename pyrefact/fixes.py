@@ -522,7 +522,8 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
                 current_code, line_length=max(60, max_line_length)
             )
 
-        if new_code != current_code and (
+        new_code = formatting.collapse_trailing_parentheses(new_code)
+        if new_code != formatting.collapse_trailing_parentheses(current_code) and (
             not any((e >= start and s <= end for s, e in formatted_ranges))
         ):
             yield node, new_code
@@ -1718,7 +1719,7 @@ def delete_commented_code(source: str) -> str:
                     continue
 
                 uncommented_block = re.sub(
-                    r"(?<![^\n])(\s*#)", "", source[start + start_offset : end - end_offset]
+                    r"(?<![^\n])(\s*#)", "", source[start + start_offset: end - end_offset]
                 )
                 indentation_lengths = [
                     x.end() - x.start() for x in re.finditer("(?<![^\n]) +", uncommented_block)

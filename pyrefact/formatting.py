@@ -46,3 +46,15 @@ def format_with_black(source: str, *, line_length: int = 100) -> str:
     whitespace_adjusted_content = _match_wrapping_whitespace(formatted_content, source)
 
     return whitespace_adjusted_content
+
+
+def collapse_trailing_parentheses(source: str) -> str:
+    """Collapse trailing ])} together.
+
+    Args:
+        source (str): _description_
+
+    Returns:
+        str: _description_
+    """
+    return re.sub(r"(?<=[\)\}\]])(,?)\s*\n\s*(?=[\)\}\]])", r"\1", source)

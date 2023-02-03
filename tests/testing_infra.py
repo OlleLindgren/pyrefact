@@ -33,7 +33,9 @@ def check_fixes_equal(
 
     if tuple(sys.version_info) < (3, 9):
         processed_content = formatting.format_with_black(processed_content)
+        processed_content = formatting.collapse_trailing_parentheses(processed_content)
         expected_abstraction = formatting.format_with_black(expected_abstraction)
+        expected_abstraction = formatting.collapse_trailing_parentheses(expected_abstraction)
 
     diff_view = _create_diff_view(processed_content, expected_abstraction)
 
