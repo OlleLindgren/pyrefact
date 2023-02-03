@@ -117,6 +117,7 @@ def format_code(
         source = fixes.replace_for_loops_with_set_list_comp(source)
         source = fixes.replace_for_loops_with_dict_comp(source)
         source = fixes.replace_dict_assign_with_dict_literal(source)
+        source = fixes.replace_dict_update_with_dict_literal(source)
         source = fixes.simplify_dict_unpacks(source)
         source = fixes.remove_duplicate_dict_keys(source)
         source = performance.replace_subscript_looping(source)
