@@ -56,12 +56,12 @@ def _all_fields_consistent(
     field_options = collections.defaultdict(set)
     for m in matches:
         for key, value in zip(getattr(m, "_fields", ()), m):
-            field_options[key].add(unparse(value) if isinstance(value, ast.AST) else str(value))
+            if key != "root" and key not in ignore:
+                field_options[key].add(unparse(value) if isinstance(value, ast.AST) else str(value))
 
     result = all(
         len(options) == 1
         for key, options in field_options.items()
-        if key != "root" and key not in ignore
     )
     return result
 
