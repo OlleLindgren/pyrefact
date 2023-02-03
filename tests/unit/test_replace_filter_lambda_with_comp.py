@@ -19,12 +19,12 @@ x = filter(lambda y: y > 0, (1, 2, 3))
 x = (y for y in (1, 2, 3) if y > 0)
             """,
         ),
-        (
+        (  # Invalid syntax
             """
 x = filter(lambda y, z: y > z, zip((1, 2, 3), [3, 2, 1]))
             """,
             """
-x = ((y, z) for y, z in zip((1, 2, 3), [3, 2, 1]) if y > z)
+x = filter(lambda y, z: y > z, zip((1, 2, 3), [3, 2, 1]))
             """,
         ),
         (
@@ -33,14 +33,6 @@ x = itertools.filterfalse(lambda y: y > 0, (1, 2, 3))
             """,
             """
 x = (y for y in (1, 2, 3) if y <= 0)
-            """,
-        ),
-        (
-            """
-x = filterfalse(lambda y, z: y > z, zip((1, 2, 3), [3, 2, 1]))
-            """,
-            """
-x = ((y, z) for y, z in zip((1, 2, 3), [3, 2, 1]) if y <= z)
             """,
         ),
         (

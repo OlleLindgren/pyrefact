@@ -19,12 +19,12 @@ x = map(lambda y: y > 0, (1, 2, 3))
 x = (y > 0 for y in (1, 2, 3))
             """,
         ),
-        (
+        (  # Invalid syntax
             """
 x = map(lambda y, z: y > z, zip((1, 2, 3), [3, 2, 1]))
             """,
             """
-x = (y > z for y, z in zip((1, 2, 3), [3, 2, 1]))
+x = map(lambda y, z: y > z, zip((1, 2, 3), [3, 2, 1]))
             """,
         ),
         (

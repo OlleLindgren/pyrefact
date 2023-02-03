@@ -2277,7 +2277,7 @@ def replace_filter_lambda_with_comp(source: str) -> str:
             ast.Lambda(
                 args=ast.arguments(
                     posonlyargs=[],
-                    args=parsing.Wildcard("args", list),
+                    args=[ast.arg(arg=parsing.Wildcard("arg", str))],
                     kwonlyargs=[],
                     kw_defaults=[],
                     defaults=[],
@@ -2296,17 +2296,14 @@ def replace_filter_lambda_with_comp(source: str) -> str:
         )
     }
 
-    for node, args, condition, func, iterable in parsing.walk_wildcard(root, template):
+    for node, arg, condition, func, iterable in parsing.walk_wildcard(root, template):
         if node in blacklist:
-            continue
-        if not args:
             continue
         if parsing.match_template(func, filterfalse_template):
             condition = _negate_condition(condition)
-        args = ast.Tuple(elts=args) if len(args) > 1 else args[0]
         replacement_node = ast.GeneratorExp(
-            elt=args,
-            generators=[ast.comprehension(target=args, iter=iterable, ifs=[condition], is_async=0)],
+            elt=ast.Name(id=arg),
+            generators=[ast.comprehension(target=ast.Name(id=arg), iter=iterable, ifs=[condition], is_async=0)],
         )
 
         yield node, replacement_node
@@ -2330,7 +2327,7 @@ def replace_map_lambda_with_comp(source: str) -> str:
             ast.Lambda(
                 args=ast.arguments(
                     posonlyargs=[],
-                    args=parsing.Wildcard("args", list),
+                    args=[ast.arg(arg=parsing.Wildcard("arg", str))],
                     kwonlyargs=[],
                     kw_defaults=[],
                     defaults=[],
@@ -2349,14 +2346,11 @@ def replace_map_lambda_with_comp(source: str) -> str:
         )
     }
 
-    for node, args, body, iterable in parsing.walk_wildcard(root, template):
+    for node, arg, body, iterable in parsing.walk_wildcard(root, template):
         if node in blacklist:
             continue
-        if not args:
-            continue
-        args = ast.Tuple(elts=args) if len(args) > 1 else args[0]
         replacement_node = ast.GeneratorExp(
-            elt=body, generators=[ast.comprehension(target=args, iter=iterable, ifs=[], is_async=0)]
+            elt=body, generators=[ast.comprehension(target=ast.Name(id=arg), iter=iterable, ifs=[], is_async=0)]
         )
 
         yield node, replacement_node
