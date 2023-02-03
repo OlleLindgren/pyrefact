@@ -2473,3 +2473,22 @@ def replace_dict_assign_with_dict_literal(source: str) -> str:
         yield first.root, replacement
         for m in matches:
             yield m.root, None
+
+
+@processing.fix(restart_on_replace=True)
+def simplify_dict_unpacks(source: str) -> str:
+    root = parsing.parse(source)
+
+    for node in parsing.walk(root, ast.Dict):
+        if any(k is None and isinstance(v, ast.Dict) for k, v in zip(node.keys, node.values)):
+            values = []
+            keys = []
+            for k, v in zip(node.keys, node.values):
+                if k is None and isinstance(v, ast.Dict):
+                    keys.extend(v.keys)
+                    values.extend(v.values)
+                else:
+                    keys.append(k)
+                    values.append(v)
+
+            yield node, ast.Dict(keys=keys, values=values)
