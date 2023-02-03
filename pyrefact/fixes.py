@@ -2019,14 +2019,32 @@ def simplify_redundant_lambda(source: str) -> str:
     )
 
     for node in parsing.walk(root, template):
-        if isinstance(node.body, ast.Call):
-            yield node, node.body.func
-        elif isinstance(node.body, ast.List):
+        if isinstance(node.body, ast.List):
             yield node, ast.Name(id="list")
         elif isinstance(node.body, ast.Tuple):
             yield node, ast.Name(id="tuple")
         elif isinstance(node.body, ast.Dict):
             yield node, ast.Name(id="dict")
+
+    template = ast.Lambda(
+        args=ast.arguments(posonlyargs=([(ast.arg(arg=parsing.Wildcard("common_arg", str)))], []), args=([(ast.arg(arg=parsing.Wildcard("common_arg", str)))], []), kwonlyargs=[], kw_defaults=[], defaults=[]),
+        body=(
+            ast.List(elts=[ast.Starred(value=ast.Name(id=parsing.Wildcard("common_arg", str)))]),
+            ast.Tuple(elts=[ast.Starred(value=ast.Name(id=parsing.Wildcard("common_arg", str)))]),
+            ast.Set(elts=[ast.Starred(value=ast.Name(id=parsing.Wildcard("common_arg", str)))]),
+        ),
+    )
+
+    for node, common_arg in parsing.walk_wildcard(root, template):
+        args = node.args.posonlyargs + node.args.args
+        if len(args) != 1:
+            continue
+        if isinstance(node.body, ast.List):
+            yield node, ast.Name(id="list")
+        elif isinstance(node.body, ast.Tuple):
+            yield node, ast.Name(id="tuple")
+        elif isinstance(node.body, ast.Set):
+            yield node, ast.Name(id="set")
 
     keyword_unpack_template = ast.keyword(value=ast.Name(id=str), arg=None)
     template = ast.Lambda(
