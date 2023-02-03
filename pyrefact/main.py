@@ -62,7 +62,7 @@ def format_code(
         )
 
     if not parsing.is_valid_python(source):
-        print("Result is not valid python.")
+        logger.debug("Result is not valid python.")
         return source
 
     if safe:

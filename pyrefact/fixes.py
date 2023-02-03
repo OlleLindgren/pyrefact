@@ -10,6 +10,7 @@ import isort
 import rmspace
 
 from pyrefact import abstractions, constants, parsing, processing, style, formatting
+from pyrefact import logs as logger
 
 _REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
@@ -233,7 +234,7 @@ def _fix_variable_names(
         replacements.append((start, end, substitute))
 
     for start, end, substitute in sorted(set(replacements), reverse=True):
-        print(f"Replacing {source[start:end]} with {substitute}")
+        logger.debug("Replacing {old} with {new}", old=source[start:end], new=substitute)
         source = source[:start] + substitute + source[end:]
 
     return source
@@ -256,18 +257,18 @@ def _fix_undefined_variables(source: str, variables: Collection[str]) -> str:
         overlap = variables.intersection(package_variables)
         if overlap:
             fix = f"from {package} import " + ", ".join(sorted(overlap))
-            print(f"Inserting '{fix}' at line {lineno}")
+            logger.debug("Inserting '{fix}' at line {lineno}", fix=fix, lineno=lineno)
             lines.insert(lineno, fix)
 
     for package in (constants.ASSUMED_PACKAGES | constants.PYTHON_311_STDLIB) & variables:
         fix = f"import {package}"
-        print(f"Inserting '{fix}' at line {lineno}")
+        logger.debug("Inserting '{fix}' at line {lineno}", fix=fix, lineno=lineno)
         lines.insert(lineno, fix)
 
     for alias in constants.PACKAGE_ALIASES.keys() & variables:
         package = constants.PACKAGE_ALIASES[alias]
         fix = f"import {package} as {alias}"
-        print(f"Inserting '{fix}' at line {lineno}")
+        logger.debug("Inserting '{fix}' at line {lineno}", fix=fix, lineno=lineno)
         lines.insert(lineno, fix)
 
     change_count += len(lines)
@@ -385,7 +386,7 @@ def _remove_unused_imports(
         ast_tree, unused_imports
     )
     if completely_unused_imports:
-        print("Removing unused imports")
+        logger.debug("Removing unused imports")
         source = processing.remove_nodes(source, completely_unused_imports, ast_tree)
         if not partially_unused_imports:
             return source
@@ -409,7 +410,7 @@ def _remove_unused_imports(
         start, end = parsing.get_charnos(node, source)
         code = source[start:end]
         replacement = _construct_import_statement(node, unused_imports)
-        print(f"Replacing:\n{code}\nWith:\n{replacement}")
+        logger.debug("Replacing:\n{old}\nWith:\n{new}", old=code, new=replacement)
         source = source[:start] + replacement + source[end:]
 
     return source
@@ -652,7 +653,7 @@ def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset
         code = parsing.get_code(node, source)
         changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
         if code != changed_code:
-            print(f"Removing redundant assignments in {code}")
+            logger.debug("Removing redundant assignments in {code}", code=code)
             source = source[:start_charno] + changed_code + source[end_charno:]
 
     return source
@@ -691,7 +692,7 @@ def delete_pointless_statements(source: str) -> str:
                     delete.append(child)
 
     if delete:
-        print("Removing pointless statements")
+        logger.debug("Removing pointless statements")
         source = processing.remove_nodes(source, delete, ast_tree)
 
     return source
@@ -781,7 +782,7 @@ def delete_unused_functions_and_classes(
     delete = set(_get_unused_functions_classes(root, preserve))
 
     if delete:
-        print("Removing unused functions and classes")
+        logger.debug("Removing unused functions and classes")
         source = processing.remove_nodes(source, delete, root)
 
     return source
@@ -822,7 +823,7 @@ def delete_unreachable_code(source: str) -> str:
                 delete.add(node)
 
     if delete:
-        print("Removing unreachable code")
+        logger.debug("Removing unreachable code")
         source = processing.remove_nodes(source, delete, root)
 
     return source
@@ -905,7 +906,7 @@ def move_imports_to_toplevel(source: str) -> str:
         additions.append(new_node)
 
     if removals or additions:
-        print("Moving imports to toplevel")
+        logger.debug("Moving imports to toplevel")
         source = processing.alter_code(source, root, removals=removals, additions=additions)
 
     # Isort will remove redundant imports
@@ -935,7 +936,7 @@ def remove_duplicate_functions(source: str, preserve: Collection[str]) -> str:
     for funcdefs in function_defs.values():
         if len(funcdefs) == 1:
             continue
-        print(", ".join(node.name for node in funcdefs) + " are equivalent")
+        logger.debug(", ".join(node.name for node in funcdefs) + " are equivalent")
         preserved_nodes = {node for node in funcdefs if node.name in preserve}
         if preserved_nodes:
             replacement = min(preserved_nodes, key=lambda node: node.lineno)

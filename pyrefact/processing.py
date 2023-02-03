@@ -42,7 +42,7 @@ def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str
     nodes = list(nodes)
     for node in nodes:
         start, end = parsing.get_charnos(node, source)
-        print(f"Removing:\n{source[start:end]}")
+        logger.debug("Removing:\n{old}", old=source[start:end])
         keep_mask[start:end] = [False] * (end - start)
 
     passes = [len(source) + 1]
@@ -53,7 +53,7 @@ def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str
         for bodytype in "body", "finalbody", "orelse":
             if body := getattr(node, bodytype, []):
                 if isinstance(body, list) and all(child in nodes for child in body):
-                    print(f"Found empty {bodytype}")
+                    logger.debug("Found empty {bodytype}", bodytype=bodytype)
                     start_charno, _ = parsing.get_charnos(body[0], source)
                     passes.append(start_charno)
 
@@ -96,11 +96,11 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         for i, code in enumerate(lines)
     )
     if new_code:
-        logger.info(
+        logger.debug(
             MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=code, new_code=new_code
         )
     else:
-        logger.info(MSG_INFO_REMOVE, fix_function_name=fix_function_name, old_code=code)
+        logger.debug(MSG_INFO_REMOVE, fix_function_name=fix_function_name, old_code=code)
 
     return source[:start] + new_code + source[end:]
 
@@ -131,7 +131,7 @@ def insert_nodes(source: str, additions: Collection[ast.AST]) -> str:
     for node in sorted(additions, key=lambda n: n.lineno, reverse=True):
         addition = parsing.unparse(node)
         col_offset = getattr(node, "col_offset", 0)
-        print(f"Adding:\n{addition}")
+        logger.debug("Adding:\n{new}", new=addition)
         lines = (
             lines[: node.lineno]
             + ["\n"] * 3
