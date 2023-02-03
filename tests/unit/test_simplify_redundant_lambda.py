@@ -20,10 +20,25 @@ lambda: []
 lambda: {}
 lambda: set()
 lambda: ()
+lambda value: [*value]
+lambda value: {*value,}
+lambda value: (*value,)
+lambda value, /: [*value]
+lambda value, /, value2: (*value, *value2)
+lambda value, /, value2: (*value,)
 lambda: complicated_function(some_argument)
 lambda: complicated_function(some_argument=2)
 lambda x: []
 lambda x: list()
+lambda q: h(q)
+lambda z, w: f(z, w)
+lambda *args: w(*args)
+lambda **kwargs: r(**kwargs)
+lambda *args, **kwargs: hh(*args, **kwargs)
+lambda z, k, /, w, h, *args: rrr(z, k, w, h, *args)
+lambda z, k, /, w, h, *args, **kwargs: rfr(z, k, w, h, *args, **kwargs)
+lambda z, k, /, w, h, *args: rrr(z, k, w, w, *args)
+lambda z, k, /, w, h: rrr(z, k, w, w, *args)
             """,
             """
 complicated_function
@@ -32,10 +47,25 @@ list
 dict
 set
 tuple
+list
+set
+tuple
+list
+lambda value, /, value2: (*value, *value2)
+lambda value, /, value2: (*value,)
 lambda: complicated_function(some_argument)
 lambda: complicated_function(some_argument=2)
 lambda x: []
 lambda x: list()
+h
+f
+w
+r
+hh
+rrr
+rfr
+lambda z, k, /, w, h, *args: rrr(z, k, w, w, *args)
+lambda z, k, /, w, h: rrr(z, k, w, w, *args)
             """,
         ),
     )

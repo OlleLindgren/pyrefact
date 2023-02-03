@@ -2012,7 +2012,6 @@ def simplify_redundant_lambda(source: str) -> str:
     template = ast.Lambda(
         args=ast.arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]),
         body=(
-            ast.Call(args=[], keywords=[]),
             ast.List(elts=[]),
             ast.Tuple(elts=[]),
             ast.Dict(keys=[], values=[]),
@@ -2028,6 +2027,47 @@ def simplify_redundant_lambda(source: str) -> str:
             yield node, ast.Name(id="tuple")
         elif isinstance(node.body, ast.Dict):
             yield node, ast.Name(id="dict")
+
+    keyword_unpack_template = ast.keyword(value=ast.Name(id=str), arg=None)
+    template = ast.Lambda(
+        args=ast.arguments(
+            posonlyargs=parsing.Wildcard("posonlyargs", {ast.arg}),
+            args=parsing.Wildcard("args", {ast.arg}),
+            vararg=parsing.Wildcard("vararg", (ast.arg, None)),
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=parsing.Wildcard("kwarg", (ast.arg(arg=str), None)),
+            defaults=[],
+        ),
+        body=(
+            ast.Call(
+                args=parsing.Wildcard("call_args", {ast.Name, ast.Starred(value=ast.Name)}),
+                keywords=parsing.Wildcard("keywords", ([keyword_unpack_template], [])),
+            )
+        ),
+    )
+
+    for template_match in parsing.walk_wildcard(root, template):
+        lambda_positional_args = template_match.posonlyargs + template_match.args
+        if template_match.vararg:
+            lambda_positional_args.append(template_match.vararg)
+        if len(template_match.call_args) != len(lambda_positional_args):
+            continue
+        if not all(
+            (ca.id if isinstance(ca, ast.Name) else ca.value.id) == la.arg
+            for ca, la in zip(template_match.call_args, lambda_positional_args)
+        ):
+            continue
+
+        # If no dict unpack (**kwargs), or dict unpack matches
+        if (
+            (template_match.kwarg is None and not template_match.keywords)
+            or (
+                len(template_match.keywords) == 1
+                and template_match.kwarg.arg == template_match.keywords[0].value.id
+            )
+        ):
+            yield template_match.root, template_match.root.body.func
 
 
 def _is_same_code(*nodes: ast.AST) -> bool:
