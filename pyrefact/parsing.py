@@ -50,7 +50,9 @@ class Wildcard:
     common: bool = True
 
 
-def _all_fields_consistent(matches: Iterable[Tuple[object]], ignore: Collection[str] = frozenset()) -> bool:
+def _all_fields_consistent(
+    matches: Iterable[Tuple[object]], ignore: Collection[str] = frozenset()
+) -> bool:
     field_options = collections.defaultdict(set)
     for m in matches:
         for key, value in zip(getattr(m, "_fields", ()), m):
@@ -297,19 +299,23 @@ def walk_sequence(
                     pre = body[: body.index(nodes[0])]
                     for child in reversed(pre):
                         template_match = match_template(child, templates[0])
-                        if template_match and _all_fields_consistent(matches + [template_match], ignore=uncommon):
-                            matches.insert(0, template_match)
-                        else:
+                        if not template_match or not _all_fields_consistent(
+                            matches + [template_match], ignore=uncommon
+                        ):
                             break
+
+                        matches.insert(0, template_match)
 
                 if expand_last:
                     post = body[body.index(nodes[-1]) + 1 :]
                     for child in post:
                         template_match = match_template(child, templates[-1])
-                        if template_match and _all_fields_consistent(matches + [template_match], ignore=uncommon):
-                            matches.append(template_match)
-                        else:
+                        if not template_match or not _all_fields_consistent(
+                            matches + [template_match], ignore=uncommon
+                        ):
                             break
+
+                        matches.append(template_match)
 
                 yield tuple(matches)
 

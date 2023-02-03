@@ -168,16 +168,15 @@ def alter_code(
     Returns:
         str: _description_
     """
-    actions = []
-
     # Yes, this unparsing is an expensive way to sort the nodes.
     # However, this runs relatively infrequently and should not have a big
     # performance impact.
-    actions.extend((x.lineno, "add", parsing.unparse(x), x) for x in additions)
-    actions.extend((x.lineno, "delete", parsing.unparse(x), x) for x in removals)
-    actions.extend(
-        (x.lineno, "replace", parsing.unparse(x), (x, y)) for x, y in replacements.items()
-    )
+    actions = [
+        *((x.lineno, "add", parsing.unparse(x), x) for x in additions),
+        *((x.lineno, "delete", parsing.unparse(x), x) for x in removals),
+        *((x.lineno, "replace", parsing.unparse(x), (x, y)) for x, y in replacements.items()),
+    ]
+
 
     # a < d => deletions will go before additions if same lineno and reversed sorting.
     for _, action, _, value in sorted(actions, reverse=True):
