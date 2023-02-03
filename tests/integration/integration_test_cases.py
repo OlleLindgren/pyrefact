@@ -151,8 +151,8 @@ Z = {
     **{1: 9},
     **{w**3: w**2 for a in X if a % 3 == 0 and a % 4 == 2 for w in X if w > len(X) // 2},
     **{w ** (-1): w ** (-2) for a in X if a % 5 == 0 and a % 9 == 2},
+    1: 333,
 }
-Z[1] = 333
 if all(y in {1, 2, 5} for y in set(Z)):
     print(Z, X)
         """,
