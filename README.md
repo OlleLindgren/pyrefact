@@ -18,6 +18,7 @@ Pyrefact can break code, and is not suitable for your company's CI chain.
 * Rewrite defaultdict-like use of dictionaries with `collections.defaultdict()`
 * Formats lines that are longer than 100 characters with `black`
 * Put overused constant expressions in variables
+* Remove redundancies and improve definitions of lists, sets, dicts
 
 ### Performance
 
