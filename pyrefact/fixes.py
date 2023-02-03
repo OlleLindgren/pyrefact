@@ -2492,3 +2492,44 @@ def simplify_dict_unpacks(source: str) -> str:
                     values.append(v)
 
             yield node, ast.Dict(keys=keys, values=values)
+
+
+@processing.fix(restart_on_replace=True)
+def simplify_collection_unpacks(source: str) -> str:
+    root = parsing.parse(source)
+
+    for node in parsing.walk(root, (ast.List, ast.Set, ast.Tuple)):
+        replacements = False
+        if not any(
+            (
+                parsing.match_template(elt, ast.Starred(value=(ast.List, ast.Set, ast.Tuple, ast.Dict)))
+                for elt in node.elts
+            )
+        ):
+            continue
+
+        elts = []
+        for elt in node.elts:
+            if (
+                parsing.match_template(elt, ast.Starred(value=(ast.List, ast.Tuple)))
+                or parsing.match_template([node, elt], [ast.Set, ast.Starred(value=ast.Set)])
+                or (parsing.match_template(elt, ast.Starred(value=ast.Set)) and len(elt.value.elts) <= 1)
+            ):
+                elts.extend(elt.value.elts)
+                replacements = True
+            elif (  # Can't have a dict in a set, but you can have a dict's keys
+                parsing.match_template(elt, ast.Starred(value=(ast.Dict)))
+                and (
+                    (isinstance(node, ast.Set) and None not in elt.value.keys)
+                    or len(elt.value.values) <= 1
+                )
+            ):
+                elts.extend(elt.value.keys)
+                replacements = True
+            else:
+                elts.append(elt)
+        if replacements:
+            if isinstance(node, ast.Set) and (not elts):
+                yield (node, ast.Call(func=ast.Name(id="set"), args=[], keywords=[]))
+            else:
+                yield (node, type(node)(elts=elts))
