@@ -57,7 +57,7 @@ x = {*()}
             """,
             """
 x = set()
-            """
+            """,
         ),
         (  # 1 element is unique, hence a dict provides no non-trivial uniqueness
             """

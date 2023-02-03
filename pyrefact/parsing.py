@@ -73,8 +73,7 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
 
     # Sort in alphabetical order, but always with "root" first.
     if not all(
-        len({unparse(value) if isinstance(value, ast.AST) else str(value) for value in values})
-        == 1
+        len({unparse(value) if isinstance(value, ast.AST) else str(value) for value in values}) == 1
         for key, values in namedtuple_vars.items()
         if key != "root"
     ):

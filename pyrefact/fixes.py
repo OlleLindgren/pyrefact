@@ -2028,7 +2028,13 @@ def simplify_redundant_lambda(source: str) -> str:
             yield node, ast.Name(id="dict")
 
     template = ast.Lambda(
-        args=ast.arguments(posonlyargs=([(ast.arg(arg=parsing.Wildcard("common_arg", str)))], []), args=([(ast.arg(arg=parsing.Wildcard("common_arg", str)))], []), kwonlyargs=[], kw_defaults=[], defaults=[]),
+        args=ast.arguments(
+            posonlyargs=([(ast.arg(arg=parsing.Wildcard("common_arg", str)))], []),
+            args=([(ast.arg(arg=parsing.Wildcard("common_arg", str)))], []),
+            kwonlyargs=[],
+            kw_defaults=[],
+            defaults=[],
+        ),
         body=(
             ast.List(elts=[ast.Starred(value=ast.Name(id=parsing.Wildcard("common_arg", str)))]),
             ast.Tuple(elts=[ast.Starred(value=ast.Name(id=parsing.Wildcard("common_arg", str)))]),
@@ -2079,12 +2085,9 @@ def simplify_redundant_lambda(source: str) -> str:
             continue
 
         # If no dict unpack (**kwargs), or dict unpack matches
-        if (
-            (template_match.kwarg is None and not template_match.keywords)
-            or (
-                len(template_match.keywords) == 1
-                and template_match.kwarg.arg == template_match.keywords[0].value.id
-            )
+        if (template_match.kwarg is None and not template_match.keywords) or (
+            len(template_match.keywords) == 1
+            and template_match.kwarg.arg == template_match.keywords[0].value.id
         ):
             yield template_match.root, template_match.root.body.func
 
@@ -2304,7 +2307,11 @@ def replace_filter_lambda_with_comp(source: str) -> str:
             condition = _negate_condition(condition)
         replacement_node = ast.GeneratorExp(
             elt=ast.Name(id=arg),
-            generators=[ast.comprehension(target=ast.Name(id=arg), iter=iterable, ifs=[condition], is_async=0)],
+            generators=[
+                ast.comprehension(
+                    target=ast.Name(id=arg), iter=iterable, ifs=[condition], is_async=0
+                )
+            ],
         )
 
         yield node, replacement_node
@@ -2351,10 +2358,14 @@ def replace_map_lambda_with_comp(source: str) -> str:
         if node in blacklist:
             continue
         replacement_node = ast.GeneratorExp(
-            elt=body, generators=[ast.comprehension(target=ast.Name(id=arg), iter=iterable, ifs=[], is_async=0)]
+            elt=body,
+            generators=[
+                ast.comprehension(target=ast.Name(id=arg), iter=iterable, ifs=[], is_async=0)
+            ],
         )
 
         yield node, replacement_node
+
 
 @processing.fix(restart_on_replace=True)
 def merge_chained_comps(source: str) -> str:
@@ -2370,15 +2381,18 @@ def merge_chained_comps(source: str) -> str:
                     elt=parsing.Wildcard("common_target", object),
                     generators=[
                         ast.comprehension(
-                        target=parsing.Wildcard("common_target", object),
-                        iter=parsing.Wildcard("iter_inner", object),
-                        ifs=parsing.Wildcard("ifs_inner", list),
-                        is_async=0)
-                    ]
+                            target=parsing.Wildcard("common_target", object),
+                            iter=parsing.Wildcard("iter_inner", object),
+                            ifs=parsing.Wildcard("ifs_inner", list),
+                            is_async=0,
+                        )
+                    ],
                 ),
                 ifs=parsing.Wildcard("ifs_outer", list),
-                is_async=0)
-        ])
+                is_async=0,
+            )
+        ],
+    )
 
     for template_match in parsing.walk_wildcard(root, template):
         if type(template_match.root) is not type(template_match.root.generators[0].iter):
@@ -2393,9 +2407,10 @@ def merge_chained_comps(source: str) -> str:
                     target=template_match.common_target,
                     iter=template_match.iter_inner,
                     ifs=template_match.ifs_inner + template_match.ifs_outer,
-                    is_async=0
+                    is_async=0,
                 )
-            ])
+            ],
+        )
 
         yield template_match.root, replacement
 
@@ -2407,7 +2422,7 @@ def remove_redundant_comprehension_casts(source: str) -> str:
     template = ast.Call(
         func=ast.Name(id=parsing.Wildcard("func", ("list", "set", "iter"))),
         args=[parsing.Wildcard("comp", (ast.GeneratorExp, ast.ListComp, ast.SetComp))],
-        keywords=[]
+        keywords=[],
     )
 
     for node, comp, func in parsing.walk_wildcard(root, template):
@@ -2423,7 +2438,7 @@ def remove_redundant_comprehension_casts(source: str) -> str:
     template = ast.Call(
         func=ast.Name(id=parsing.Wildcard("func", ("list", "set", "iter", "dict"))),
         args=[parsing.Wildcard("comp", (ast.DictComp))],
-        keywords=[]
+        keywords=[],
     )
 
     for node, comp, func in parsing.walk_wildcard(root, template):
@@ -2433,11 +2448,7 @@ def remove_redundant_comprehension_casts(source: str) -> str:
         if func == "set":
             yield node, equivalent_setcomp
         if func in ("list", "iter"):
-            yield node, ast.Call(
-                func=ast.Name(id=func),
-                args=[equivalent_setcomp],
-                keywords=[]
-            )
+            yield node, ast.Call(func=ast.Name(id=func), args=[equivalent_setcomp], keywords=[])
 
 
 @processing.fix
@@ -2459,7 +2470,7 @@ def replace_dict_assign_with_dict_literal(source: str) -> str:
                 ),
             ],
             value=parsing.Wildcard("value", object),
-        )
+        ),
     ]
 
     for first, *matches in parsing.walk_sequence(root, *template, expand_last=True):
@@ -2469,7 +2480,7 @@ def replace_dict_assign_with_dict_literal(source: str) -> str:
                 keys=first.keys + [m.key for m in matches],
                 values=first.values + [m.value for m in matches],
             ),
-            lineno=first.target.lineno
+            lineno=first.target.lineno,
         )
         yield first.root, replacement
         for m in matches:
@@ -2503,7 +2514,9 @@ def simplify_collection_unpacks(source: str) -> str:
         replacements = False
         if not any(
             (
-                parsing.match_template(elt, ast.Starred(value=(ast.List, ast.Set, ast.Tuple, ast.Dict)))
+                parsing.match_template(
+                    elt, ast.Starred(value=(ast.List, ast.Set, ast.Tuple, ast.Dict))
+                )
                 for elt in node.elts
             )
         ):
@@ -2514,7 +2527,10 @@ def simplify_collection_unpacks(source: str) -> str:
             if (
                 parsing.match_template(elt, ast.Starred(value=(ast.List, ast.Tuple)))
                 or parsing.match_template([node, elt], [ast.Set, ast.Starred(value=ast.Set)])
-                or (parsing.match_template(elt, ast.Starred(value=ast.Set)) and len(elt.value.elts) <= 1)
+                or (
+                    parsing.match_template(elt, ast.Starred(value=ast.Set))
+                    and len(elt.value.elts) <= 1
+                )
             ):
                 elts.extend(elt.value.elts)
                 replacements = True

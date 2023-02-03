@@ -27,6 +27,7 @@ def _match_wrapping_whitespace(new: str, initial: str) -> str:
     suffix_whitespace = max(re.findall(r"[\s\n]*\Z$", initial), key=len)
     return prefix_whitespace + new.strip() + suffix_whitespace
 
+
 def format_with_black(source: str, *, line_length: int = 100) -> str:
     """Format code with black.
 
