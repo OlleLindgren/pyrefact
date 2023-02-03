@@ -2466,10 +2466,10 @@ def replace_dict_assign_with_dict_literal(source: str) -> str:
             targets=[
                 ast.Subscript(
                     value=target_template,
-                    slice=parsing.Wildcard("key", object),
+                    slice=parsing.Wildcard("key", object, common=False),
                 ),
             ],
-            value=parsing.Wildcard("value", object),
+            value=parsing.Wildcard("value", object, common=False),
         ),
     ]
 
@@ -2493,15 +2493,15 @@ def replace_dict_update_with_dict_literal(source: str) -> str:
 
     target_template = parsing.Wildcard("target", ast.Name(id=str))
     value_template = ast.Dict(
-        keys=parsing.Wildcard("keys", list),
-        values=parsing.Wildcard("values", list),
+        keys=parsing.Wildcard("keys", list, common=False),
+        values=parsing.Wildcard("values", list, common=False),
     )
     template = [
         ast.Assign(targets=[target_template], value=value_template),
         ast.Expr(
             value=ast.Call(
                 func=ast.Attribute(value=target_template),
-                args=[parsing.Wildcard("other", object)]
+                args=[parsing.Wildcard("other", object, common=False)]
             )
         )
     ]
@@ -2531,10 +2531,10 @@ def replace_dictcomp_assign_with_dict_literal(source: str) -> str:
             targets=[
                 ast.Subscript(
                     value=target_template,
-                    slice=parsing.Wildcard("key", object),
+                    slice=parsing.Wildcard("key", object, common=False),
                 ),
             ],
-            value=parsing.Wildcard("value", object),
+            value=parsing.Wildcard("value", object, common=False),
         ),
     ]
 
@@ -2562,7 +2562,7 @@ def replace_dictcomp_update_with_dict_literal(source: str) -> str:
         ast.Expr(
             value=ast.Call(
                 func=ast.Attribute(value=target_template),
-                args=[parsing.Wildcard("other", object)]
+                args=[parsing.Wildcard("other", object, common=False)]
             )
         )
     ]
