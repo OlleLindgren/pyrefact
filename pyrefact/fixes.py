@@ -2556,3 +2556,21 @@ def remove_duplicate_dict_keys(source: str) -> str:
         if len(keys) < len(node.keys):
             yield node, ast.Dict(keys=keys, values=values)
 
+
+@processing.fix
+def remove_duplicate_set_elts(source: str) -> str:
+    root = parsing.parse(source)
+
+    for node in parsing.walk(root, ast.Set):
+        elt_occurences = collections.defaultdict(set)
+        for i, elt in enumerate(node.elts):
+            if isinstance(elt, ast.Constant):
+                elt_occurences[elt.value].add(i)
+
+        elts = []
+        for i, elt in enumerate(node.elts):
+            if not isinstance(elt, ast.Constant) or i == min(elt_occurences[elt.value]):
+                elts.append(elt)
+
+        if len(elts) < len(node.elts):
+            yield node, ast.Set(elts=elts)

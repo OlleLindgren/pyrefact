@@ -113,6 +113,7 @@ def format_code(
         source = fixes.remove_redundant_else(source)
         source = fixes.replace_functions_with_literals(source)
         source = fixes.simplify_collection_unpacks(source)
+        source = fixes.remove_duplicate_set_elts(source)
         source = fixes.replace_for_loops_with_set_list_comp(source)
         source = fixes.replace_for_loops_with_dict_comp(source)
         source = fixes.replace_dict_assign_with_dict_literal(source)
