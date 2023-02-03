@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
 
-from pyrefact import abstractions, completion, fixes
+from pyrefact import abstractions, fixes
 from pyrefact import logs as logger
 from pyrefact import object_oriented, parsing, performance, performance_numpy, symbolic_math
 
@@ -45,9 +45,6 @@ def format_code(
     safe: bool = False,
     keep_imports: bool = False,
 ) -> str:
-    if not parsing.is_valid_python(source):
-        source = completion.autocomplete(source)
-
     source = fixes.fix_tabs(source)
     source = fixes.fix_rmspace(source)
     source = fixes.fix_too_many_blank_lines(source)
