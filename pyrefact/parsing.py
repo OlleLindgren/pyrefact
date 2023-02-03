@@ -47,6 +47,21 @@ class Wildcard:
 
     name: str
     template: object
+    common: bool = True
+
+
+def _all_fields_consistent(matches: Iterable[Tuple[object]], ignore: Collection[str] = frozenset()) -> bool:
+    field_options = collections.defaultdict(set)
+    for m in matches:
+        for key, value in zip(getattr(m, "_fields", ()), m):
+            field_options[key].add(unparse(value) if isinstance(value, ast.AST) else str(value))
+
+    result = all(
+        len(options) == 1
+        for key, options in field_options.items()
+        if key != "root" and key not in ignore
+    )
+    return result
 
 
 def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
@@ -72,11 +87,7 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
     namedtuple_vars["root"] = [root]
 
     # Sort in alphabetical order, but always with "root" first.
-    if not all(
-        len({unparse(value) if isinstance(value, ast.AST) else str(value) for value in values}) == 1
-        for key, values in namedtuple_vars.items()
-        if key != "root"
-    ):
+    if not _all_fields_consistent(matches):
         return ()
 
     fields = sorted(namedtuple_vars.keys(), key=lambda k: (k != "root", k))
@@ -225,9 +236,30 @@ def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> 
         yield node
 
 
+def _iter_wildcards(template: ast.AST, recursion_blacklist: Collection = None) -> Iterable[Wildcard]:
+    if recursion_blacklist is None:
+        recursion_blacklist = set()
+    if id(template) in recursion_blacklist:
+        return
+    recursion_blacklist = set.union(recursion_blacklist, {id(template)})
+    if isinstance(template, Wildcard):
+        yield template
+        return
+    if isinstance(template, Iterable):
+        for item in template:
+            yield from _iter_wildcards(item, recursion_blacklist=recursion_blacklist)
+    if isinstance(template, Mapping):
+        for item in template.values():
+            yield from _iter_wildcards(item, recursion_blacklist=recursion_blacklist)
+    if hasattr(template, "__dict__"):
+        for item in vars(template).values():
+            yield from _iter_wildcards(item, recursion_blacklist=recursion_blacklist)
+
+
 def walk_sequence(
     scope: ast.Module, *templates: ast.AST, expand_first: bool = False, expand_last: bool = False
 ) -> Iterable[Sequence[ast.AST]]:
+    uncommon = set()
     for node in walk(scope, (ast.AST(body=list), ast.AST(orelse=list))):
         for body in [
             getattr(node, "body", []),
@@ -246,17 +278,38 @@ def walk_sequence(
                 if not all(matches):
                     continue
 
+                # This is really expensive so it's better to do it way in here even though it's
+                # the same on all iterations.
+                # I assume we probably don't get in here very often and that seems true by the
+                # speedup this gives us.
+                if not uncommon:
+                    uncommon = {
+                        wildcard.name
+                        for template in templates
+                        for wildcard in _iter_wildcards(template)
+                        if not wildcard.common
+                    }
+
+                if not _all_fields_consistent(matches):
+                    continue
+
                 if expand_first:
                     pre = body[: body.index(nodes[0])]
                     for child in reversed(pre):
-                        if template_match := match_template(child, templates[0]):
+                        template_match = match_template(child, templates[0])
+                        if template_match and _all_fields_consistent(matches + [template_match], ignore=uncommon):
                             matches.insert(0, template_match)
+                        else:
+                            break
 
                 if expand_last:
                     post = body[body.index(nodes[-1]) + 1 :]
                     for child in post:
-                        if template_match := match_template(child, templates[-1]):
+                        template_match = match_template(child, templates[-1])
+                        if template_match and _all_fields_consistent(matches + [template_match], ignore=uncommon):
                             matches.append(template_match)
+                        else:
+                            break
 
                 yield tuple(matches)
 
