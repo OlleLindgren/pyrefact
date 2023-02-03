@@ -132,7 +132,7 @@ if all(y in {1, 2, 5} for y in sorted(set(Z))):
     testing_infra.ignore_on_version(3, 8)(
         """
 x = sorted(list(range(100)))[::3]
-z = {x: x+1 for x in range(12)}
+z = {ww: ww + 1 for ww in range(12)}
 z.update({22: 33, 99: 88, 1: 23232})
 for a in x:
     if a % 3 == 0 and a % 4 == 2:
@@ -150,11 +150,11 @@ if all(y in [1, 2, 5] for y in set(sorted(list(z)))):
         """
 X = sorted(range(100))[::3]
 Z = {
-    **{x: x+1 for x in range(12)}
-    **{w**3: w**2 for a in X if a % 3 == 0 and a % 4 == 2 for w in X if w > len(X) // 2},
-    **{w ** (-1): w ** (-2) for a in X if a % 5 == 0 and a % 9 == 2},
+    **{ww: ww + 1 for ww in range(12)},
     22: 33,
     99: 88,
+    **{w**3: w**2 for a in X if a % 3 == 0 and a % 4 == 2 for w in X if w > len(X) // 2},
+    **{w ** (-1): w ** (-2) for a in X if a % 5 == 0 and a % 9 == 2},
     1: 333,
 }
 if all(y in {1, 2, 5} for y in set(Z)):
