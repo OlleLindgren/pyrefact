@@ -1305,18 +1305,18 @@ def remove_redundant_comprehensions(source: str) -> str:
     for node in parsing.walk(root, (ast.DictComp, ast.ListComp, ast.SetComp, ast.GeneratorExp)):
         wrapper = parsing.get_comp_wrapper_func_equivalent(node)
 
-        if not isinstance(node, ast.DictComp):
-            elt_generator_equal = (
-                len(node.generators) == 1
-                and ast.dump(node.elt).replace("Load", "__ctx__")
-                == ast.dump(node.generators[0].target).replace("Store", "__ctx__")
-                and (not node.generators[0].ifs)
-            )
-        else:
+        if isinstance(node, ast.DictComp):
             elt = ast.Tuple(elts=[node.key, node.value], ctx=ast.Load())
             elt_generator_equal = (
                 len(node.generators) == 1
                 and ast.dump(elt).replace("Load", "__ctx__")
+                == ast.dump(node.generators[0].target).replace("Store", "__ctx__")
+                and (not node.generators[0].ifs)
+            )
+        else:
+            elt_generator_equal = (
+                len(node.generators) == 1
+                and ast.dump(node.elt).replace("Load", "__ctx__")
                 == ast.dump(node.generators[0].target).replace("Store", "__ctx__")
                 and (not node.generators[0].ifs)
             )
