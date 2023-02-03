@@ -2437,3 +2437,39 @@ def remove_redundant_comprehension_casts(source: str) -> str:
                 args=[equivalent_setcomp],
                 keywords=[]
             )
+
+
+@processing.fix
+def replace_dict_assign_with_dict_literal(source: str) -> str:
+    root = parsing.parse(source)
+
+    target_template = parsing.Wildcard("target", ast.Name(id=str))
+    value_template = ast.Dict(
+        keys=parsing.Wildcard("keys", list),
+        values=parsing.Wildcard("values", list),
+    )
+    template = [
+        ast.Assign(targets=[target_template], value=value_template),
+        ast.Assign(
+            targets=[
+                ast.Subscript(
+                    value=target_template,
+                    slice=parsing.Wildcard("key", object),
+                ),
+            ],
+            value=parsing.Wildcard("value", object),
+        )
+    ]
+
+    for first, *matches in parsing.walk_sequence(root, *template, expand_last=True):
+        replacement = ast.Assign(
+            targets=[first.target],
+            value=ast.Dict(
+                keys=first.keys + [m.key for m in matches],
+                values=first.values + [m.value for m in matches],
+            ),
+            lineno=first.target.lineno
+        )
+        yield first.root, replacement
+        for m in matches:
+            yield m.root, None
