@@ -2551,6 +2551,36 @@ def replace_dictcomp_assign_with_dict_literal(source: str) -> str:
         for m in matches:
             yield m.root, None
 
+
+@processing.fix
+def replace_dictcomp_update_with_dict_literal(source: str) -> str:
+    root = parsing.parse(source)
+
+    target_template = parsing.Wildcard("target", ast.Name(id=str))
+    template = [
+        ast.Assign(targets=[target_template], value=ast.DictComp),
+        ast.Expr(
+            value=ast.Call(
+                func=ast.Attribute(value=target_template),
+                args=[parsing.Wildcard("other", object)]
+            )
+        )
+    ]
+
+    for first, *matches in parsing.walk_sequence(root, *template, expand_last=True):
+        replacement = ast.Assign(
+            targets=[first.target],
+            value=ast.Dict(
+                keys=[None] * (1 + len(matches)),
+                values=[first.root.value] + [m.other for m in matches],
+            ),
+            lineno=first.target.lineno,
+        )
+        yield first.root, replacement
+        for m in matches:
+            yield m.root, None
+
+
 @processing.fix(restart_on_replace=True)
 def simplify_dict_unpacks(source: str) -> str:
     root = parsing.parse(source)
