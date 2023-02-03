@@ -2684,3 +2684,42 @@ def remove_duplicate_set_elts(source: str) -> str:
 
         if len(elts) < len(node.elts):
             yield node, ast.Set(elts=elts)
+
+
+@processing.fix
+def replace_collection_add_update_with_collection_literal(source: str) -> str:
+    root = parsing.parse(source)
+
+    target_template = parsing.Wildcard("common_target", ast.Name(id=str))
+    assign_template = ast.Assign(
+        targets=[target_template], value=(ast.Set, ast.List, ast.SetComp, ast.ListComp)
+    )
+    modify_template = ast.Expr(
+        value=ast.Call(
+            func=ast.Attribute(
+                value=target_template,
+                attr=parsing.Wildcard("func", ("add", "update", "append", "extend"), common=False),
+            ),
+            args=[parsing.Wildcard("arg", object, common=False)],
+            keywords=[],
+        )
+    )
+    template = [assign_template, modify_template]
+    for node, *matches in parsing.walk_sequence(root, *template, expand_last=True):
+        assigned_value = node.root.value
+        other_elts = [
+            m.arg if m.func in {"add", "append"} else ast.Starred(value=m.arg) for m in matches
+        ]
+        if isinstance(assigned_value, (ast.List, ast.Set)):
+            elts = assigned_value.elts + other_elts
+            replacement = type(assigned_value)(elts=elts)
+            yield assigned_value, replacement
+            for m in matches:
+                yield m.root, None
+
+        elif isinstance(assigned_value, (ast.ListComp, ast.SetComp)):
+            elts = [ast.Starred(value=assigned_value)] + other_elts
+            replacement = type(assigned_value)(elts=elts)
+            yield assigned_value, replacement
+            for m in matches:
+                yield m.root, None
