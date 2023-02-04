@@ -2808,3 +2808,104 @@ def breakout_starred_args(source: str) -> str:
 
         if matched:
             yield node, ast.Call(func=node.func, args=args, keywords=node.keywords)
+
+
+def _convert_to_string_formatting(fstring: ast.JoinedStr) -> Tuple[str, Sequence[ast.AST]]:
+    fstring_template = ast.JoinedStr(
+        values={
+            ast.Constant(value=str),
+            ast.FormattedValue(format_spec=(None, ast.JoinedStr(values=[ast.Constant(value=str)]))),
+        }
+    )
+    if not parsing.match_template(fstring, fstring_template):
+        raise ValueError(f"Invalid input: {ast.dump(fstring)}")
+
+    format_string_entries = []
+    format_args = []
+    for entry in fstring.values:
+        if isinstance(entry, ast.Constant):
+            format_string_entries.append(entry.value)
+        elif isinstance(entry, ast.FormattedValue):
+            if entry.format_spec:
+                format_spec = entry.format_spec.values[0].value
+            else:
+                format_spec = ""
+            format_string_entries.append("{" + format_spec + "}")  # This is ironic, isn't it
+            format_args.append(entry.value)
+
+    format_string = ast.Constant(value="".join(format_string_entries))
+
+    return format_string, format_args
+
+
+@processing.fix
+def deinterpolate_logging_args(source: str) -> str:
+    """De-interpolate logging arguments.
+
+    Interpolated logging arguments are bad-practice, since converting whatever args are sent to
+    strings may be expensive.
+    Pylint complains about this:
+    https://pylint.pycqa.org/en/latest/user_guide/messages/warning/logging-format-interpolation.html
+    There are also security problems (that this fix doesn't solve, but perhaps it may raise awareness
+    of the badness of this practice):
+    https://bugs.python.org/issue46200
+
+    Args:
+        source (str): Python source code
+
+    Returns:
+        str: Modified code
+    """
+    root = parsing.parse(source)
+
+    logging_functions = ("info", "debug", "warning", "error", "critical", "exception", "log")
+    logging_module = ast.Name(id="logging")
+    logger_object = ast.Name(id=("log", "logger"))
+    template = ast.Call(
+        func=ast.Attribute(
+            value=(logging_module, logger_object),
+            attr=parsing.Wildcard("function_name", logging_functions),
+        ),
+        args=list,
+        keywords=[]
+    )
+
+    fstring_template = ast.JoinedStr(
+        values={
+            ast.Constant(value=str),
+            ast.FormattedValue(format_spec=(None, ast.JoinedStr(values=[ast.Constant(value=str)]))),
+        }
+    )
+    fmtstring_template = ast.Call(func=ast.Attribute(value=ast.Constant(value=str), attr="format"))
+
+    for node, function_name in parsing.walk_wildcard(root, template):
+        # str.format()
+        if function_name == "log" and parsing.match_template(node.args, [object, fmtstring_template]):
+            yield node, ast.Call(
+                func=node.func,
+                args=[node.args[0], node.args[1].func.value] + node.args[1].args,
+                keywords=node.keywords + node.args[1].keywords,
+            )
+        if function_name != "log" and parsing.match_template(node.args, [fmtstring_template]):
+            yield node, ast.Call(
+                func=node.func,
+                args=[node.args[0].func.value] + node.args[0].args,
+                keywords=node.keywords + node.args[0].keywords,
+            )
+
+        # f"some {information}"
+        if function_name == "log" and parsing.match_template(node.args, [object, fstring_template]):
+            format_string, format_args = _convert_to_string_formatting(node.args[1])
+            yield node, ast.Call(
+                func=node.func,
+                args=[node.args[0], format_string] + format_args,
+                keywords=node.keywords,
+            )
+
+        if function_name != "log" and parsing.match_template(node.args, [fstring_template]):
+            format_string, format_args = _convert_to_string_formatting(node.args[0])
+            yield node, ast.Call(
+                func=node.func,
+                args=[format_string] + format_args,
+                keywords=node.keywords,
+            )
