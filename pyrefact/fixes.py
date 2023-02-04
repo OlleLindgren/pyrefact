@@ -2150,15 +2150,13 @@ def breakout_common_code_in_ifs(source: str) -> str:
 
     root = parsing.parse(source)
 
-    for node in parsing.walk(root, ast.If):
+    for node, body, orelse in _iter_explicit_if_elses(root):
         if parsing.get_code(node, source).startswith("elif"):
             continue
 
-        if node.body and node.orelse:
-            first_body = node.body[0]
-            first_orelse = node.orelse[0]
-            last_body = node.body[-1]
-            last_orelse = node.orelse[-1]
+        if body and orelse:
+            last_body = body[-1]
+            last_orelse = orelse[-1]
 
             removals = set()
             additions = set()
@@ -2169,8 +2167,8 @@ def breakout_common_code_in_ifs(source: str) -> str:
             # would consider 99.9% to be robust enough.
             has_namedexpr = any(parsing.walk(node.test, ast.NamedExpr))
 
-            start_branches = [node.body[0], node.orelse[0]]
-            end_branches = [node.body[-1], node.orelse[-1]]
+            start_branches = [body[0], orelse[0]]
+            end_branches = [body[-1], orelse[-1]]
 
             if not has_namedexpr and _is_same_code(*start_branches):
                 additions, removals = _move_before_scope(node, start_branches)
@@ -2180,10 +2178,10 @@ def breakout_common_code_in_ifs(source: str) -> str:
 
             try:
                 start_branches = list(
-                    _all_branches(node.body[0], node.orelse[0], expand_ifs_on="start")
+                    _all_branches(body[0], orelse[0], expand_ifs_on="start")
                 )
                 end_branches = list(
-                    _all_branches(node.body[-1], node.orelse[-1], expand_ifs_on="end")
+                    _all_branches(body[-1], orelse[-1], expand_ifs_on="end")
                 )
             except (ValueError, IndexError):
                 pass
@@ -2206,6 +2204,41 @@ def breakout_common_code_in_ifs(source: str) -> str:
                 continue
 
             if additions and removals:
+                source = processing.alter_code(source, root, additions=additions, removals=removals)
+                return breakout_common_code_in_ifs(source)
+
+    for node, body, orelse in _iter_implicit_if_elses(root):
+        if parsing.get_code(node, source).startswith("elif"):
+            continue
+
+        if body and orelse:
+            removals = set()
+            additions = set()
+
+            has_namedexpr = any(parsing.walk(node.test, ast.NamedExpr))
+
+            # Only start branches can be matched, and not end branches. This is because, since we're
+            # looking at implicit ifY/elses, the last node in the body/true branch must be blocking,
+            # and removing it will therefore break the exclusivity of the two branches.
+            start_branches = [body[0], orelse[0]]
+
+            if not has_namedexpr and _is_same_code(*start_branches):
+                additions, removals = _move_before_scope(node, start_branches)
+
+            try:
+                start_branches = list(
+                    _all_branches(body[0], orelse[0], expand_ifs_on="start")
+                )
+            except (ValueError, IndexError):
+                pass
+            else:
+                if not has_namedexpr and _is_same_code(*start_branches):
+                    additions, removals = _move_before_scope(node, start_branches)
+
+            if parsing.match_template(list(additions), [ast.Pass]):
+                continue
+
+            if additions or removals:
                 source = processing.alter_code(source, root, additions=additions, removals=removals)
                 return breakout_common_code_in_ifs(source)
 

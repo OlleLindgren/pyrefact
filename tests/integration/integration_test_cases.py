@@ -405,17 +405,14 @@ def f(x: int) -> int:
         y = x ** 13
         return 8
     else:
-        return 19
+        return 8
 print(f(12))
 while False:
     sys.exit(0)
             """,
         """
 def _f(x: int) -> int:
-    if x == 3:
-        return 8
-
-    return 19
+    return 8
 print(_f(12))
             """,
     ),

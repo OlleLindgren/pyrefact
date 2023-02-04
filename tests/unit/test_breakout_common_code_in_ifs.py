@@ -296,6 +296,44 @@ else:
 print(100)
             """,
         ),
+        (  # Implicit if/else
+            """
+import random
+def foo():
+    if random.random() < 2:
+        print(33)
+        print(100)
+        return 8
+    print(33)
+    return 99
+            """,
+            """
+import random
+def foo():
+    print(33)
+    if random.random() < 2:
+        print(100)
+        return 8
+
+    return 99
+            """,
+        ),
+        (  # Implicit if/else return
+            """
+import random
+def foo(x: str):
+    if x == 89:
+        return 5
+    return 5
+            """,
+            """
+import random
+def foo(x: str):
+    return 5
+    if x == 89:
+        pass
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
