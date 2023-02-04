@@ -2485,6 +2485,34 @@ def remove_redundant_comprehension_casts(source: str) -> str:
             yield node, ast.Call(func=ast.Name(id=func), args=[equivalent_setcomp], keywords=[])
 
 
+@processing.fix(restart_on_replace=True)
+def remove_redundant_chain_casts(source: str) -> str:
+    root = parsing.parse(source)
+
+    template = ast.Call(
+        func=ast.Name(id=parsing.Wildcard("func_outer", ("list", "set", "iter"))),
+        args=[ast.Call(
+            func=ast.Attribute(value=ast.Name(id="itertools"), attr="chain"),
+            args=parsing.Wildcard("args", list),
+            keywords=[]
+        )],
+        keywords=[],
+    )
+
+    for node, args, func_outer in parsing.walk_wildcard(root, template):
+        if func_outer == "iter" and len(args) >= 1:
+            yield node, node.args[0]
+        if func_outer == "iter" and not args:
+            yield node, ast.Call(func=ast.Name(id="iter"), args=[], keywords=[])
+        elts = [ast.Starred(value=arg) for arg in args]
+        if func_outer == "set" and elts:
+            yield node, ast.Set(elts=elts)
+        if func_outer == "set" and not elts:
+            yield node, ast.Call(func=ast.Name(id="set"), args=[], keywords=[])
+        if func_outer == "list":
+            yield node, ast.List(elts=elts)
+
+
 @processing.fix
 def replace_dict_assign_with_dict_literal(source: str) -> str:
     root = parsing.parse(source)

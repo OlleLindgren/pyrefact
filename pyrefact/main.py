@@ -110,6 +110,7 @@ def format_code(
         source = fixes.replace_with_filter(source)
         source = fixes.merge_chained_comps(source)
         source = fixes.remove_redundant_comprehension_casts(source)
+        source = fixes.remove_redundant_chain_casts(source)
         source = fixes.remove_redundant_else(source)
         source = fixes.replace_functions_with_literals(source)
         source = fixes.replace_collection_add_update_with_collection_literal(source)
