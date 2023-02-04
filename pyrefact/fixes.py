@@ -2490,7 +2490,7 @@ def remove_redundant_chain_casts(source: str) -> str:
     root = parsing.parse(source)
 
     template = ast.Call(
-        func=ast.Name(id=parsing.Wildcard("func_outer", ("list", "set", "iter"))),
+        func=ast.Name(id=parsing.Wildcard("func_outer", ("list", "set", "iter", "tuple"))),
         args=[ast.Call(
             func=ast.Attribute(value=ast.Name(id="itertools"), attr="chain"),
             args=parsing.Wildcard("args", list),
@@ -2511,6 +2511,8 @@ def remove_redundant_chain_casts(source: str) -> str:
             yield node, ast.Call(func=ast.Name(id="set"), args=[], keywords=[])
         if func_outer == "list":
             yield node, ast.List(elts=elts)
+        if func_outer == "tuple":
+            yield node, ast.Tuple(elts=elts)
 
 
 @processing.fix

@@ -29,6 +29,22 @@ set()
         ),
         (
             """
+tuple(itertools.chain(range(10), range(11)))
+            """,
+            """
+(*range(10), *range(11))
+            """,
+        ),
+        (
+            """
+tuple(itertools.chain())
+            """,
+            """
+()
+            """,
+        ),
+        (
+            """
 list(itertools.chain())
             """,
             """
