@@ -2833,7 +2833,7 @@ def _convert_to_string_formatting(fstring: ast.JoinedStr) -> Tuple[str, Sequence
             format_string_entries.append("{" + format_spec + "}")  # This is ironic, isn't it
             format_args.append(entry.value)
 
-    format_string = ast.Constant(value="".join(format_string_entries))
+    format_string = ast.Constant(value="".join(format_string_entries), kind=None)
 
     return format_string, format_args
 
