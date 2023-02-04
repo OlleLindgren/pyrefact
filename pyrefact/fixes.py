@@ -2787,3 +2787,24 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
             yield assigned_value, replacement
             for m in matches:
                 yield m.root, None
+
+
+@processing.fix(restart_on_replace=True)
+def breakout_starred_args(source: str) -> str:
+    root = parsing.parse(source)
+
+    # One element is unique, more than 1 may not be.
+    # So, a 1-length set can safely be unpacked, but not a 2-length set.
+    starred_arg_template = ast.Starred(value=(ast.List, ast.Tuple, ast.Set(elts=[object])))
+    for node in parsing.walk(root, ast.Call):
+        matched = False
+        args = []
+        for arg in node.args:
+            if parsing.match_template(arg, starred_arg_template):
+                args.extend(arg.value.elts)
+                matched = True
+            else:
+                args.append(arg)
+
+        if matched:
+            yield node, ast.Call(func=node.func, args=args, keywords=node.keywords)
