@@ -168,7 +168,7 @@ def format_code(
     # to a previous version again.
     content_history = {source}
 
-    for passes in range(1, 1 + MAX_FILE_PASSES):
+    for _ in range(1, 1 + MAX_FILE_PASSES):
         source = _multi_run_fixes(source, preserve=preserve)
         if source in content_history:
             break
@@ -181,7 +181,7 @@ def format_code(
     # If abstractions have added anything, there may be anti-patterns (redundant elif/else
     # usually) in the code, that should be removed.
     if source not in content_history:
-        for passes in range(1, 1 + MAX_FILE_PASSES):
+        for _ in range(1, 1 + MAX_FILE_PASSES):
             source = _multi_run_fixes(source, preserve=preserve)
             if source in content_history:
                 break

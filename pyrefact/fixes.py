@@ -211,9 +211,7 @@ def _fix_variable_names(
     blacklisted_names = parsing.get_imported_names(ast_tree) | constants.BUILTIN_FUNCTIONS
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
-            raise RuntimeError(
-                f"Expected 1 substitute, got {len(substitutes)}: {substitutes}\nCode:\n{ast.dump(node, indent=2)}"
-            )
+            continue
         substitute = substitutes.pop()
         if substitute in blacklisted_names:
             continue
