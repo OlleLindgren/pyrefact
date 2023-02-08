@@ -125,8 +125,8 @@ def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = (
     # isinstance logic.
     # If there are wildcards, the first match is chosen.
     if isinstance(template, tuple):
-        return next(filter(None, (match_template(node, child, ignore=ignore) for child in template)), ())
-
+        return next(
+            filter(None, (match_template(node, child, ignore=ignore) for child in template)), ())
     # A set indicates a variable length list, where all elements must match
     # against at least one of the templates in it.
     # If there are wildcards, the first match is chosen.
@@ -134,10 +134,10 @@ def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = (
     if isinstance(template, set):
         if not isinstance(node, list):
             return ()
-
-        matches = [match_template(node_child, tuple(template), ignore=ignore) for node_child in node]
+        matches = [
+            match_template(node_child, tuple(template), ignore=ignore) for node_child in node
+        ]
         return _merge_matches(node, matches)
-
     # A list indicates that the node must also be a list, and for every
     # element, it must match against the corresponding node in the template.
     # It must also be equal length.
@@ -145,8 +145,8 @@ def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = (
         if isinstance(node, list) and len(node) == len(template):
             matches = [
                 match_template(child, template_child, ignore=ignore)
-                for child, template_child in zip(node, template)
-            ]
+                for child, template_child in zip(node, template)]
+
             return _merge_matches(node, matches)
 
         return ()
@@ -230,7 +230,11 @@ def walk_wildcard(
                     yield template_match
 
 
-def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]], ignore: Collection[str] = ()) -> Sequence[ast.AST]:
+def walk(
+    scope: ast.AST,
+    node_template: Union[ast.AST, Tuple[ast.AST, ...]],
+    ignore: Collection[str] = (),
+) -> Sequence[ast.AST]:
     """Get nodes in scope of a particular type
 
     Args:
