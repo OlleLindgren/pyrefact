@@ -450,4 +450,16 @@ E = [x ** 2 for x in range(100) if x > 7]
 print(E)
         """,
     ),
+    (
+        """
+d = {"x": 100, "y": 10}
+for x in d.keys():
+    print(d[x])
+        """,
+        """
+D = {"x": 100, "y": 10}
+for d_x in D.values():
+    print(d_x)
+        """,
+    )
 )

@@ -2907,3 +2907,114 @@ def deinterpolate_logging_args(source: str) -> str:
                 args=[format_string] + format_args,
                 keywords=node.keywords,
             )
+
+
+@processing.fix
+def _keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
+    root = parsing.parse(source)
+    comprehension_template = ast.comprehension(
+        target=parsing.Wildcard("target", object),
+        iter=ast.Call(func=ast.Attribute(value=parsing.Wildcard("value", object), attr="keys"), args=[], keywords=[]),
+    )
+    template = (
+        ast.SetComp(generators=[comprehension_template]),
+        ast.ListComp(generators=[comprehension_template]),
+        ast.GeneratorExp(generators=[comprehension_template]),
+        ast.DictComp(generators=[comprehension_template]),
+    )
+
+    for node, target, value in parsing.walk_wildcard(root, template):
+        subscript_template = ast.Subscript(value=value, slice=target)
+        value_target_subscripts = list(parsing.walk(node, subscript_template, ignore=("ctx", "lineno", "end_lineno", "col_offset", "end_col_offset")))
+        if value_target_subscripts:
+            node_target_name = f"{parsing.unparse(value)}_{parsing.unparse(target)}"
+            node_target_name = re.sub(r"[^a-zA-Z]", "_", node_target_name)
+            yield node.generators[0].iter, ast.Call(func=ast.Attribute(value=value, attr="items"), args=[], keywords=[])
+            yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name)])
+            for subscript_use in value_target_subscripts:
+                yield subscript_use, ast.Name(id=node_target_name)
+
+
+@processing.fix
+def _items_to_keys(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
+    root = parsing.parse(source)
+    template = ast.comprehension(
+        target=ast.Tuple(elts=[parsing.Wildcard("target", object), ast.Name(id="_")]),
+        iter=ast.Call(func=ast.Attribute(value=parsing.Wildcard("value", object), attr="items"), args=[], keywords=[]),
+        ifs=parsing.Wildcard("ifs", list),
+        is_async=parsing.Wildcard("is_async", int),
+    )
+
+    for node, ifs, is_async, target, value in parsing.walk_wildcard(root, template):
+        yield node.target, target
+        yield node.iter, ast.Call(func=ast.Attribute(value=value, attr="keys"), args=[], keywords=[])
+
+
+@processing.fix
+def _items_to_values(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
+    root = parsing.parse(source)
+    template = ast.comprehension(
+        target=ast.Tuple(elts=[ast.Name(id="_"), parsing.Wildcard("target", object)]),
+        iter=ast.Call(func=ast.Attribute(value=parsing.Wildcard("value", object), attr="items"), args=[], keywords=[]),
+        ifs=parsing.Wildcard("ifs", list),
+        is_async=parsing.Wildcard("is_async", int),
+    )
+
+    for node, ifs, is_async, target, value in parsing.walk_wildcard(root, template):
+        yield node.target, target
+        yield node.iter, ast.Call(func=ast.Attribute(value=value, attr="values"), args=[], keywords=[])
+
+
+@processing.fix
+def _for_keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
+    root = parsing.parse(source)
+    template = ast.For(
+        target=parsing.Wildcard("target", object),
+        iter=ast.Call(func=ast.Attribute(value=parsing.Wildcard("value", object), attr="keys"), args=[], keywords=[]),
+    )
+    for node, target, value in parsing.walk_wildcard(root, template):
+        subscript_template = ast.Subscript(value=value, slice=target)
+        value_target_subscripts = list(parsing.walk(node, subscript_template, ignore=("ctx", "lineno", "end_lineno", "col_offset", "end_col_offset")))
+        if value_target_subscripts:
+            node_target_name = f"{parsing.unparse(value)}_{parsing.unparse(target)}"
+            node_target_name = re.sub(r"[^a-zA-Z]", "_", node_target_name)
+            yield node.iter, ast.Call(func=ast.Attribute(value=value, attr="items"), args=[], keywords=[])
+            yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name)])
+            for subscript_use in value_target_subscripts:
+                yield subscript_use, ast.Name(id=node_target_name)
+
+
+@processing.fix
+def _for_items_to_keys(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
+    root = parsing.parse(source)
+    template = ast.For(
+        target=ast.Tuple(elts=[parsing.Wildcard("target", object), ast.Name(id="_")]),
+        iter=ast.Call(func=ast.Attribute(value=parsing.Wildcard("value", object), attr="items"), args=[], keywords=[]),
+    )
+
+    for node, target, value in parsing.walk_wildcard(root, template):
+        yield node.target, target
+        yield node.iter, ast.Call(func=ast.Attribute(value=value, attr="keys"), args=[], keywords=[])
+
+
+@processing.fix
+def _for_items_to_values(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
+    root = parsing.parse(source)
+    template = ast.For(
+        target=ast.Tuple(elts=[ast.Name(id="_"), parsing.Wildcard("target", object)]),
+        iter=ast.Call(func=ast.Attribute(value=parsing.Wildcard("value", object), attr="items"), args=[], keywords=[]),
+    )
+
+    for node, target, value in parsing.walk_wildcard(root, template):
+        yield node.target, target
+        yield node.iter, ast.Call(func=ast.Attribute(value=value, attr="values"), args=[], keywords=[])
+
+
+def implicit_dict_keys_values_items(source: str) -> str:
+    source = _keys_to_items(source)
+    source = _items_to_keys(source)
+    source = _items_to_values(source)
+    source = _for_keys_to_items(source)
+    source = _for_items_to_keys(source)
+    source = _for_items_to_values(source)
+    return source

@@ -91,6 +91,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.breakout_starred_args(source)
     source = fixes.replace_for_loops_with_set_list_comp(source)
     source = fixes.replace_for_loops_with_dict_comp(source)
+    source = fixes.implicit_dict_keys_values_items(source)
     source = fixes.replace_dict_assign_with_dict_literal(source)
     source = fixes.replace_dict_update_with_dict_literal(source)
     source = fixes.replace_dictcomp_assign_with_dict_literal(source)
