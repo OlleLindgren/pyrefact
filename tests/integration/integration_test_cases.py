@@ -450,7 +450,11 @@ e = [
 print(e)
         """,
         """
-E = [x ** 2 for x in range(100) if x > 7]
+E = [
+    x**2
+    for x in range(100)
+    if x > 7
+]
 print(E)
         """,
     ),
