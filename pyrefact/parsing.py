@@ -241,7 +241,7 @@ def walk(
     """Get nodes in scope of a particular type
 
     Args:
-        scope (ast.AST): Scope to search
+        scope (ast.AST): Scope to search 
         node_template (ast.AST): Node type to filter on
 
     Returns:
@@ -260,6 +260,8 @@ def _iter_wildcards(template: ast.AST, recursion_blacklist: Collection = None) -
     if isinstance(template, Wildcard):
         yield template
         return
+    if isinstance(template, type):
+        return
     if isinstance(template, Iterable):
         for item in template:
             yield from _iter_wildcards(item, recursion_blacklist=recursion_blacklist)
@@ -275,7 +277,7 @@ def walk_sequence(
     scope: ast.Module, *templates: ast.AST, expand_first: bool = False, expand_last: bool = False
 ) -> Iterable[Sequence[ast.AST]]:
     uncommon = set()
-    for node in walk(scope, (ast.AST(body=list), ast.AST(orelse=list))):
+    for node in walk(scope, tuple({*constants.AST_TYPES_WITH_BODY, *constants.AST_TYPES_WITH_ORELSE})):
         for body in [
             getattr(node, "body", []),
             getattr(node, "orelse", []),

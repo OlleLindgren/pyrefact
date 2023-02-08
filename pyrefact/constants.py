@@ -318,3 +318,6 @@ ITERATOR_FUNCTIONS = {
     "reversed",
     "set",
 }
+
+AST_TYPES_WITH_BODY = (ast.If, ast.For, ast.With, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Module, ast.While)
+AST_TYPES_WITH_ORELSE = (ast.If, ast.For, ast.While)
