@@ -94,9 +94,8 @@ def remove_redundant_chained_calls(source: str) -> str:
     }
 
     templates = tuple(
-        ast.Call(func=ast.Name(id=key), args=[ast.Call(func=ast.Name(id=value), args=[object])])
+        ast.Call(func=ast.Name(id=key), args=[ast.Call(func=ast.Name(id=tuple(values)), args=[object])])
         for key, values in function_chain_redundancy_mapping.items()
-        for value in values
     )
 
     for node in parsing.walk(root, templates):
