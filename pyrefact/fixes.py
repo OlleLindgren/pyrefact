@@ -3035,10 +3035,12 @@ def redundant_enumerate(source: str) -> str:
 def unused_zip_args(source: str) -> str:
     root = parsing.parse(source)
     iter_template = ast.Call(
-        func=parsing.Wildcard("func", (
-            ast.Name(id="zip"),
-            ast.Name(id="zip_longest"),
-            ast.Attribute(value=ast.Name(id="itertools"), attr="zip_longest"))),
+        func=parsing.Wildcard(
+            "func",
+            (
+                ast.Name(id="zip"),
+                ast.Name(id="zip_longest"),
+                ast.Attribute(value=ast.Name(id="itertools"), attr="zip_longest"))),
         args=parsing.Wildcard("iter", list),
         keywords=[],)
     target_template = ast.Tuple(elts=parsing.Wildcard("elts", list))
@@ -3061,12 +3063,14 @@ def unused_zip_args(source: str) -> str:
             continue
 
         for elt, arg in zip(elts, node_iter):
-            if parsing.match_template(elt, ast.Name(id="_")) and not parsing.has_side_effect(arg, safe_callables):
+            if parsing.match_template(elt, ast.Name(id="_")) and not parsing.has_side_effect(
+                arg, safe_callables
+            ):
                 changes = True
             else:
                 new_elts.append(elt)
                 iters.append(arg)
-        
+
         if not changes:
             continue
 
