@@ -98,7 +98,7 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
     return namedtuple_type(*(namedtuple_vars[field][0] for field in fields))
 
 
-def match_template(node: ast.AST, template: ast.AST) -> Tuple:
+def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = ()) -> Tuple:
     """Match a node against a provided ast template.
 
     Args:
@@ -117,13 +117,15 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     if isinstance(template, type):
         return (node,) if isinstance(node, template) else ()
 
+    ignore = frozenset(ignore)
+
     # A tuple indicates an or condition; the node must comply with any of
     # the templates in the child.
     # They may all be types for example, which boils down to the traditional
     # isinstance logic.
     # If there are wildcards, the first match is chosen.
     if isinstance(template, tuple):
-        return next(filter(None, (match_template(node, child) for child in template)), ())
+        return next(filter(None, (match_template(node, child, ignore=ignore) for child in template)), ())
 
     # A set indicates a variable length list, where all elements must match
     # against at least one of the templates in it.
@@ -133,7 +135,7 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
         if not isinstance(node, list):
             return ()
 
-        matches = [match_template(node_child, tuple(template)) for node_child in node]
+        matches = [match_template(node_child, tuple(template), ignore=ignore) for node_child in node]
         return _merge_matches(node, matches)
 
     # A list indicates that the node must also be a list, and for every
@@ -142,7 +144,7 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     if isinstance(template, list):
         if isinstance(node, list) and len(node) == len(template):
             matches = [
-                match_template(child, template_child)
+                match_template(child, template_child, ignore=ignore)
                 for child, template_child in zip(node, template)
             ]
             return _merge_matches(node, matches)
@@ -154,7 +156,7 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
 
     if isinstance(template, Wildcard):
         namedtuple_type = collections.namedtuple("Match", (template.name,))
-        template_match = match_template(node, template.template)
+        template_match = match_template(node, template.template, ignore=ignore)
         return namedtuple_type(template_match[0]) if len(template_match) == 1 else ()
 
     # If the node is not an ast, we presume it is a string or something like
@@ -165,8 +167,11 @@ def match_template(node: ast.AST, template: ast.AST) -> Tuple:
     t_vars = vars(template)
     n_vars = vars(node)
 
-    if issubclass(type(node), type(template)) and t_vars.keys() <= n_vars.keys():
-        matches = [match_template(n_vars[key], t_vars[key]) for key in t_vars.keys()]
+    if issubclass(type(node), type(template)) and t_vars.keys() - ignore <= n_vars.keys() - ignore:
+        matches = [
+            match_template(n_vars[key], t_vars[key], ignore=ignore)
+            for key in t_vars.keys() - ignore
+        ]
         return _merge_matches(node, matches)
 
     return ()
@@ -195,7 +200,7 @@ def _group_nodes_in_scope(scope: ast.AST) -> Mapping[ast.AST, Sequence[ast.AST]]
 
 
 def walk_wildcard(
-    scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]
+    scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]], ignore: Collection[str] = ()
 ) -> Sequence[Tuple[ast.AST, ...]]:
     """Get nodes in scope of a particular type. Match wildcards.
 
@@ -220,12 +225,12 @@ def walk_wildcard(
         )
         for node in nodes:
             if node not in yielded_nodes:
-                if template_match := match_template(node, template):
+                if template_match := match_template(node, template, ignore=ignore):
                     yielded_nodes.add(node)
                     yield template_match
 
 
-def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> Sequence[ast.AST]:
+def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]], ignore: Collection[str] = ()) -> Sequence[ast.AST]:
     """Get nodes in scope of a particular type
 
     Args:
@@ -235,7 +240,7 @@ def walk(scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]]) -> 
     Returns:
         Sequence[ast.AST]: All nodes in scope of that type
     """
-    for node, *_ in walk_wildcard(scope, node_template):
+    for node, *_ in walk_wildcard(scope, node_template, ignore=ignore):
         yield node
 
 
