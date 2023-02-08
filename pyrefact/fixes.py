@@ -2881,7 +2881,10 @@ def _keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
         ast.DictComp(generators=[comprehension_template]))
 
     for node, target, value in parsing.walk_wildcard(root, template):
-        subscript_template = ast.Subscript(value=value, slice=target)
+        if constants.PYTHON_VERSION >= (3, 9):
+            subscript_template = ast.Subscript(value=value, slice=target)
+        else:
+            subscript_template = ast.Subscript(value=value, slice=(target, ast.Index(value=target)))
         value_target_subscripts = list(
             parsing.walk(
                 node,
@@ -2946,7 +2949,10 @@ def _for_keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
             args=[],
             keywords=[]))
     for node, target, value in parsing.walk_wildcard(root, template):
-        subscript_template = ast.Subscript(value=value, slice=target)
+        if constants.PYTHON_VERSION >= (3, 9):
+            subscript_template = ast.Subscript(value=value, slice=target)
+        else:
+            subscript_template = ast.Subscript(value=value, slice=(target, ast.Index(value=target)))
         value_target_subscripts = list(
             parsing.walk(
                 node,
