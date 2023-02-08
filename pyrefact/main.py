@@ -78,6 +78,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.early_return(source)
     source = fixes.early_continue(source)
     source = fixes.redundant_enumerate(source)
+    source = fixes.unused_zip_args(source)
     source = fixes.replace_map_lambda_with_comp(source)
     source = fixes.replace_filter_lambda_with_comp(source)
     source = fixes.replace_with_filter(source)

@@ -442,7 +442,11 @@ _asdf()
     ),
     (
         """
-e = list(map(lambda x: x**2, filter(lambda x: x > 7, range(100))))
+e = [
+    x**2
+    for x in (x for (_, x) in zip([i for (_, i) in enumerate(range(102, 202))], range(100)))
+    if x > 7
+]
 print(e)
         """,
         """

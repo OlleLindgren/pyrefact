@@ -3029,3 +3029,53 @@ def redundant_enumerate(source: str) -> str:
     for node, node_iter, target in parsing.walk_wildcard(root, template):
         yield node.iter, node_iter
         yield node.target, target
+
+
+@processing.fix
+def unused_zip_args(source: str) -> str:
+    root = parsing.parse(source)
+    iter_template = ast.Call(
+        func=parsing.Wildcard("func", (
+            ast.Name(id="zip"),
+            ast.Name(id="zip_longest"),
+            ast.Attribute(value=ast.Name(id="itertools"), attr="zip_longest"))),
+        args=parsing.Wildcard("iter", list),
+        keywords=[],)
+    target_template = ast.Tuple(elts=parsing.Wildcard("elts", list))
+
+    template = (
+        ast.comprehension(iter=iter_template, target=target_template),
+        ast.For(iter=iter_template, target=target_template),)
+
+    safe_callables = parsing.safe_callable_names(root)
+    for node, elts, func, node_iter in parsing.walk_wildcard(root, template):
+        new_elts = []
+        iters = []
+        changes = False
+
+        # Starred messed with the order of things in slightly complicated ways
+        # TODO handle starred args
+        if any(isinstance(arg, ast.Starred) for arg in elts):
+            continue
+        if any(isinstance(arg, ast.Starred) for arg in node_iter):
+            continue
+
+        for elt, arg in zip(elts, node_iter):
+            if parsing.match_template(elt, ast.Name(id="_")) and not parsing.has_side_effect(arg, safe_callables):
+                changes = True
+            else:
+                new_elts.append(elt)
+                iters.append(arg)
+        
+        if not changes:
+            continue
+
+        if len(new_elts) == 0:  # 0 args used => replace zip with first arg
+            yield node.target, elts[0]
+            yield node.iter, node_iter[0]
+        elif len(new_elts) == 1:  # 1 arg used => replace zip with that arg
+            yield node.target, new_elts[0]
+            yield node.iter, iters[0]
+        elif len(new_elts) > 1:  # > 1 args used => remove unused ones, keep zip
+            yield node.target, ast.Tuple(elts=new_elts)
+            yield node.iter, ast.Call(func=func, args=iters, keywords=[])
