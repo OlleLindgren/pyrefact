@@ -73,10 +73,10 @@ def _all_fields_consistent(
 def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
     matches_list = []
     for m in matches:
-        if m:
-            matches_list.append(m)
-        else:
+        if not m:
             return ()
+
+        matches_list.append(m)
 
     matches = matches_list
 
@@ -178,10 +178,10 @@ def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = (
     n_vars = vars(node)
 
     if issubclass(type(node), type(template)) and t_vars.keys() - ignore <= n_vars.keys() - ignore:
-        matches = [
+        matches = (
             match_template(n_vars[key], t_vars[key], ignore=ignore)
             for key in t_vars.keys() - ignore
-        ]
+        )
         return _merge_matches(node, matches)
 
     return ()
