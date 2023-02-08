@@ -34,7 +34,10 @@ def unparse(node: ast.AST) -> str:
         source = source.rstrip()
 
     line_length = max(60, 100 - getattr(node, "col_offset", 0))
-    source = formatting.format_with_black(source, line_length=line_length)
+    try:
+        ast.parse(source)
+    except (SyntaxError, ValueError):
+        source = formatting.format_with_black(source, line_length=line_length)
     source = formatting.collapse_trailing_parentheses(source)
     indent = formatting.get_indent(source)
     source = formatting.deindent_code(source, indent).lstrip()
