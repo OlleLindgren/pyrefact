@@ -61,13 +61,12 @@ def _all_fields_consistent(
     for m in matches:
         for key, value in zip(getattr(m, "_fields", ()), m):
             if key != "root" and key not in ignore:
-                field_options[key].add(unparse(value) if isinstance(value, ast.AST) else str(value))
+                options = field_options[key]
+                options.add(unparse(value) if isinstance(value, ast.AST) else str(value))
+                if len(options) > 1:
+                    return False
 
-    result = all(
-        len(options) == 1
-        for key, options in field_options.items()
-    )
-    return result
+    return True
 
 
 def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
@@ -89,22 +88,21 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
             namedtuple_matches.append(match)
     if not namedtuple_matches:
         return (root,)
-    namedtuple_vars = collections.defaultdict(list)  # May not be hashable
 
-    for match in namedtuple_matches:
-        for key, value in zip(match._fields, match):
-            namedtuple_vars[key].append(value)
-
-    # Always store node in special "root" field. Other contents of this field are discarded.
-    namedtuple_vars["root"] = [root]
-
-    # Sort in alphabetical order, but always with "root" first.
-    if not _all_fields_consistent(matches):
+    if not _all_fields_consistent(namedtuple_matches):
         return ()
 
+    namedtuple_vars = {
+        **{key: value for match in namedtuple_matches for key, value in zip(match._fields, match)},
+        "root": root,
+    }
+
+    # Always store node in special "root" field. Other contents of this field are discarded.
+
+    # Sort in alphabetical order, but always with "root" first.
     fields = sorted(namedtuple_vars.keys(), key=lambda k: (k != "root", k))
     namedtuple_type = collections.namedtuple("Match", fields)
-    return namedtuple_type(*(namedtuple_vars[field][0] for field in fields))
+    return namedtuple_type(*(namedtuple_vars[field] for field in fields))
 
 
 def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = ()) -> Tuple:

@@ -50,6 +50,10 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, source: str) -> Iterable[ast.Nam
         end = (node.lineno, end_charno)
     else:
         raise NotImplementedError(f"Unknown type: {type(node)}")
+
+    if all(usage is node for usage in parsing.walk(scope, ast.Name(id=name))):
+        return
+
     is_maybe_unordered_scope = isinstance(scope, (ast.Module, ast.ClassDef, ast.While, ast.For))
 
     # Prevent renaming variables in function scopes
