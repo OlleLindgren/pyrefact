@@ -676,14 +676,14 @@ def has_side_effect(
     return True
 
 
-@functools.lru_cache(maxsize=1)
+@functools.lru_cache(maxsize=100)
 def _get_line_start_charnos(source: str) -> Sequence[int]:
     start = 0
     charnos = []
     for line in source.splitlines(keepends=True):
         charnos.append(start)
         start += len(line)
-    return charnos
+    return tuple(charnos)
 
 
 def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> Tuple[int, int]:
