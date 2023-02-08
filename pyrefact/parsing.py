@@ -71,8 +71,14 @@ def _all_fields_consistent(
 
 
 def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
-    if not all(matches):
-        return ()
+    matches_list = []
+    for m in matches:
+        if m:
+            matches_list.append(m)
+        else:
+            return ()
+
+    matches = matches_list
 
     namedtuple_matches = []
     tuple_matches = []
@@ -137,18 +143,19 @@ def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = (
     if isinstance(template, set):
         if not isinstance(node, list):
             return ()
-        matches = [
-            match_template(node_child, tuple(template), ignore=ignore) for node_child in node
-        ]
+        matches = (
+            match_template(node_child, tuple(template), ignore=ignore)
+            for node_child in node)
+
         return _merge_matches(node, matches)
     # A list indicates that the node must also be a list, and for every
     # element, it must match against the corresponding node in the template.
     # It must also be equal length.
     if isinstance(template, list):
         if isinstance(node, list) and len(node) == len(template):
-            matches = [
+            matches = (
                 match_template(child, template_child, ignore=ignore)
-                for child, template_child in zip(node, template)]
+                for child, template_child in zip(node, template))
 
             return _merge_matches(node, matches)
 
@@ -241,7 +248,7 @@ def walk(
     """Get nodes in scope of a particular type
 
     Args:
-        scope (ast.AST): Scope to search 
+        scope (ast.AST): Scope to search
         node_template (ast.AST): Node type to filter on
 
     Returns:
@@ -277,22 +284,26 @@ def walk_sequence(
     scope: ast.Module, *templates: ast.AST, expand_first: bool = False, expand_last: bool = False
 ) -> Iterable[Sequence[ast.AST]]:
     uncommon = set()
-    for node in walk(scope, tuple({*constants.AST_TYPES_WITH_BODY, *constants.AST_TYPES_WITH_ORELSE})):
+    for node in walk(
+        scope, tuple({*constants.AST_TYPES_WITH_BODY, *constants.AST_TYPES_WITH_ORELSE})):
         for body in [
             getattr(node, "body", []),
-            getattr(node, "orelse", []),
-        ]:
+            getattr(node, "orelse", []),]:
             if not body:
                 continue
 
             for nodes in zip(
-                *(body[i: len(body) - len(templates) + i + 1] for i in range(len(templates)))
-            ):
-                matches = [
-                    match_template(node, template) for node, template in zip(nodes, templates)
-                ]
+                *(body[i : len(body) - len(templates) + i + 1] for i in range(len(templates)))):
+                all_matching = True
+                matches = []
+                for node, template in zip(nodes, templates):
+                    if m := match_template(node, template):
+                        matches.append(m)
+                    else:
+                        all_matching = False
+                        break
 
-                if not all(matches):
+                if not all_matching:
                     continue
 
                 # This is really expensive so it's better to do it way in here even though it's
@@ -322,7 +333,7 @@ def walk_sequence(
                         matches.insert(0, template_match)
 
                 if expand_last:
-                    post = body[body.index(nodes[-1]) + 1:]
+                    post = body[body.index(nodes[-1]) + 1 :]
                     for child in post:
                         template_match = match_template(child, templates[-1])
                         if not template_match or not _all_fields_consistent(

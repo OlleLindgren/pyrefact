@@ -82,7 +82,6 @@ def remove_redundant_iter(source: str) -> str:
 @processing.fix(restart_on_replace=True)
 def remove_redundant_chained_calls(source: str) -> str:
     root = parsing.parse(source)
-
     function_chain_redundancy_mapping = {
         "sorted": {"list", "sorted", "tuple", "iter", "reversed"},
         "list": {"list", "tuple", "iter"},
@@ -90,14 +89,11 @@ def remove_redundant_chained_calls(source: str) -> str:
         "iter": {"list", "tuple", "iter"},
         "reversed": {"list", "tuple"},
         "tuple": {"list", "tuple", "iter"},
-        "sum": {"list", "tuple", "iter", "sorted", "reversed"},
-    }
-
+        "sum": {"list", "tuple", "iter", "sorted", "reversed"}}
     templates = tuple(
-        ast.Call(func=ast.Name(id=key), args=[ast.Call(func=ast.Name(id=tuple(values)), args=[object])])
-        for key, values in function_chain_redundancy_mapping.items()
-    )
-
+        ast.Call(
+            func=ast.Name(id=key), args=[ast.Call(func=ast.Name(id=tuple(values)), args=[object])])
+        for key, values in function_chain_redundancy_mapping.items())
     for node in parsing.walk(root, templates):
         arg = node.args[0].args[0]
         while parsing.match_template(arg, templates):
