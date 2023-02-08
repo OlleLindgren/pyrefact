@@ -3018,3 +3018,19 @@ def implicit_dict_keys_values_items(source: str) -> str:
     source = _for_items_to_keys(source)
     source = _for_items_to_values(source)
     return source
+
+
+@processing.fix
+def redundant_enumerate(source: str) -> str:
+    root = parsing.parse(source)
+
+    iter_template = ast.Call(func=ast.Name(id="enumerate"), args=[parsing.Wildcard("iter", object)], keywords=[])
+    target_template = ast.Tuple(elts=[ast.Name(id="_"), parsing.Wildcard("target", object)])
+
+    template = (
+        ast.comprehension(iter=iter_template, target=target_template),
+        ast.For(iter=iter_template, target=target_template),
+    )
+    for node, node_iter, target in parsing.walk_wildcard(root, template):
+        yield node.iter, node_iter
+        yield node.target, target
