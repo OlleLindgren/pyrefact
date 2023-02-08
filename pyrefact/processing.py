@@ -47,7 +47,7 @@ def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str
 
     passes = [len(source) + 1]
 
-    for node in ast.walk(root):
+    for node in parsing.walk(root, ast.AST):
         if isinstance(node, ast.Module):
             continue
         for bodytype in "body", "finalbody", "orelse":
