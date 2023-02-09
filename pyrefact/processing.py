@@ -75,6 +75,16 @@ def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str
     return "".join(chars)
 
 
+def _asts_equal(ast1: ast.AST, ast2: ast.AST):
+    """Determine if two ASTs are the same."""
+    return parsing.unparse(ast1) == parsing.unparse(ast2)
+
+
+def _sources_equivalent(source1: str, source2: ast.AST) -> bool:
+    """Determine if two source code snippets produce the same ASTs."""
+    return _asts_equal(parsing.parse(source1), parsing.parse(source2))
+
+
 def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") -> str:
     old, new = rewrite
     start, end = _get_charnos(rewrite, source)
@@ -102,7 +112,14 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
     else:
         logger.debug(MSG_INFO_REMOVE, fix_function_name=fix_function_name, old_code=code)
 
-    return source[:start] + new_code + source[end:]
+    candidate = source[:start] + new_code + source[end:]
+
+    if new_code.strip() and isinstance(old, ast.GeneratorExp):
+        candidate_parenthesized = source[:start] + "(" + new_code + ")" + source[end:]
+        if not _sources_equivalent(candidate, candidate_parenthesized):
+            return candidate_parenthesized
+
+    return candidate
 
 
 def replace_nodes(source: str, replacements: Mapping[ast.AST, Union[ast.AST, str]]) -> str:
