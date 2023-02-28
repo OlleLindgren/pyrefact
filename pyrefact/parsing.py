@@ -600,6 +600,9 @@ def has_side_effect(
     if isinstance(node, ast.Name):
         return isinstance(node.ctx, ast.Store) and node.id != "_"
 
+    if isinstance(node, ast.Attribute):
+        return isinstance(node.ctx, ast.Store) or has_side_effect(node.value)
+
     if isinstance(node, ast.Subscript):
         return (
             has_side_effect(node.value, safe_callable_whitelist)
