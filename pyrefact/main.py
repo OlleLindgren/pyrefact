@@ -66,6 +66,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.delete_unreachable_code(source)
     source = fixes.undefine_unused_variables(source, preserve=preserve)
     source = fixes.delete_pointless_statements(source)
+    source = fixes.move_before_loop(source)
 
     source = fixes.delete_unused_functions_and_classes(source, preserve=preserve)
 

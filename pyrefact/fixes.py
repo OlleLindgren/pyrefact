@@ -676,6 +676,49 @@ def _iter_unused_names(
                             _iter_unused_names(node, preserve=preserve | subsequent_required),
                             ast.Name(id=name),)
 
+
+def move_before_loop(source: str) -> str:
+    root = parsing.parse(source)
+
+    for scope in parsing.walk(root, (ast.For, ast.While)):
+        header_scope = [scope.target, scope.iter] if isinstance(scope, ast.For) else [scope.test]
+        for i, node in enumerate(scope.body):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            if parsing.has_side_effect(node.value):
+                continue
+
+            remainder = scope.body[i + 1:] + scope.body[:i]
+            *_, created_names, _ = parsing.code_dependencies_outputs(remainder)
+            _, node_created_names, node_required_names = parsing.code_dependencies_outputs([node])
+
+            before = scope.body[:i]
+            _, before_created, before_required = parsing.code_dependencies_outputs(before)
+
+            if created_names & node_required_names:
+                continue
+
+            if node_created_names & (before_required | before_created):
+                continue
+
+            _, header_created, header_required = parsing.code_dependencies_outputs(header_scope)
+
+            if header_created & node_required_names:
+                continue
+
+            if header_required & node_created_names:
+                continue
+
+            new_node = copy.copy(node)
+            new_node.lineno = scope.lineno - 1
+            new_node.col_offset = scope.col_offset
+
+            source = processing.alter_code(source, root, additions=[new_node], removals=[node])
+            return move_before_loop(source)
+
+    return source
+
+
 def _is_pointless_string(node: ast.AST) -> bool:
     """Check if an AST is a pointless string statement.
 
