@@ -177,6 +177,86 @@ while x < 10:
     print(x)
             """,
         ),
+        (  # the while loop's test depends on x
+            """
+while parsing.match_template(w, templates):
+    w = w.args[0].args[0]
+            """,
+            """
+while parsing.match_template(w, templates):
+    w = w.args[0].args[0]
+            """,
+        ),
+        (
+            """
+for a in b:
+    variable = True
+    for c in d:
+        try:
+            do_stuff(c, d)
+        except ValueError:
+            continue
+
+        variable = False
+
+    if_orelse_template = ast.If(body=[object], orelse=[object])
+    for condition in parsing.walk(ast.Module(body=n2.body), if_orelse_template):
+        if condition in loop_replacements:
+            continue
+
+        try:
+            h, q, z = foo()
+        except ValueError:
+            continue
+
+        subscript_calls.add(t_call)
+        if r (a, b, c, d):
+            if isinstance(f_value, ast.List) == (t_call == "append"):
+                loop_replacements[condition] = on_true
+                continue
+            variable = False
+            break
+
+    if not variable:
+        continue
+
+    print(1)
+            """,
+            """
+for a in b:
+    variable = True
+    for c in d:
+        try:
+            do_stuff(c, d)
+        except ValueError:
+            continue
+
+        variable = False
+
+    if_orelse_template = ast.If(body=[object], orelse=[object])
+    for condition in parsing.walk(ast.Module(body=n2.body), if_orelse_template):
+        if condition in loop_replacements:
+            continue
+
+        try:
+            h, q, z = foo()
+        except ValueError:
+            continue
+
+        subscript_calls.add(t_call)
+        if r (a, b, c, d):
+            if isinstance(f_value, ast.List) == (t_call == "append"):
+                loop_replacements[condition] = on_true
+                continue
+            variable = False
+            break
+
+    if not variable:
+        continue
+
+    print(1)
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:

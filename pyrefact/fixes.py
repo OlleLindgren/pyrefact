@@ -688,14 +688,36 @@ def move_before_loop(source: str) -> str:
             if parsing.has_side_effect(node.value):
                 continue
 
-            remainder = scope.body[i + 1:] + scope.body[:i]
-            *_, created_names, _ = parsing.code_dependencies_outputs(remainder)
+            # If targets are likely to be mutated in the loop, keep them in the loop.
+            targets = tuple(name.id for name in parsing.assignment_targets(node))
+            if any(parsing.walk(scope, ast.Call(func=ast.Attribute(value=ast.Name(id=targets))))):
+                continue  # i.e. x.append(y)
+            if any(parsing.walk(scope, ast.Subscript(value=ast.Name(id=targets)))):
+                continue  # i.e. x[3] = 2
+            if any(parsing.walk(scope, ast.AugAssign(target=ast.Name(id=targets)))):
+                continue  # i.e. x += 1
+
+            remainder = scope.body[i + 1 :] + scope.body[:i]
+            definite_created_names, maybe_created_names, _ = parsing.code_dependencies_outputs(
+                remainder
+            )
             _, node_created_names, node_required_names = parsing.code_dependencies_outputs([node])
 
             before = scope.body[:i]
+            recursive_before_children = itertools.chain(
+                before, *(ast.walk(child) for child in before))
+
+            if any(parsing.is_blocking(child) for child in recursive_before_children):
+                continue
+
             _, before_created, before_required = parsing.code_dependencies_outputs(before)
 
-            if created_names & node_required_names:
+            # If the loop may create names that the node depends on, keep it in the loop
+            if maybe_created_names & node_required_names:
+                continue
+
+            # If the node creates names that only sometimes are overwritten by the loop, keep it in the loop
+            if (maybe_created_names - definite_created_names) & node_created_names:
                 continue
 
             if node_created_names & (before_required | before_created):

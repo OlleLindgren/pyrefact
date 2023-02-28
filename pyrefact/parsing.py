@@ -1050,6 +1050,7 @@ def code_dependencies_outputs(
     """
     required_names = set()
     created_names = set()
+    created_names_original = created_names
     maybe_created_names = set()
     for node in code:
         temp_children = []
@@ -1058,6 +1059,8 @@ def code_dependencies_outputs(
             temp_children = (
                 [node.test] if isinstance(node, (ast.If, ast.While)) else [node.target, node.iter])
             children = [node.body, node.orelse]
+            if any(is_blocking(child) for child in ast.walk(node)):
+                created_names = maybe_created_names
         elif isinstance(node, ast.With):
             temp_children = tuple(node.items)
             children = [node.body]
@@ -1099,6 +1102,8 @@ def code_dependencies_outputs(
                         # Del
                         node_created.discard(child.id)
                         created_names.discard(child.id)
+                elif isinstance(child.ctx, ast.Store):
+                    maybe_created_names.add(child.id)
             node_needed -= created_names
             created_names.update(node_created)
             maybe_created_names.update(created_names)
@@ -1121,4 +1126,4 @@ def code_dependencies_outputs(
         node_needed |= temp_needed
         created_names.update(node_created)
         required_names.update(node_needed)
-    return created_names, maybe_created_names, required_names
+    return created_names_original, maybe_created_names, required_names
