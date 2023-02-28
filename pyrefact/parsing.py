@@ -1035,7 +1035,8 @@ def assignment_targets(
     raise TypeError(f"Expected Assignment type, got {type(node)}")
 
 
-def code_dependencies_outputs(code: Sequence[ast.AST]) -> Tuple[Collection[str], Collection[str]]:
+def code_dependencies_outputs(
+    code: Sequence[ast.AST],) -> Tuple[Collection[str], Collection[str], Collection[str]]:
     """Get required and created names in code.
 
     Args:
@@ -1045,10 +1046,11 @@ def code_dependencies_outputs(code: Sequence[ast.AST]) -> Tuple[Collection[str],
         ValueError: If any node is a try, class or function def.
 
     Returns:
-        Tuple[Collection[str], Collection[str]]: created_names, required_names
+        Tuple[Collection[str], Collection[str]]: created_names, maybe_created_names, required_names
     """
     required_names = set()
     created_names = set()
+    maybe_created_names = set()
     for node in code:
         temp_children = []
         children = []
@@ -1056,7 +1058,6 @@ def code_dependencies_outputs(code: Sequence[ast.AST]) -> Tuple[Collection[str],
             temp_children = (
                 [node.test] if isinstance(node, (ast.If, ast.While)) else [node.target, node.iter])
             children = [node.body, node.orelse]
-
         elif isinstance(node, ast.With):
             temp_children = tuple(node.items)
             children = [node.body]
@@ -1082,15 +1083,12 @@ def code_dependencies_outputs(code: Sequence[ast.AST]) -> Tuple[Collection[str],
                 for grandchild in ast.walk(child):
                     if isinstance(grandchild, ast.Name) and grandchild.id in comp_created:
                         generator_internal_names.add(grandchild)
-
             if isinstance(node, ast.AugAssign):
                 node_needed.update(n.id for n in assignment_targets(node))
-
             for child in walk(node, ast.Attribute(ctx=ast.Load)):
                 for n in walk(child, ast.Name):
                     if n not in generator_internal_names:
                         node_needed.add(n.id)
-
             for child in walk(node, ast.Name):
                 if child.id not in node_needed and child not in generator_internal_names:
                     if isinstance(child.ctx, ast.Load):
@@ -1101,27 +1099,26 @@ def code_dependencies_outputs(code: Sequence[ast.AST]) -> Tuple[Collection[str],
                         # Del
                         node_created.discard(child.id)
                         created_names.discard(child.id)
-
             node_needed -= created_names
             created_names.update(node_created)
+            maybe_created_names.update(created_names)
             required_names.update(node_needed)
             continue
 
-        temp_created, temp_needed = code_dependencies_outputs(temp_children)
+        temp_created, temp_maybe_created, temp_needed = code_dependencies_outputs(temp_children)
+        maybe_created_names.update(temp_maybe_created)
         created = []
         needed = []
         for nodes in children:
-            c_created, c_needed = code_dependencies_outputs(nodes)
+            c_created, c_maybe_created, c_needed = code_dependencies_outputs(nodes)
             created.append(c_created)
+            maybe_created_names.update(c_maybe_created)
             needed.append(c_needed - temp_created)
-
         node_created = set.intersection(*created) if created else set()
         node_needed = set.union(*needed) if needed else set()
-
         node_needed -= created_names
         node_needed -= temp_created
         node_needed |= temp_needed
         created_names.update(node_created)
         required_names.update(node_needed)
-
-    return created_names, required_names
+    return created_names, maybe_created_names, required_names

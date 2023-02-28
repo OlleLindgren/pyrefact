@@ -578,77 +578,9 @@ def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset
         for node in parsing.filter_nodes(scope.body, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
             class_body_blacklist.update(parsing.assignment_targets(node))
 
-    # (1) For every function and module,
-    for scope in itertools.chain([root], parsing.iter_bodies_recursive(root)):
-        if isinstance(scope, ast.ClassDef):
-            continue
-
-        names_in_scope = {name.id for name in parsing.walk(scope, ast.Name)}
-        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)):
-            for name in names_in_scope - preserve - {"_"}:
-                if not any(parsing.walk(scope, ast.Name(id=name, ctx=(ast.Load)))):
-                    for node in parsing.walk(scope, ast.Name(id=name)):
-                        if node not in class_body_blacklist:
-                            yield node, ast.Name(id="_")
-
-        # (2) Find all names defined that are ever stored anywhere in it,
-        bodies = [scope.body]
-        if parsing.match_template(scope, ast.AST(orelse=list)):
-            bodies.append(scope.orelse)
-        if parsing.match_template(scope, ast.AST(finalbody=list)):
-            bodies.append(scope.finalbody)
-
-        for body in filter(None, bodies):
-            name_mentions = collections.defaultdict(set)
-            for node in body:
-                created_names, required_names = parsing.code_dependencies_outputs([node])
-                for name in itertools.chain(created_names, required_names):
-                    name_mentions[name].add(node)
-
-            # (3) And group the code in the smallest possible sequences that will contain
-            #     (directly or recursively) all references (set and get) of that name.
-            name_node_sequences = {
-                name: sorted(mentions, key=lambda node: node.lineno)
-                for name, mentions in name_mentions.items()}
-
-            # (4) For every (name, node_sequence) in that grouping,
-            for name, sequence in name_node_sequences.items():
-                if name in preserve or name == "_":
-                    continue
-
-                # (5) see if (name) is in the dependencies of that node_sequence.
-                # If it is, skip it.
-                created_names, required_names = parsing.code_dependencies_outputs(sequence)
-                if name in required_names:
-                    continue
-
-                # (6) If it isn't, then do:
-                # (7) For every (node) at position (i) in the sequence,
-                for i, node in enumerate(sequence):
-                    if not isinstance(node, (ast.Assign, ast.AnnAssign)):
-                        continue
-                    node_created, _ = parsing.code_dependencies_outputs([node])
-                    subsequent_created, subsequent_required = parsing.code_dependencies_outputs(
-                        sequence[i + 1 :])
-
-                    # (8) If (name) is in its outputs, but (name) is not in the dependencies of
-                    # node_sequence[i:],
-                    if (
-                        name in node_created
-                        and name not in subsequent_required
-                        and (
-                            name in subsequent_created
-                            or isinstance(
-                                scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)))):
-                        # (9) then (name) is being redundantly defined in node (i).
-
-                        # If node (i) is an assign node, we can just un-assign it.
-                        for creation_node in parsing.filter_nodes(
-                            parsing.assignment_targets(node), ast.Name(id=name, ctx=ast.Store)):
-                            if creation_node not in class_body_blacklist:
-                                yield creation_node, ast.Name(id="_")
-                        # If node (i) is something more complicated (like a loop or something), it may be that
-                        # (name) is defined and then used in node (i).
+    for name in _iter_unused_names(root):
+        if name.id not in preserve and name.id != "_" and name not in class_body_blacklist:
+            yield name, ast.Name(id="_")
 
     for node in parsing.walk(
         root,
@@ -664,6 +596,85 @@ def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset
         if node not in class_body_blacklist:
             yield node, node.value
 
+
+def _iter_unused_names(
+    scope: ast.AST, preserve: Collection[str] = frozenset()) -> Iterable[ast.Name]:
+
+    # preserve presumably contains everything that any outer scope could be interested
+    # in. So any name that is set but never accessed, and that is not in preserve, can
+    # immediately be deleted.
+    names_in_scope = {name.id for name in parsing.walk(scope, ast.Name)}
+    for name in names_in_scope - preserve:
+        if not any(parsing.walk(scope, ast.Name(id=name, ctx=(ast.Load)))):
+            for node in parsing.walk(scope, ast.Name(id=name)):
+                yield node
+
+    # For everything else, the algorithm is like this:
+    # Iterate over all subset sequences of nodes in every scope, such that no node outside
+    # of that sequence touch some particular name.
+
+    # (2) Find all names defined that are ever stored anywhere in it,
+    bodies = []
+    if parsing.match_template(scope, ast.AST(body=list)):
+        bodies.append(scope.body)
+    if parsing.match_template(scope, ast.AST(orelse=list)):
+        bodies.append(scope.orelse)
+    if parsing.match_template(scope, ast.AST(finalbody=list)):
+        bodies.append(scope.finalbody)
+    if isinstance(scope, (ast.For, ast.While)):
+        *_, required_names = parsing.code_dependencies_outputs([scope])
+        preserve = preserve | required_names
+
+    for body in filter(None, bodies):
+        name_mentions = collections.defaultdict(set)
+        for node in body:
+            _, created_names, required_names = parsing.code_dependencies_outputs([node])
+            for name in itertools.chain(created_names, required_names):
+                name_mentions[name].add(node)
+        # (3) And group the code in the smallest possible sequences that will contain
+        #     (directly or recursively) all references (set and get) of that name.
+        name_node_sequences = {
+            name: sorted(mentions, key=lambda node: node.lineno)
+            for name, mentions in name_mentions.items()}
+        # (4) For every (name, node_sequence) in that grouping,
+        for name, sequence in name_node_sequences.items():
+            _, created_names, required_names = parsing.code_dependencies_outputs(sequence)
+            # (7) For every (node) at position (i) in the sequence,
+            for i, node in enumerate(sequence):
+                remainder = sequence[i + 1 :]
+                if isinstance(node, (ast.For, ast.While)):
+                    remainder.extend(sequence[:i])
+                _, node_created, _ = parsing.code_dependencies_outputs([node])
+                subsequent_created, _, subsequent_required = parsing.code_dependencies_outputs(
+                    remainder)
+                if (
+                    # (8) If (name) is in its outputs, but (name) is not in the dependencies of
+                    # node_sequence[i:],
+                    name
+                    in node_created
+                ):
+                    # (9) then (name) is being redundantly defined in node (i).
+
+                    # If node (i) is an assign node, we can just un-assign it.
+                    if (
+                        isinstance(node, (ast.Assign, ast.AnnAssign))
+                        and name not in subsequent_required
+                        and (
+                            # And (name) is either not in preserve (so nothing upstream cares about
+                            # it), or (name) will surely be defined by a subsequent node
+                            name not in preserve
+                            or name in subsequent_created
+                        )):
+                        for creation_node in parsing.filter_nodes(
+                            parsing.assignment_targets(node), ast.Name(id=name, ctx=ast.Store)):
+                            yield creation_node
+                    else:
+                        # If node (i) is something more complicated (like a loop or something), it may be that
+                        # (name) is defined and then used in node (i). But definitions of (name) that (node)
+                        # considers unused are still surely unused.
+                        yield from parsing.filter_nodes(
+                            _iter_unused_names(node, preserve=preserve | subsequent_required),
+                            ast.Name(id=name),)
 
 def _is_pointless_string(node: ast.AST) -> bool:
     """Check if an AST is a pointless string statement.

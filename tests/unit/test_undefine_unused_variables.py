@@ -95,6 +95,182 @@ for i in range(10):
     print(x)
             """,
         ),
+        (
+            """
+x = 2
+print(x)
+for i in range(10):
+    x = i
+    x = i - 1
+    x = i
+            """,
+            """
+x = 2
+print(x)
+for i in range(10):
+    i
+    i - 1
+    i
+            """,
+        ),
+        (
+            """
+for i in range(10):
+    x = i
+    print(x)
+    x = i - 1
+    x = i
+            """,
+            """
+for i in range(10):
+    x = i
+    print(x)
+    i - 1
+    i
+            """,
+        ),
+        (
+            """
+for i in range(10):
+    x = i
+    x = i - 1
+    x = i
+print(x)
+            """,
+            """
+for i in range(10):
+    i
+    i - 1
+    x = i
+print(x)
+            """,
+        ),
+        (
+            """
+for i in range(10):
+    x = i
+    x = i - 1
+    x = i
+    if i >= 3:
+        x += 1
+    elif i < 9:
+        x = 4
+    if i % 2:
+        x = 13
+print(x)
+            """,
+            """
+for i in range(10):
+    i
+    i - 1
+    x = i
+    if i >= 3:
+        x += 1
+    elif i < 9:
+        x = 4
+    if i % 2:
+        x = 13
+print(x)
+            """,
+        ),
+        (  # x is referenced at the start of the loop, last set cannot be touched
+            """
+x = 2
+for i in range(10):
+    print(x)
+    x = i
+    x = i - 1
+    x = i
+    if i % 2:
+        x = 13
+            """,
+            """
+x = 2
+for i in range(10):
+    print(x)
+    i
+    i - 1
+    x = i
+    if i % 2:
+        x = 13
+            """,
+        ),
+        (
+            """
+x = 2
+for i in range(10):
+    print(x)
+    x = i
+    if i % 2:
+        x = 22
+        x = 13
+            """,
+            """
+x = 2
+for i in range(10):
+    print(x)
+    x = i
+    if i % 2:
+        22
+        x = 13
+            """,
+        ),
+        (
+            """
+x = 2
+for i in range(10):
+    print(x)
+    x = i
+    x = i - 1
+    x = i
+    if i % 2:
+        x = 22
+        x = 13
+            """,
+            """
+x = 2
+for i in range(10):
+    print(x)
+    i
+    i - 1
+    x = i
+    if i % 2:
+        22
+        x = 13
+            """,
+        ),
+        (
+            """
+x = 2
+while x < 10:
+    print(x)
+    x += 1
+            """,
+            """
+x = 2
+while x < 10:
+    print(x)
+    x += 1
+            """,
+        ),
+        (
+            """
+x = 2
+y = 0
+while x < 10:
+    x = x + 1
+    y += 1
+print(y)
+            """,
+            """
+x = 2
+y = 0
+while x < 10:
+    x = x + 1
+    y += 1
+print(y)
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:

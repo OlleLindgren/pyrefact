@@ -387,7 +387,7 @@ def create_abstractions(source: str) -> str:
             if children_with_purpose <= 2:
                 continue
 
-            created_names, required_names = parsing.code_dependencies_outputs(nodes)
+            created_names, _, required_names = parsing.code_dependencies_outputs(nodes)
             if len(created_names) > 1:
                 continue
 
