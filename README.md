@@ -27,6 +27,7 @@ Pyrefact can break code, and is not suitable for your company's CI chain.
 * Replace `sorted()[:n]` with `heapq.nsmallest`, replace `sorted()[0]` with `min`
 * Replace matrix operation comprehensions with equivalent `np.matmul()` and `np.dot()` calls, for code that already depends on numpy.
 * Use `is` instead of `==` for comparisons to `None`, `True` and `False`.
+* Move constant code in loops before the loops.
 
 ### Removing dead and useless code
 
