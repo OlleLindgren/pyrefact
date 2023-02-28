@@ -277,86 +277,6 @@ def _build_function_body(
     return body
 
 
-def _code_dependencies_outputs(
-    code: Sequence[ast.AST],
-) -> Tuple[Collection[ast.Name], Collection[ast.Name]]:
-    required_names = set()
-    created_names = set()
-    for node in code:
-        temp_children = []
-        children = []
-        if isinstance(node, (ast.While, ast.For, ast.If)):
-            temp_children = [node.test]
-            children = [
-                subset
-                for subset in (node.body, node.orelse)
-                if not any((parsing.is_blocking(child) for child in subset))
-            ]
-
-        elif isinstance(node, ast.With):
-            temp_children = [node.items]
-            children = [node.body]
-        elif isinstance(node, (ast.Try, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            raise ValueError(
-                "Dependency mapping is not implemented for code with exception handling."
-            )
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            created_names.update(
-                alias.name if alias.asname is None else alias.asname for alias in node.names
-            )
-            continue
-        else:
-            node_created = set()
-            node_needed = set()
-            generator_internal_names = set()
-            for child in parsing.walk(
-                node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
-            ):
-                comp_created = {comp.target.id for comp in child.generators}
-                for grandchild in ast.walk(child):
-                    if isinstance(grandchild, ast.Name) and grandchild.id in comp_created:
-                        generator_internal_names.add(grandchild)
-
-            for child in parsing.walk(node, ast.Attribute(ctx=ast.Load)):
-                for n in parsing.walk(child, ast.Name):
-                    if n not in generator_internal_names:
-                        node_needed.add(n.id)
-
-            for child in parsing.walk(node, ast.Name):
-                if child.id not in node_needed and child not in generator_internal_names:
-                    if isinstance(child.ctx, ast.Load):
-                        node_needed.add(child.id)
-                    elif isinstance(child.ctx, ast.Store):
-                        node_created.add(child.id)
-                    else:
-                        # Del
-                        node_created.discard(child.id)
-                        created_names.discard(child.id)
-
-            created_names.update(node_created)
-            required_names.update(node_needed)
-            continue
-
-        temp_created, temp_needed = _code_dependencies_outputs(temp_children)
-        created = []
-        needed = []
-        for nodes in children:
-            c_created, c_needed = _code_dependencies_outputs(nodes)
-            created.append(c_created)
-            needed.append(c_needed - temp_created)
-
-        node_created = set.intersection(*created)
-        node_needed = set.union(*needed)
-
-        node_needed -= created_names
-        node_needed -= temp_created
-        node_needed |= temp_needed
-        created_names.update(node_created)
-        required_names.update(node_needed)
-
-    return created_names, required_names
-
-
 def _code_complexity_length(node: ast.AST) -> int:
     node_unparse_length = len(re.sub(" *", "", parsing.unparse(node)))
     node_string_length = len(
@@ -467,7 +387,7 @@ def create_abstractions(source: str) -> str:
             if children_with_purpose <= 2:
                 continue
 
-            created_names, required_names = _code_dependencies_outputs(nodes)
+            created_names, required_names = parsing.code_dependencies_outputs(nodes)
             if len(created_names) > 1:
                 continue
 

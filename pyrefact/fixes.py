@@ -2,7 +2,6 @@ import ast
 import collections
 import copy
 import itertools
-import queue
 import re
 from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple, Union
 
@@ -12,8 +11,6 @@ import rmspace
 from pyrefact import abstractions, constants, formatting
 from pyrefact import logs as logger
 from pyrefact import parsing, processing, style
-
-_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN = r"(?<![^\n]) *(\*?_ *,? *)+[\*\+\/\-\|\&:]?= *(?![=])"
 
 
 def _get_undefined_variables(source: str) -> Collection[str]:
@@ -561,19 +558,7 @@ def align_variable_names_with_convention(
     return source
 
 
-def _unique_assignment_targets(
-    node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For]
-) -> Collection[ast.Name]:
-    targets = set()
-    if isinstance(node, (ast.AugAssign, ast.AnnAssign, ast.For)):
-        return set(parsing.walk(node.target, ast.Name(ctx=ast.Store)))
-    if isinstance(node, ast.Assign):
-        for target in node.targets:
-            targets.update(parsing.walk(target, ast.Name(ctx=ast.Store)))
-        return targets
-    raise TypeError(f"Expected Assignment type, got {type(node)}")
-
-
+@processing.fix(restart_on_replace=True)
 def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset()) -> str:
     """Remove definitions of unused variables
 
@@ -584,83 +569,100 @@ def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset
     Returns:
         str: Python source code, with no definitions of unused variables
     """
-    ast_tree = parsing.parse(source)
-    renamings = collections.defaultdict(set)
-    imports = set()
-    for node in parsing.walk(ast_tree, (ast.Import, ast.ImportFrom)):
-        imports.update(alias.name for alias in node.names)
+    root = parsing.parse(source)
 
-    for def_node in parsing.walk(ast_tree, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef)):
-        reference_nodes = set(parsing.walk(def_node, ast.Name(ctx=ast.Load)))
-        body = queue.PriorityQueue()
-        for node in def_node.body:
-            body.put((node.lineno, node, None))
-        while not body.empty():
-            _, node, containing_loop_node = body.get()
-            if isinstance(node, (ast.For, ast.While)):
-                for subnode in reversed(node.body):
-                    body.put((subnode.lineno, subnode, containing_loop_node or node))
-            elif isinstance(node, ast.If):
-                for subnode in node.body:
-                    body.put((subnode.lineno, subnode, containing_loop_node))
-                for subnode in node.orelse:
-                    body.put((subnode.lineno, subnode, containing_loop_node))
-            if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For)):
-                continue
+    # It's sketchy to figure out if class properties and stuff are used. Will not
+    # support this for the time being.
+    class_body_blacklist = set()
+    for scope in parsing.walk(root, ast.ClassDef):
+        for node in parsing.filter_nodes(scope.body, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            class_body_blacklist.update(parsing.assignment_targets(node))
 
-            target_nodes = _unique_assignment_targets(node)
-            if not target_nodes:
-                continue
-            target_names = {x.id for x in target_nodes}
-            referenced_names = set()
-            starts = []
-            ends = []
-            if containing_loop_node is None:
-                loop_start = loop_end = -1
-            else:
-                (loop_start, loop_end) = parsing.get_charnos(containing_loop_node, source)
-            for target_node in target_nodes:
-                (s, e) = parsing.get_charnos(target_node, source)
-                starts.append(s)
-                ends.append(e)
-            start = min(starts)
-            end = max(ends)
-            for refnode in reference_nodes:
-                (n_start, n_end) = parsing.get_charnos(refnode, source)
-                if (
-                    end < n_start
-                    or (isinstance(def_node, (ast.ClassDef, ast.Module)) and n_end < start)
-                    or isinstance(def_node, ast.For)
-                    or (loop_start <= n_start <= n_end <= loop_end)
-                ):
-                    referenced_names.add(refnode.id)
-            redundant_targets = target_names - referenced_names - imports
-            if def_node is ast_tree:
-                redundant_targets = redundant_targets - preserve
-            for target_node in target_nodes:
-                if isinstance(target_node, ast.Attribute):
-                    target_node = target_node.value
-                if target_node.id in redundant_targets:
-                    renamings[target_node].add("_")
-
-    if renamings:
-        source = _fix_variable_names(source, renamings, preserve)
-        ast_tree = parsing.parse(source)
-
-    for node in parsing.walk(ast_tree, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
-        target_nodes = _unique_assignment_targets(node)
-        target_names = {x.id for x in target_nodes}
-        if target_names != {"_"}:
+    # (1) For every function and module,
+    for scope in itertools.chain([root], parsing.iter_bodies_recursive(root)):
+        if isinstance(scope, ast.ClassDef):
             continue
 
-        (start_charno, end_charno) = parsing.get_charnos(node, source)
-        code = parsing.get_code(node, source)
-        changed_code = re.sub(_REDUNDANT_UNDERSCORED_ASSIGN_RE_PATTERN, "", code)
-        if code != changed_code:
-            logger.debug("Removing redundant assignments in {code}", code=code)
-            source = source[:start_charno] + changed_code + source[end_charno:]
+        names_in_scope = {name.id for name in parsing.walk(scope, ast.Name)}
+        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)):
+            for name in names_in_scope - preserve - {"_"}:
+                if not any(parsing.walk(scope, ast.Name(id=name, ctx=(ast.Load)))):
+                    for node in parsing.walk(scope, ast.Name(id=name)):
+                        if node not in class_body_blacklist:
+                            yield node, ast.Name(id="_")
 
-    return source
+        # (2) Find all names defined that are ever stored anywhere in it,
+        bodies = [scope.body]
+        if parsing.match_template(scope, ast.AST(orelse=list)):
+            bodies.append(scope.orelse)
+        if parsing.match_template(scope, ast.AST(finalbody=list)):
+            bodies.append(scope.finalbody)
+
+        for body in filter(None, bodies):
+            name_mentions = collections.defaultdict(set)
+            for node in body:
+                created_names, required_names = parsing.code_dependencies_outputs([node])
+                for name in itertools.chain(created_names, required_names):
+                    name_mentions[name].add(node)
+
+            # (3) And group the code in the smallest possible sequences that will contain
+            #     (directly or recursively) all references (set and get) of that name.
+            name_node_sequences = {
+                name: sorted(mentions, key=lambda node: node.lineno)
+                for name, mentions in name_mentions.items()}
+
+            # (4) For every (name, node_sequence) in that grouping,
+            for name, sequence in name_node_sequences.items():
+                if name in preserve or name == "_":
+                    continue
+
+                # (5) see if (name) is in the dependencies of that node_sequence.
+                # If it is, skip it.
+                created_names, required_names = parsing.code_dependencies_outputs(sequence)
+                if name in required_names:
+                    continue
+
+                # (6) If it isn't, then do:
+                # (7) For every (node) at position (i) in the sequence,
+                for i, node in enumerate(sequence):
+                    if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                        continue
+                    node_created, _ = parsing.code_dependencies_outputs([node])
+                    subsequent_created, subsequent_required = parsing.code_dependencies_outputs(
+                        sequence[i + 1 :])
+
+                    # (8) If (name) is in its outputs, but (name) is not in the dependencies of
+                    # node_sequence[i:],
+                    if (
+                        name in node_created
+                        and name not in subsequent_required
+                        and (
+                            name in subsequent_created
+                            or isinstance(
+                                scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)))):
+                        # (9) then (name) is being redundantly defined in node (i).
+
+                        # If node (i) is an assign node, we can just un-assign it.
+                        for creation_node in parsing.filter_nodes(
+                            parsing.assignment_targets(node), ast.Name(id=name, ctx=ast.Store)):
+                            if creation_node not in class_body_blacklist:
+                                yield creation_node, ast.Name(id="_")
+                        # If node (i) is something more complicated (like a loop or something), it may be that
+                        # (name) is defined and then used in node (i).
+
+    for node in parsing.walk(
+        root,
+        (
+            ast.Assign(
+                targets={
+                    ast.Name(id="_"),
+                    ast.Starred(value=ast.Name(id="_")),
+                    ast.Tuple(elts={ast.Name(id="_"), ast.Starred(value=ast.Name(id="_"))}),}),
+            ast.AnnAssign(target=ast.Name(id="_")),
+            ast.AugAssign(target=ast.Name(id="_")),),
+    ):
+        if node not in class_body_blacklist:
+            yield node, node.value
 
 
 def _is_pointless_string(node: ast.AST) -> bool:

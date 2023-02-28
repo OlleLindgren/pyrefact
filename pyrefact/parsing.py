@@ -1020,3 +1020,108 @@ def is_call(node: ast.AST, qualified_name: Union[str, Collection[str]]) -> bool:
         return f"{func.value.id}.{func.attr}" in qualified_name
 
     return False
+
+
+def assignment_targets(
+    node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For]
+) -> Collection[ast.Name]:
+    targets = set()
+    if isinstance(node, (ast.AugAssign, ast.AnnAssign, ast.For)):
+        return set(walk(node.target, ast.Name(ctx=ast.Store)))
+    if isinstance(node, ast.Assign):
+        for target in node.targets:
+            targets.update(walk(target, ast.Name(ctx=ast.Store)))
+        return targets
+    raise TypeError(f"Expected Assignment type, got {type(node)}")
+
+
+def code_dependencies_outputs(code: Sequence[ast.AST]) -> Tuple[Collection[str], Collection[str]]:
+    """Get required and created names in code.
+
+    Args:
+        code (Sequence[ast.AST]): Nodes to find required and created names by
+
+    Raises:
+        ValueError: If any node is a try, class or function def.
+
+    Returns:
+        Tuple[Collection[str], Collection[str]]: created_names, required_names
+    """
+    required_names = set()
+    created_names = set()
+    for node in code:
+        temp_children = []
+        children = []
+        if isinstance(node, (ast.While, ast.For, ast.If)):
+            temp_children = (
+                [node.test] if isinstance(node, (ast.If, ast.While)) else [node.target, node.iter])
+            children = [node.body, node.orelse]
+
+        elif isinstance(node, ast.With):
+            temp_children = tuple(node.items)
+            children = [node.body]
+        elif isinstance(node, (ast.Try, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            required_names.update(name.id for name in walk(node, ast.Name))
+            required_names.update(
+                func.name
+                for func in walk(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
+            continue
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            created_names.update(
+                alias.name if alias.asname is None else alias.asname for alias in node.names
+            )
+            continue
+        else:
+            node_created = set()
+            node_needed = set()
+            generator_internal_names = set()
+            for child in walk(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+                comp_created = set()
+                for comp in child.generators:
+                    comp_created.update(walk(comp.target, ast.Name(ctx=ast.Store)))
+                for grandchild in ast.walk(child):
+                    if isinstance(grandchild, ast.Name) and grandchild.id in comp_created:
+                        generator_internal_names.add(grandchild)
+
+            if isinstance(node, ast.AugAssign):
+                node_needed.update(n.id for n in assignment_targets(node))
+
+            for child in walk(node, ast.Attribute(ctx=ast.Load)):
+                for n in walk(child, ast.Name):
+                    if n not in generator_internal_names:
+                        node_needed.add(n.id)
+
+            for child in walk(node, ast.Name):
+                if child.id not in node_needed and child not in generator_internal_names:
+                    if isinstance(child.ctx, ast.Load):
+                        node_needed.add(child.id)
+                    elif isinstance(child.ctx, ast.Store):
+                        node_created.add(child.id)
+                    else:
+                        # Del
+                        node_created.discard(child.id)
+                        created_names.discard(child.id)
+
+            node_needed -= created_names
+            created_names.update(node_created)
+            required_names.update(node_needed)
+            continue
+
+        temp_created, temp_needed = code_dependencies_outputs(temp_children)
+        created = []
+        needed = []
+        for nodes in children:
+            c_created, c_needed = code_dependencies_outputs(nodes)
+            created.append(c_created)
+            needed.append(c_needed - temp_created)
+
+        node_created = set.intersection(*created) if created else set()
+        node_needed = set.union(*needed) if needed else set()
+
+        node_needed -= created_names
+        node_needed -= temp_created
+        node_needed |= temp_needed
+        created_names.update(node_created)
+        required_names.update(node_needed)
+
+    return created_names, required_names
