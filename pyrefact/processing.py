@@ -227,7 +227,7 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
             # Track rewrite history as an infinite loop guard
             history = set()
             if restart_on_replace:
-                while True:
+                for _ in range(1000):  # Max 1000 iterations
                     try:
                         old, new = next(
                             r for r in func(source, *args, **kwargs) if r not in history
