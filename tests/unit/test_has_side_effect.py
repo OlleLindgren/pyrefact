@@ -58,6 +58,7 @@ def main() -> int:
         "r'''raw_string_literal\n'''",
         'f"i={i:.3f}"',
         "" if constants.PYTHON_VERSION < (3, 9) else "f'{x=}'",
+        "'foo = {}'.format(foo)",
     ):
         node = parsing.parse(source).body[0]
         if not parsing.has_side_effect(node, whitelist):
@@ -90,6 +91,8 @@ def main() -> int:
         "f'''y={1 + foo()}'''",
         'f"i={i - i ** (1 - f(i)):.3f}"',
         "" if constants.PYTHON_VERSION < (3, 9) else "f'{(x := 10)=}'",
+        "'foo() = {}'.format(foo())",
+        "x.append(10)",
     ):
         node = parsing.parse(source).body[0]
         if parsing.has_side_effect(node, whitelist):
