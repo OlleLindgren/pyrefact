@@ -287,6 +287,38 @@ for user_id in iter_user_logins():
     )
             """,
         ),
+        (
+            """
+for i in range(10):
+    x = (1, 2, 3)
+    for y in x:
+        print(y)
+            """,
+            """
+x = (1, 2, 3)
+for i in range(10):
+    for y in x:
+        print(y)
+            """,
+        ),
+        (
+            """
+for i in range(10):
+    x = {1: 2}
+    for y in x:
+        w = {**x, 1 + y: 3 - i}
+    w.update(x)
+    print(w)
+            """,
+            """
+x = {1: 2}
+for i in range(10):
+    for y in x:
+        w = {**x, 1 + y: 3 - i}
+    w.update(x)
+    print(w)
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
