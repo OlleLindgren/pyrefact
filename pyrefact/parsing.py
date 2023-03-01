@@ -676,6 +676,12 @@ def has_side_effect(
     if isinstance(node, ast.Index):
         return has_side_effect(node.value)
 
+    if isinstance(node, ast.JoinedStr):
+        return any(has_side_effect(child) for child in node.values)
+
+    if isinstance(node, ast.FormattedValue):
+        return any(has_side_effect(child) for child in (node.value, node.format_spec))
+
     return True
 
 

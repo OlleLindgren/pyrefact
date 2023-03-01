@@ -53,6 +53,11 @@ def main() -> int:
         """for _ in range(10):
     1
 """,
+        "f'''y={1}'''",
+        "b'bytes_string'",
+        "r'''raw_string_literal\n'''",
+        'f"i={i:.3f}"',
+        "" if constants.PYTHON_VERSION < (3, 9) else "f'{x=}'",
     ):
         node = parsing.parse(source).body[0]
         if not parsing.has_side_effect(node, whitelist):
@@ -82,6 +87,9 @@ def main() -> int:
         "flat_dict[value] = something",
         "nested_dict[value][item] = something",
         "deep_nested_dict[a][b][c][d][e][f][g] = something",
+        "f'''y={1 + foo()}'''",
+        'f"i={i - i ** (1 - f(i)):.3f}"',
+        "" if constants.PYTHON_VERSION < (3, 9) else "f'{(x := 10)=}'",
     ):
         node = parsing.parse(source).body[0]
         if parsing.has_side_effect(node, whitelist):

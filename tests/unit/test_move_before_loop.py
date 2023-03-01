@@ -257,6 +257,36 @@ for a in b:
     print(1)
             """,
         ),
+        (
+            """
+for user_id in iter_user_logins():
+    date = '2022-03-01'
+    start_time = '13:08:19'
+    end_time = '19:01:31'
+    start = f"{date}T{start_time}"
+    end = f"{date}T{end_time}"
+    cursor.execute(
+        '''
+        INSERT INTO wonderland(start, end, user_id) VALUES (%s, %s, %s)
+        '''
+        [start, end, user_id],
+    )
+            """,
+            """
+date = '2022-03-01'
+start_time = '13:08:19'
+end_time = '19:01:31'
+start = f'{date}T{start_time}'
+end = f'{date}T{end_time}'
+for user_id in iter_user_logins():
+    cursor.execute(
+        '''
+        INSERT INTO wonderland(start, end, user_id) VALUES (%s, %s, %s)
+        '''
+        [start, end, user_id],
+    )
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
