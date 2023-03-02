@@ -11,7 +11,7 @@ from typing import Collection, Iterable, Sequence
 
 from pyrefact import abstractions, fixes
 from pyrefact import logs as logger
-from pyrefact import object_oriented, parsing, performance, performance_numpy, symbolic_math
+from pyrefact import object_oriented, parsing, performance, performance_numpy, performance_pandas, symbolic_math
 
 MAX_MODULE_PASSES = 5
 MAX_FILE_PASSES = 25
@@ -106,6 +106,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = performance_numpy.replace_implicit_matmul(source)
     source = fixes.simplify_transposes(source)
     source = performance_numpy.simplify_matmul_transposes(source)
+    source = performance_pandas.replace_loc_at_iloc_iat(source)
     source = fixes.simplify_transposes(source)
     source = fixes.implicit_defaultdict(source)
     source = fixes.simplify_redundant_lambda(source)
