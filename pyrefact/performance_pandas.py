@@ -1,5 +1,4 @@
 import ast
-from typing import Callable, Union
 
 from pyrefact import constants, parsing, processing
 
@@ -22,7 +21,7 @@ def replace_loc_at_iloc_iat(source: str) -> str:
             )))
 
     root = parsing.parse(source)
-    for node, attribute in parsing.walk_wildcard(root, pattern):
+    for _, attribute in parsing.walk_wildcard(root, pattern):
         if attribute.attr == "loc":
             attr = "at"
         elif attribute.attr == "iloc":

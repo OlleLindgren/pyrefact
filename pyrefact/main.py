@@ -11,7 +11,14 @@ from typing import Collection, Iterable, Sequence
 
 from pyrefact import abstractions, fixes
 from pyrefact import logs as logger
-from pyrefact import object_oriented, parsing, performance, performance_numpy, performance_pandas, symbolic_math
+from pyrefact import (
+    object_oriented,
+    parsing,
+    performance,
+    performance_numpy,
+    performance_pandas,
+    symbolic_math,
+)
 
 MAX_MODULE_PASSES = 5
 MAX_FILE_PASSES = 25
