@@ -309,6 +309,7 @@ for i in range(10):
         w = {**x, 1 + y: 3 - i}
     w.update(x)
     print(w)
+    print(x[2])
             """,
             """
 x = {1: 2}
@@ -317,6 +318,93 @@ for i in range(10):
         w = {**x, 1 + y: 3 - i}
     w.update(x)
     print(w)
+    print(x[2])
+            """,
+        ),
+        (  # Removing a key from x is mutation of x
+            """
+for i in range(10):
+    x = {1: 2}
+    for y in x:
+        w = {**x, 1 + y: 3 - i}
+    w.update(x)
+    print(w)
+    del x[1]
+            """,
+            """
+for i in range(10):
+    x = {1: 2}
+    for y in x:
+        w = {**x, 1 + y: 3 - i}
+    w.update(x)
+    print(w)
+    del x[1]
+            """,
+        ),
+        (
+            """
+import h5py
+f = h5py.File("path/to/file.hdf5")
+for i in range(10):
+    outer_header = f["level_1"]
+    for y in x:
+        second_outer_header = f["level_2"]
+        inner_header = outer_header[i]
+        print(inner_header[y])
+        print(len(second_outer_header))
+            """,
+            """
+import h5py
+f = h5py.File("path/to/file.hdf5")
+outer_header = f['level_1']
+second_outer_header = f['level_2']
+for i in range(10):
+    inner_header = outer_header[i]
+    for y in x:
+        print(inner_header[y])
+        print(len(second_outer_header))
+            """,
+        ),
+        (
+            """
+import h5py
+f = h5py.File("path/to/file.hdf5")
+for i in range(10):
+    if i % 2:
+        outer_header = f["level_1"]
+    else:
+        outer_header = f["level_2"]
+
+    print(outer_header)
+            """,
+            """
+import h5py
+f = h5py.File("path/to/file.hdf5")
+for i in range(10):
+    if i % 2:
+        outer_header = f["level_1"]
+    else:
+        outer_header = f["level_2"]
+
+    print(outer_header)
+            """,
+        ),
+        (
+            """
+import h5py
+f = h5py.File("path/to/file.hdf5")
+for i in range(10):
+    nested_header = f["level_1"]["level_3"]["paths"]
+    for y in nested_header:
+        print(y)
+            """,
+            """
+import h5py
+f = h5py.File("path/to/file.hdf5")
+nested_header = f['level_1']['level_3']['paths']
+for i in range(10):
+    for y in nested_header:
+        print(y)
             """,
         ),
     )
