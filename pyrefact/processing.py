@@ -189,13 +189,13 @@ def alter_code(
     # However, this runs relatively infrequently and should not have a big
     # performance impact.
     actions = [
-        *((x.lineno, "add", parsing.unparse(x), x) for x in additions),
-        *((x.lineno, "delete", parsing.unparse(x), x) for x in removals),
-        *((x.lineno, "replace", parsing.unparse(x), (x, y)) for x, y in replacements.items()),
+        *((x.lineno, getattr(x, "col_offset", 0), "add", parsing.unparse(x), x) for x in additions),
+        *((x.lineno, getattr(x, "col_offset", 0), "delete", parsing.unparse(x), x) for x in removals),
+        *((x.lineno, getattr(x, "col_offset", 0), "replace", parsing.unparse(x), (x, y)) for x, y in replacements.items()),
     ]
 
     # a < d => deletions will go before additions if same lineno and reversed sorting.
-    for _, action, _, value in sorted(actions, reverse=True):
+    for *_, action, _, value in sorted(actions, reverse=True):
         if action == "add":
             source = insert_nodes(source, [value])
         elif action == "delete":
