@@ -331,6 +331,24 @@ print(U)
     ),
     (
         """
+import pandas as pd
+df = pd.DataFrame([{"foo": 10 + i, "bar": 10 - i} for i in list(range(10))])
+x = 0
+for _, row in df.iterrows():
+    x += row.iloc[1] + row.loc["foo"] - row["bar"]
+for ix, _ in df.iterrows():
+    x += ix
+print(x)
+            """,
+        """
+import pandas as pd
+DF = pd.DataFrame([{"foo": 10 + i, "bar": 10 - i} for i in range(10)])
+X = sum((row[1 + 1] + row.foo - row.bar for row in DF.itertuples())) + sum(DF.index)
+print(X)
+        """,
+    ),
+    (
+        """
     a = np.random.random(100)
     b = np.random.random(100)
 
