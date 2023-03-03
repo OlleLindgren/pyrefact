@@ -82,7 +82,9 @@ def remove_redundant_iter(source: str) -> str:
 @processing.fix(restart_on_replace=True)
 def remove_redundant_chained_calls(source: str) -> str:
     root = parsing.parse(source)
-    function_chain_redundancy_mapping = {
+
+    # If outer is present, inner is redundant
+    outer_inner_redundancy_mapping = {
         "sorted": {"list", "sorted", "tuple", "iter", "reversed"},
         "list": {"list", "tuple", "iter"},
         "set": {"set", "list", "sorted", "tuple", "iter", "reversed"},
@@ -90,15 +92,34 @@ def remove_redundant_chained_calls(source: str) -> str:
         "reversed": {"list", "tuple"},
         "tuple": {"list", "tuple", "iter"},
         "sum": {"list", "tuple", "iter", "sorted", "reversed"}}
+
     templates = tuple(
         ast.Call(
             func=ast.Name(id=key), args=[ast.Call(func=ast.Name(id=tuple(values)), args=[object])])
-        for key, values in function_chain_redundancy_mapping.items())
+        for key, values in outer_inner_redundancy_mapping.items())
+
     for node in parsing.walk(root, templates):
         arg = node.args[0].args[0]
         while parsing.match_template(arg, templates):
             arg = arg.args[0].args[0]
         yield node, ast.Call(func=node.func, args=[arg], keywords=[])
+
+    # If inner is present, outer is redundant
+    inner_outer_redundancy_mapping = {
+        "sorted": {"list", "sorted"},
+        "list": {"list"},
+        "set": {"set"},
+        "iter": {"iter"},
+        "tuple": {"tuple"},
+    }
+
+    templates = tuple(
+        ast.Call(
+            func=ast.Name(id=tuple(values)), args=[ast.Call(func=ast.Name(id=key), args=[object])])
+        for key, values in inner_outer_redundancy_mapping.items())
+
+    for node in parsing.walk(root, templates):
+        yield node, node.args[0]
 
 
 @processing.fix
