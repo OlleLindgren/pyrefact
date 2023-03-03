@@ -23,11 +23,11 @@ jobs:
         python ./tests/main.py
     - name: Running on self with --safe, -s, --preserve . and variants thereof
       run: |
-        python -m pyrefact . --safe
+        pyrefact . --safe
         python -m pyrefact . -s
         python -m pyrefact . --preserve .
-        python -m pyrefact . -p .
-        python -m pyrefact . --safe --preserve .
+        pyrefact . -p .
+        pyrefact . --safe --preserve .
         python -m pyrefact . -sp .
         cat ./pyrefact/main.py | python -m pyrefact --from-stdin
     - name: Install as editable
