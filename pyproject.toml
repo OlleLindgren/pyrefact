@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools>=61.0", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -24,3 +24,9 @@ dependencies = [
 
 [project.urls]
 repository="https://github.com/OlleLindgren/pyrefact"
+
+[project.scripts]
+pyrefact = "pyrefact.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["pyrefact*"]
