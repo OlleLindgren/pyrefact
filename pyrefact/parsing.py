@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import ast
 import collections
 import dataclasses
 import functools
 import itertools
 import re
-from typing import Collection, Iterable, Mapping, Sequence, Tuple, Union
+from typing import Collection, Iterable, Mapping, Sequence, Tuple
 
 from pyrefact import constants, formatting
 
@@ -208,7 +210,7 @@ def _group_nodes_in_scope(scope: ast.AST) -> Mapping[ast.AST, Sequence[ast.AST]]
 
 
 def walk_wildcard(
-    scope: ast.AST, node_template: Union[ast.AST, Tuple[ast.AST, ...]], ignore: Collection[str] = ()
+    scope: ast.AST, node_template: ast.AST | Tuple[ast.AST, ...], ignore: Collection[str] = ()
 ) -> Sequence[Tuple[ast.AST, ...]]:
     """Get nodes in scope of a particular type. Match wildcards.
 
@@ -240,7 +242,7 @@ def walk_wildcard(
 
 def walk(
     scope: ast.AST,
-    node_template: Union[ast.AST, Tuple[ast.AST, ...]],
+    node_template: ast.AST | Tuple[ast.AST, ...],
     ignore: Collection[str] = (),
 ) -> Sequence[ast.AST]:
     """Get nodes in scope of a particular type
@@ -345,7 +347,7 @@ def walk_sequence(
 
 
 def filter_nodes(
-    nodes: Iterable[ast.AST], node_type: Union[ast.AST, Sequence[ast.AST]]
+    nodes: Iterable[ast.AST], node_type: ast.AST | Sequence[ast.AST]
 ) -> Sequence[ast.AST]:
     for node in nodes:
         if match_template(node, node_type):
@@ -867,7 +869,7 @@ def is_blocking(node: ast.AST, parent_type: ast.AST = None) -> bool:
 
 def iter_bodies_recursive(
     ast_root: ast.Module,
-) -> Iterable[Union[ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef]]:
+) -> Iterable[ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef]:
     try:
         left = list(ast_root.body)
     except AttributeError:
@@ -884,7 +886,7 @@ def iter_bodies_recursive(
                 yield node
 
 
-def _get_imports(ast_tree: ast.Module) -> Iterable[Union[ast.Import, ast.ImportFrom]]:
+def _get_imports(ast_tree: ast.Module) -> Iterable[ast.Import | ast.ImportFrom]:
     """Iterate over all import nodes in ast tree. __future__ imports are skipped.
 
     Args:
@@ -1010,7 +1012,7 @@ def transpose_target(node: ast.AST) -> ast.AST:
     raise ValueError(f"Node {node} is not a transpose operation.")
 
 
-def is_call(node: ast.AST, qualified_name: Union[str, Collection[str]]) -> bool:
+def is_call(node: ast.AST, qualified_name: str | Collection[str]) -> bool:
     if not isinstance(node, ast.Call):
         return False
 
@@ -1029,7 +1031,7 @@ def is_call(node: ast.AST, qualified_name: Union[str, Collection[str]]) -> bool:
 
 
 def assignment_targets(
-    node: Union[ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For]
+    node: ast.Assign | ast.AnnAssign | ast.AugAssign | ast.For
 ) -> Collection[ast.Name]:
     targets = set()
     if isinstance(node, (ast.AugAssign, ast.AnnAssign, ast.For)):

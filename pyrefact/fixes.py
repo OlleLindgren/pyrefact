@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import ast
 import collections
 import copy
 import itertools
 import re
-from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple, Union
+from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 
 import isort
 import rmspace
@@ -190,7 +192,7 @@ def _get_variable_re_pattern(variable) -> str:
 
 
 def _get_func_name_start_end(
-    node: Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef], source: str
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef, source: str
 ) -> Tuple[int, int]:
     start, end = parsing.get_charnos(node, source)
     codeblock = source[start:end]
@@ -332,8 +334,8 @@ def _get_unused_imports(ast_tree: ast.Module) -> Collection[str]:
 def _get_unused_imports_split(
     ast_tree: ast.Module, unused_imports: Collection[str]
 ) -> Tuple[
-    Collection[Union[ast.Import, ast.ImportFrom]],
-    Collection[Union[ast.Import, ast.ImportFrom]],
+    Collection[ast.Import | ast.ImportFrom],
+    Collection[ast.Import | ast.ImportFrom],
 ]:
     """Split unused imports into completely and partially unused imports.
 
@@ -364,7 +366,7 @@ def _get_unused_imports_split(
 
 
 def _construct_import_statement(
-    node: Union[ast.Import, ast.ImportFrom], unused_imports: Collection[str]
+    node: ast.Import | ast.ImportFrom, unused_imports: Collection[str]
 ) -> str:
     names = ", ".join(
         sorted(
@@ -911,7 +913,7 @@ def delete_unreachable_code(source: str) -> str:
     return source
 
 
-def _get_package_names(node: Union[ast.Import, ast.ImportFrom]):
+def _get_package_names(node: ast.Import | ast.ImportFrom):
     if isinstance(node, ast.ImportFrom):
         return [node.module]
 
@@ -1967,7 +1969,7 @@ def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
     raise ValueError(f"Node {node} is not a subscript assignment")
 
 
-def _preferred_comprehension_type(node: ast.AST) -> Union[ast.AST, ast.SetComp, ast.GeneratorExp]:
+def _preferred_comprehension_type(node: ast.AST) -> ast.AST | ast.SetComp | ast.GeneratorExp:
     if isinstance(node, ast.ListComp):
         return ast.GeneratorExp(elt=node.elt, generators=node.generators)
 

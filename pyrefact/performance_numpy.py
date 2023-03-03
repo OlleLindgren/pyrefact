@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import ast
-from typing import Callable, Union
+from typing import Callable
 
 from pyrefact import parsing, processing
 
@@ -31,7 +33,7 @@ def _is_np_array_call(call: ast.Call) -> bool:
     return parsing.is_call(call, ("np.array", "numpy.array"))
 
 
-def _is_zip_product(comp: Union[ast.ListComp, ast.GeneratorExp]):
+def _is_zip_product(comp: ast.ListComp | ast.GeneratorExp):
     elt_template = ast.BinOp(op=ast.Mult, left=ast.Name, right=ast.Name)
     generator_template = ast.comprehension(
         ifs=[], target=ast.Tuple(elts=[ast.Name, ast.Name]), iter=ast.Call(func=ast.Name(id="zip"))

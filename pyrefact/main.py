@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
 import ast
 import collections
@@ -267,7 +269,7 @@ def _namespace_name(filename: Path) -> str:
     return str(filename).replace(os.path.sep, ".")
 
 
-def main(args: Sequence[str]) -> int:
+def main(args: Sequence[str] | None = None) -> int:
     """Parse command-line arguments and run pyrefact on provided files.
 
     Args:
@@ -277,6 +279,8 @@ def main(args: Sequence[str]) -> int:
         int: 0 if successful.
 
     """
+    if args is None:
+        args = sys.argv[1:]
     args = _parse_args(args)
 
     logger.set_level(logging.DEBUG if args.verbose else logging.INFO)

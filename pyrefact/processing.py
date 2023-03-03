@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import ast
 import functools
 import heapq
 from types import MappingProxyType
-from typing import Callable, Collection, Iterable, Mapping, NamedTuple, Union
+from typing import Callable, Collection, Iterable, Mapping, NamedTuple
 
 from pyrefact import logs as logger
 from pyrefact import parsing
@@ -23,8 +25,8 @@ class Range(NamedTuple):
 
 
 class _Rewrite(NamedTuple):
-    old: Union[ast.AST, Range]  # TODO replace with (start_char, end_char)
-    new: Union[ast.AST, str]  # "" indicates a removal
+    old: ast.AST | Range  # TODO replace with (start_char, end_char)
+    new: ast.AST | str  # "" indicates a removal
 
 
 def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str:
@@ -122,7 +124,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
     return candidate
 
 
-def replace_nodes(source: str, replacements: Mapping[ast.AST, Union[ast.AST, str]]) -> str:
+def replace_nodes(source: str, replacements: Mapping[ast.AST, ast.AST | str]) -> str:
     rewrites = sorted(
         replacements.items(), key=lambda tup: (tup[0].lineno, tup[0].end_lineno), reverse=True
     )
