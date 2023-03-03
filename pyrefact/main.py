@@ -114,6 +114,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.simplify_transposes(source)
     source = performance_numpy.simplify_matmul_transposes(source)
     source = performance_pandas.replace_loc_at_iloc_iat(source)
+    source = performance_pandas.replace_iterrows_index(source)
     source = fixes.simplify_transposes(source)
     source = fixes.implicit_defaultdict(source)
     source = fixes.simplify_redundant_lambda(source)
