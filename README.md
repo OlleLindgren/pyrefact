@@ -19,6 +19,7 @@ Pyrefact can break code, and is not suitable for your company's CI chain.
 * Formats lines that are longer than 100 characters with `black`
 * Put overused constant expressions in variables
 * Remove redundancies and improve definitions of lists, sets, dicts
+* Use `is` instead of `==` for comparisons to `None`, `True` and `False`.
 
 ### Performance
 
@@ -26,8 +27,9 @@ Pyrefact can break code, and is not suitable for your company's CI chain.
 * Replace hardcoded inlined collections and comprehensions with set or generator equivalents in places where that would improve performance.
 * Replace `sorted()[:n]` with `heapq.nsmallest`, replace `sorted()[0]` with `min`
 * Replace matrix operation comprehensions with equivalent `np.matmul()` and `np.dot()` calls, for code that already depends on numpy.
-* Use `is` instead of `==` for comparisons to `None`, `True` and `False`.
+* Replace pandas .loc[], .iloc[] and .iterrows() with .at[], .iat[] and .itertuples()/.index where appropriate
 * Move constant code in loops before the loops.
+* De-interpolate interpolated logging calls
 
 ### Removing dead and useless code
 
