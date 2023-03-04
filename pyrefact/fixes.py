@@ -694,7 +694,9 @@ def move_before_loop(source: str) -> str:
             targets = tuple(name.id for name in parsing.assignment_targets(node))
             if any(parsing.walk(scope, ast.Call(func=ast.Attribute(value=ast.Name(id=targets))))):
                 continue  # i.e. x.append(y)
-            if any(parsing.walk(scope, ast.Subscript(value=ast.Name(id=targets), ctx=(ast.Store, ast.Del)))):
+            if any(
+                parsing.walk(
+                    scope, ast.Subscript(value=ast.Name(id=targets), ctx=(ast.Store, ast.Del)))):
                 continue  # i.e. x[3] = 2
             if any(parsing.walk(scope, ast.AugAssign(target=ast.Name(id=targets)))):
                 continue  # i.e. x += 1
@@ -2919,7 +2921,6 @@ def deinterpolate_logging_args(source: str) -> str:
             ast.FormattedValue(format_spec=(None, ast.JoinedStr(values=[ast.Constant(value=str)]))),})
     fmtstring_template = ast.Call(func=ast.Attribute(value=ast.Constant(value=str), attr="format"))
     for node, function_name in parsing.walk_wildcard(root, template):
-
         if function_name == "log" and parsing.match_template(
             node.args, [object, fmtstring_template]):
             yield node, ast.Call(

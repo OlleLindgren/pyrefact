@@ -30,3 +30,6 @@ pyrefact = "pyrefact.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["pyrefact*"]
+
+[tool.black]
+skip_magic_trailing_comma = true
