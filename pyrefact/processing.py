@@ -153,9 +153,9 @@ def insert_nodes(source: str, additions: Collection[ast.AST]) -> str:
         logger.debug("Adding:\n{new}", new=addition)
         lines = (
             lines[: node.lineno]
-            + ["\n"] * 3
+            + ["\n"]
             + [" " * col_offset + line for line in addition.splitlines(keepends=True)]
-            + ["\n"] * 3
+            + ["\n"] * (not addition.endswith("\n"))
             + lines[node.lineno:]
         )
 
