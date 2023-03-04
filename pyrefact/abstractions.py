@@ -735,12 +735,14 @@ def simplify_if_control_flow(source: str) -> str:
         if added_code_chars > removed_code_chars / 2:
             continue
 
-        source = processing.alter_code(
-            source,
-            root,
-            replacements=replacements,
-            additions=additions,
-            priority=("additions", "replacements"),)
-        return simplify_if_control_flow(source)
+        if additions and replacements:
+            source = processing.alter_code(
+                source,
+                root,
+                replacements=replacements,
+                additions=additions,
+                priority=("additions", "replacements"),)
+
+            return simplify_if_control_flow(source)
 
     return source
