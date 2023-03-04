@@ -628,6 +628,11 @@ def _iter_unused_names(
         preserve = preserve | required_names
 
     for body in filter(None, bodies):
+        names_defined_in_scope = {
+            target.id
+            for node in body
+            for assign in parsing.walk(node, (ast.Assign, ast.AnnAssign))
+            for target in parsing.assignment_targets(assign)}
         name_mentions = collections.defaultdict(set)
         for node in body:
             _, created_names, required_names = parsing.code_dependencies_outputs([node])
@@ -637,7 +642,8 @@ def _iter_unused_names(
         #     (directly or recursively) all references (set and get) of that name.
         name_node_sequences = {
             name: sorted(mentions, key=lambda node: node.lineno)
-            for name, mentions in name_mentions.items()}
+            for name, mentions in name_mentions.items()
+            if name in names_defined_in_scope}
         # (4) For every (name, node_sequence) in that grouping,
         for name, sequence in name_node_sequences.items():
             _, created_names, required_names = parsing.code_dependencies_outputs(sequence)
@@ -649,12 +655,9 @@ def _iter_unused_names(
                 _, node_created, _ = parsing.code_dependencies_outputs([node])
                 subsequent_created, _, subsequent_required = parsing.code_dependencies_outputs(
                     remainder)
-                if (
-                    # (8) If (name) is in its outputs, but (name) is not in the dependencies of
-                    # node_sequence[i:],
-                    name
-                    in node_created
-                ):
+                # (8) If (name) is in its outputs, but (name) is not in the dependencies of
+                # node_sequence[i:],
+                if name in node_created:
                     # (9) then (name) is being redundantly defined in node (i).
 
                     # If node (i) is an assign node, we can just un-assign it.
@@ -665,15 +668,16 @@ def _iter_unused_names(
                             # And (name) is either not in preserve (so nothing upstream cares about
                             # it), or (name) will surely be defined by a subsequent node
                             name not in preserve
+                            # TODO this seems impossible, figure out what is intended
                             or name in subsequent_created
                         )):
                         for creation_node in parsing.filter_nodes(
                             parsing.assignment_targets(node), ast.Name(id=name, ctx=ast.Store)):
                             yield creation_node
                     else:
-                        # If node (i) is something more complicated (like a loop or something), it may be that
-                        # (name) is defined and then used in node (i). But definitions of (name) that (node)
-                        # considers unused are still surely unused.
+                        # If node (i) is something more complicated (like a loop or something), it
+                        # may be that (name) is defined and then used in node (i). But definitions
+                        # of (name) that (node) considers unused are still surely unused.
                         yield from parsing.filter_nodes(
                             _iter_unused_names(node, preserve=preserve | subsequent_required),
                             ast.Name(id=name),)
