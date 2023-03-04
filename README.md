@@ -8,28 +8,29 @@ Pyrefact can break code, and is not suitable for your company's CI chain.
 
 ### Readability
 
-* De-indent code with early `continue` and `return` statements
-* Replace for loops with immediate `if` conditions with `filter`
-* Remove commented code
-* Move code into primitive functions
-* Replace loops that only fill up lists, dicts or sets with comprehensions
-* Invert `if`/`else` to put the smaller block first
-* Rename variables, functions and classes with conventions
-* Rewrite defaultdict-like use of dictionaries with `collections.defaultdict()`
-* Formats lines that are longer than 100 characters with `black`
-* Put overused constant expressions in variables
-* Remove redundancies and improve definitions of lists, sets, dicts
+* Move common code in if/else blocks before or after the if/else.
+* De-indent code with early `continue` and `return` statements.
+* Replace for loops with immediate `if` conditions with `filter`.
+* Remove commented code.
+* Move code into primitive functions.
+* Replace loops that only fill up lists, dicts or sets with comprehensions.
+* Invert `if`/`else` to put the smaller block first.
+* Rename variables, functions and classes with conventions.
+* Rewrite defaultdict-like use of dictionaries with `collections.defaultdict()`.
+* Formats lines that are longer than 100 characters with `black`.
+* Put overused constant expressions in variables.
+* Remove redundancies and improve definitions of lists, sets, dicts.
 * Use `is` instead of `==` for comparisons to `None`, `True` and `False`.
 
 ### Performance
 
 * Replace `sum` comprehensions and for loops with constant expressions. The symbolic algebra tool [Sympy](https://github.com/sympy/sympy) is used under the hood.
 * Replace hardcoded inlined collections and comprehensions with set or generator equivalents in places where that would improve performance.
-* Replace `sorted()[:n]` with `heapq.nsmallest`, replace `sorted()[0]` with `min`
+* Replace `sorted()[:n]` with `heapq.nsmallest`, replace `sorted()[0]` with `min`.
 * Replace matrix operation comprehensions with equivalent `np.matmul()` and `np.dot()` calls, for code that already depends on numpy.
-* Replace pandas .loc[], .iloc[] and .iterrows() with .at[], .iat[] and .itertuples()/.index where appropriate
+* Replace pandas .loc[], .iloc[] and .iterrows() with .at[], .iat[] and .itertuples()/.index where appropriate.
 * Move constant code in loops before the loops.
-* De-interpolate interpolated logging calls
+* De-interpolate interpolated logging calls.
 
 ### Removing dead and useless code
 
@@ -37,7 +38,7 @@ Pyrefact can break code, and is not suitable for your company's CI chain.
 * Remove most pointless simple statements.
 * Remove branches of code that obviously do nothing useful.
 * Remove unreachable code.
-* Rename unused variables to `_`
+* Rename unused variables to `_`.
 * Delete variables named `_`, unless where that would cause a syntax error.
 * Remove redundant chained calls involving `sorted()`, `set()`, `tuple()`, `reversed()`, `iter()` and `list()`.
 * Remove duplicate function definitions.
@@ -48,8 +49,8 @@ Pyrefact can break code, and is not suitable for your company's CI chain.
 
 ### Imports
 
-* Delete unused imports
-* Move builtin and otherwise safe imports to toplevel
+* Delete unused imports.
+* Move builtin and otherwise safe imports to toplevel.
 * Add missing imports by guessing what you probably wanted.
   * For example, if `Sequence` is used but never defined, it will insert `from typing import Sequence` at the top of the file.
 
