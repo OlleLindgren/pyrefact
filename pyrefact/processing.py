@@ -4,7 +4,7 @@ import ast
 import functools
 import heapq
 from types import MappingProxyType
-from typing import Callable, Collection, Iterable, Mapping, NamedTuple, Sequence, Literal
+from typing import Callable, Collection, Iterable, Literal, Mapping, NamedTuple, Sequence
 
 from pyrefact import logs as logger
 from pyrefact import parsing
@@ -169,8 +169,7 @@ def alter_code(
     additions: Collection[ast.AST] = frozenset(),
     removals: Collection[ast.AST] = frozenset(),
     replacements: Mapping[ast.AST, ast.AST] = MappingProxyType({}),
-    priority: Sequence[Literal["additions", "removals", "replacements"]] = (),
-) -> str:
+    priority: Sequence[Literal["additions", "removals", "replacements"]] = (),) -> str:
     """Alter python code.
 
     This coordinates additions, removals and replacements in a safe way.
@@ -191,22 +190,45 @@ def alter_code(
     # If priority specified, prioritize some actions over others. This goes on a line number
     # level, so col_offset will be overridden by this.
     priorities = {
-        modification_type:
-            priority.index(modification_type)
-            if modification_type in priority
-            else 3 + len(priority)
-        for modification_type in ("additions", "removals", "replacements")
-    }
-
+        modification_type: priority.index(modification_type)
+        if modification_type in priority
+        else 3 + len(priority)
+        for modification_type in ("additions", "removals", "replacements")}
     # Yes, this unparsing is an expensive way to sort the nodes.
     # However, this runs relatively infrequently and should not have a big
     # performance impact.
     actions = [
-        *((x.lineno, -priorities["additions"], getattr(x, "col_offset", 0), "add", parsing.unparse(x), x) for x in additions),
-        *((x.lineno, -priorities["removals"], getattr(x, "col_offset", 0), "delete", parsing.unparse(x), x) for x in removals),
-        *((x.lineno, -priorities["replacements"], getattr(x, "col_offset", 0), "replace", parsing.unparse(x), (x, y)) for x, y in replacements.items()),
-    ]
-
+        *(
+            (
+                x.lineno,
+                -priorities["additions"],
+                getattr(x, "col_offset", 0),
+                "add",
+                parsing.unparse(x),
+                x,
+            )
+            for x in additions
+        ),
+        *(
+            (
+                x.lineno,
+                -priorities["removals"],
+                getattr(x, "col_offset", 0),
+                "delete",
+                parsing.unparse(x),
+                x,
+            )
+            for x in removals
+        ),
+        *(
+            (
+                x.lineno,
+                -priorities["replacements"],
+                getattr(x, "col_offset", 0),
+                "replace",
+                parsing.unparse(x),
+                (x, y),)
+            for x, y in replacements.items()),]
     # a < d => deletions will go before additions if same lineno and reversed sorting.
     for *_, action, _, value in sorted(actions, reverse=True):
         if action == "add":
@@ -217,7 +239,6 @@ def alter_code(
             source = replace_nodes(source, {value[0]: value[1]})
         else:
             raise ValueError(f"Invalid action: {action}")
-
     return source
 
 
