@@ -84,6 +84,8 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.singleton_eq_comparison(source)
     source = fixes.move_imports_to_toplevel(source)
     source = fixes.breakout_common_code_in_ifs(source)
+    source = abstractions.simplify_if_control_flow(source)
+    source = fixes.breakout_common_code_in_ifs(source)
     source = fixes.swap_if_else(source)
     source = fixes.early_return(source)
     source = fixes.early_continue(source)
@@ -130,12 +132,6 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = performance.replace_sorted_heapq(source)
 
     source = fixes.remove_duplicate_functions(source, preserve=preserve)
-
-    # simplify_if_control_flow() creates work for breakout_common_code_in_ifs(), but should
-    # run after its first execution.
-    source = abstractions.simplify_if_control_flow(source)
-    source = fixes.breakout_common_code_in_ifs(source)
-
     source = fixes.fix_too_many_blank_lines(source)
 
     return source
