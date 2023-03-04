@@ -130,6 +130,12 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = performance.replace_sorted_heapq(source)
 
     source = fixes.remove_duplicate_functions(source, preserve=preserve)
+
+    # simplify_if_control_flow() creates work for breakout_common_code_in_ifs(), but should
+    # run after its first execution.
+    source = abstractions.simplify_if_control_flow(source)
+    source = fixes.breakout_common_code_in_ifs(source)
+
     source = fixes.fix_too_many_blank_lines(source)
 
     return source

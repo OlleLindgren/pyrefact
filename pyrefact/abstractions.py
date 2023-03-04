@@ -632,3 +632,115 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
     source = processing.alter_code(source, root, additions=additions, replacements=replacements)
 
     return source
+
+
+def simplify_if_control_flow(source: str) -> str:
+    root = parsing.parse(source)
+
+    # This should run after the first run of breakout_common_code_in_ifs(), so that code that
+    # can be broken out without this having run first can be broken out first. That way, this
+    # doesn't trigger unless it enables breakout_common_code_in_ifs() to do work it wouldn't
+    # otherwise have done.
+
+    for node in parsing.walk(root, ast.If):
+        if not node.orelse:
+            continue
+
+        # Assignments make things more complicated. For example, the variables fed into the
+        # if body/orelse blocks may be mutated and then used later on, or they may be changed
+        # inside the node, etc. I won't deal with these cases for now.
+        if any(parsing.walk(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr))):
+            continue
+
+        node_body_names = sorted(
+            (name for n in node.body for name in parsing.walk(n, ast.Name)),
+            key=lambda n: (n.lineno, n.col_offset)
+        )
+        node_orelse_names = sorted(
+            (name for n in node.orelse for name in parsing.walk(n, ast.Name)),
+            key=lambda n: (n.lineno, n.col_offset)
+        )
+        if len(node_body_names) != len(node_orelse_names):
+            continue
+
+        differing_names_index_name_mapping = {
+            i: names
+            for i, names in enumerate(zip(
+                node_body_names,
+                node_orelse_names,
+            ))
+            if len({n.id for n in names}) > 1
+        }
+        something = collections.defaultdict(list)
+        for i, names in differing_names_index_name_mapping.items():
+            something[tuple(name.id for name in names)].append(i)
+
+        # Add definitions of new variables at start of if statements
+        # Replace all references to differing variables with new ones
+        # Then, breakout_common_code_in_ifs() should trigger on the
+        # identical code at the end of both branches and move it after
+        # the branches.
+
+        bodies = [node.body, node.orelse]
+
+        body_equivalent_function_srcs = [
+            [parsing.unparse(ast.FunctionDef(
+                name="func",
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=[],
+                    vararg=None,
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    kwarg=None,
+                    defaults=[],
+                ),
+                body=body,
+                decorator_list=[],
+                returns=None,
+                lineno=0,
+                end_lineno=0 + len(body),
+                col_offset=0,
+                end_col_offset=0,
+            ))]  # Put as single element in list to emulate mutable string
+            for body in bodies
+        ]
+
+        additions = set()
+        replacements = {}
+        for new_variable_number, (names, indexes) in enumerate(something.items()):
+            new_variable = ast.Name(id=f"var_{new_variable_number + 1}")
+            for src_list, body, name in zip(body_equivalent_function_srcs, bodies, names):
+                assign = ast.Assign(targets=[new_variable], value=ast.Name(id=name))
+                ast.copy_location(assign, body[0])
+                assign.lineno -= 1
+                additions.add(assign)
+
+                src_list[0] = src_list[0].replace(name, new_variable.id)
+
+            for index in indexes:
+                for name in differing_names_index_name_mapping[index]:
+                    replacements[name] = new_variable
+
+        # Check if replacing all names really made the code equivalent.
+        # This will be prone to false-negatives, in all kinds of ways, which is better
+        # than the opposite.
+        unique_srcs = {src_list[0] for src_list in body_equivalent_function_srcs}
+        if len(unique_srcs) != 1:
+            continue
+
+        added_code_chars = sum(len(parsing.unparse(addition)) for addition in additions)
+        removed_code_chars = len(unique_srcs.pop())
+
+        if added_code_chars > removed_code_chars / 2:
+            continue
+
+        source = processing.alter_code(
+            source,
+            root,
+            replacements=replacements,
+            additions=additions,
+            priority=("additions", "replacements"),)
+        return simplify_if_control_flow(source)
+
+    return source

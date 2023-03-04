@@ -4,7 +4,7 @@ import ast
 import functools
 import heapq
 from types import MappingProxyType
-from typing import Callable, Collection, Iterable, Mapping, NamedTuple
+from typing import Callable, Collection, Iterable, Mapping, NamedTuple, Sequence, Literal
 
 from pyrefact import logs as logger
 from pyrefact import parsing
@@ -169,6 +169,7 @@ def alter_code(
     additions: Collection[ast.AST] = frozenset(),
     removals: Collection[ast.AST] = frozenset(),
     replacements: Mapping[ast.AST, ast.AST] = MappingProxyType({}),
+    priority: Sequence[Literal["additions", "removals", "replacements"]] = (),
 ) -> str:
     """Alter python code.
 
@@ -187,13 +188,23 @@ def alter_code(
     Returns:
         str: _description_
     """
+    # If priority specified, prioritize some actions over others. This goes on a line number
+    # level, so col_offset will be overridden by this.
+    priorities = {
+        modification_type:
+            priority.index(modification_type)
+            if modification_type in priority
+            else 3 + len(priority)
+        for modification_type in ("additions", "removals", "replacements")
+    }
+
     # Yes, this unparsing is an expensive way to sort the nodes.
     # However, this runs relatively infrequently and should not have a big
     # performance impact.
     actions = [
-        *((x.lineno, getattr(x, "col_offset", 0), "add", parsing.unparse(x), x) for x in additions),
-        *((x.lineno, getattr(x, "col_offset", 0), "delete", parsing.unparse(x), x) for x in removals),
-        *((x.lineno, getattr(x, "col_offset", 0), "replace", parsing.unparse(x), (x, y)) for x, y in replacements.items()),
+        *((x.lineno, -priorities["additions"], getattr(x, "col_offset", 0), "add", parsing.unparse(x), x) for x in additions),
+        *((x.lineno, -priorities["removals"], getattr(x, "col_offset", 0), "delete", parsing.unparse(x), x) for x in removals),
+        *((x.lineno, -priorities["replacements"], getattr(x, "col_offset", 0), "replace", parsing.unparse(x), (x, y)) for x, y in replacements.items()),
     ]
 
     # a < d => deletions will go before additions if same lineno and reversed sorting.
