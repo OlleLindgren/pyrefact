@@ -15,10 +15,10 @@ authors = [
 ]
 classifiers = ["Programming Language :: Python :: 3"]
 dependencies = [
-    "black==23.1.0",
-    "isort==5.12.0",
-    "rmspace==7",
-    "sympy==1.11.1",
+    "black>=23.1.0",
+    "isort>=5.12.0",
+    "rmspace>=7",
+    "sympy>=1.11.0",
     'astunparse==1.6.3; python_version<"3.9"'
 ]
 
