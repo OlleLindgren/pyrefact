@@ -448,8 +448,14 @@ def fix_tabs(source: str) -> str:
 
 
 def fix_too_many_blank_lines(source: str) -> str:
-    source = re.sub(r"\n{4,}", "\n" * 3, source)
-    source = re.sub(r"\n{2,}\Z", "\n", source)
+    # At module level, remove all above 2 blank lines
+    source = re.sub(r"(\n\s*){3,}\n", "\n" * 3, source)
+
+    # At EOF, remove all newlines and whitespace above 1
+    source = re.sub(r"(\n\s*){2,}\Z", "\n", source)
+
+    # At non-module (any indented) level, remove all newlines above 1, preserve indent
+    source = re.sub(r"(\n\s*){2,}(\n\s+)(?=[^\n\s])", r"\n\g<2>", source)
 
     return source
 
