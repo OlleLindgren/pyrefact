@@ -8,7 +8,7 @@ Pyrefact can break code, and is not suitable for your company's CI chain.
 
 ### Readability
 
-* Move common code in if/else blocks before or after the if/else.
+* Move common code in `if`/`else` blocks before or after the `if`/`else`.
 * De-indent code with early `continue` and `return` statements.
 * Replace for loops with immediate `if` conditions with `filter`.
 * Remove commented code.
