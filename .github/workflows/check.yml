@@ -37,8 +37,52 @@ jobs:
       run: |
         python ./tests/main.py
 
+  check-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "pypy3.9"]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install .
+    - name: Running unit tests
+      run: python ./tests/main.py
+    - name: Run on self
+      run: pyrefact . --safe --preserve .
+    - name: Rerun unit tests
+      run: python ./tests/main.py
+
+  check-windows:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "pypy3.9"]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install .
+    - name: Running unit tests
+      run: python ./tests/main.py
+    - name: Run on self
+      run: pyrefact . --safe --preserve .
+    - name: Rerun unit tests
+      run: python ./tests/main.py
+
   deploy:
-    needs: check
+    needs: [check, check-macos, check-windows]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
