@@ -584,7 +584,7 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
     # For every node, all scopes it can be found in
     scope_node_definitions = collections.defaultdict(set)
     for scope in itertools.chain(
-        root.body, parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef))
+        [root], parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef))
     ):
         for node in parsing.walk(scope, ast.AST):
             scope_node_definitions[node].add(scope)
@@ -615,7 +615,9 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
             continue
 
         common_scopes = set.intersection(*(scope_node_definitions[node] for node in nodes))
-        best_common_scope = max(common_scopes, key=lambda node: node.lineno, default=root)
+
+        # root is a Module and has no lineno
+        best_common_scope = max(common_scopes, key=lambda node: getattr(node, "lineno", 1), default=root)
 
         variable_name = f"pyrefact_overused_constant_{i}"
         variable_name = style.rename_variable(
