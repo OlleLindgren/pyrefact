@@ -478,14 +478,18 @@ print(E)
     ),
     (
         """
+import numpy  ;      import re; import heapq;
 d = {"x": 100, "y": 10}
 for x in d.keys():
     print(d[x])
+    print(re.findall(str(d[x]), "asdf"))
         """,
         """
+import re
 D = {"x": 100, "y": 10}
 for d_x in D.values():
     print(d_x)
+    print(re.findall(str(d_x), "asdf"))
         """,
     )
 )

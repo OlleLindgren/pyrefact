@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import functools
 import heapq
+import re
 from types import MappingProxyType
 from typing import Callable, Collection, Iterable, Literal, Mapping, NamedTuple, Sequence
 
@@ -44,6 +45,13 @@ def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str
     nodes = list(nodes)
     for node in nodes:
         start, end = parsing.get_charnos(node, source)
+
+        # If multiple "lines" are on the same line, with a semicolon in between,
+        # we also need to purge the semicolon and any whitespace before and after it
+        semicolon_anti_delimiters = re.findall(r"^\s*;\s*", source[end:])
+        if semicolon_anti_delimiters:
+            end += len(semicolon_anti_delimiters[0])
+
         logger.debug("Removing:\n{old}", old=source[start:end])
         keep_mask[start:end] = [False] * (end - start)
 
@@ -54,7 +62,7 @@ def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str
             continue
         for bodytype in "body", "finalbody", "orelse":
             if body := getattr(node, bodytype, []):
-                if isinstance(body, list) and all(child in nodes for child in body):
+                if isinstance(body, list) and all(child in nodes for child in body) and node not in nodes:
                     logger.debug("Found empty {bodytype}", bodytype=bodytype)
                     start_charno, _ = parsing.get_charnos(body[0], source)
                     passes.append(start_charno)
