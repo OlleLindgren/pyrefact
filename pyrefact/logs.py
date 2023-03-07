@@ -35,5 +35,9 @@ def debug(fmt, /, *args, **kwargs):
     return _get_logger().debug(_Message(fmt, *args, **kwargs))
 
 
+def error(fmt, /, *args, **kwargs):
+    return _get_logger().error(_Message(fmt, *args, **kwargs))
+
+
 def set_level(level: int) -> None:
     _get_logger().setLevel(level)
