@@ -378,7 +378,7 @@ def _construct_import_statement(
     if isinstance(node, ast.Import):
         return f"import {names}"
 
-    return f"from {node.module} import {names}"
+    return f"from {'.' * node.level}{node.module or ''} import {names}"
 
 
 def _remove_unused_imports(
