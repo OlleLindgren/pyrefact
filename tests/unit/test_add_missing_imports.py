@@ -78,6 +78,22 @@ import numpy
 w = numpy.zeros(10, dtype=numpy.float32)
             """,
         ),
+        (
+            """
+from typing import (
+    Sequence,
+    Tuple,
+
+
+    TypeVar,
+)
+y = Iterable
+            """,
+            """
+from typing import Iterable, Sequence, Tuple, TypeVar
+y = Iterable
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
