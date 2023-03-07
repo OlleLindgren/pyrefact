@@ -6,9 +6,10 @@ import dataclasses
 import functools
 import itertools
 import re
+import traceback
 from typing import Collection, Iterable, Mapping, Sequence, Tuple
 
-from pyrefact import constants, formatting
+from pyrefact import constants, formatting, logs as logger
 
 
 def unparse(node: ast.AST) -> str:
@@ -197,7 +198,13 @@ def parse(source_code: str) -> ast.AST:
     Returns:
         ast.AST: Parsed AST
     """
-    return ast.parse(source_code)
+    try:
+        return ast.parse(source_code)
+    except SyntaxError as error:
+        stack_trace = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        logger.error("Failed to parse source with error:\n{}\n\n\nCode:\n\n{}", stack_trace, source_code)
+
+        raise error
 
 
 @functools.lru_cache(maxsize=100)
@@ -379,7 +386,7 @@ def is_valid_python(source: str) -> bool:
         bool: True if source is valid python.
     """
     try:
-        parse(source)
+        ast.parse(source)
         return True
     except SyntaxError:
         return False
