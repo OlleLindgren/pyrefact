@@ -1,5 +1,6 @@
 import ast
 import builtins
+import keyword
 import sys
 import typing
 from types import MappingProxyType
@@ -288,6 +289,7 @@ PYTHON_311_STDLIB = frozenset(
 )
 
 BUILTIN_FUNCTIONS = frozenset(name for name in dir(builtins) if name != "_")
+PYTHON_KEYWORDS = frozenset(keyword.kwlist)
 
 PYTHON_VERSION = tuple(sys.version_info)
 

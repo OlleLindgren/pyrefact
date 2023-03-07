@@ -114,6 +114,20 @@ def _main() -> None:
     return 0
         """,
         ),
+        (
+        """
+def foo():
+    with_ = 1
+    name_ = 1
+    __def = 3
+        """,
+        """
+def _foo():
+    with_ = 1
+    name = 1
+    __def = 3
+        """
+        ),
     )
     for source, expected_abstraction in test_cases:
 

@@ -212,7 +212,7 @@ def _fix_variable_names(
 ) -> str:
     replacements = []
     ast_tree = parsing.parse(source)
-    blacklisted_names = parsing.get_imported_names(ast_tree) | constants.BUILTIN_FUNCTIONS
+    blacklisted_names = parsing.get_imported_names(ast_tree) | constants.BUILTIN_FUNCTIONS | constants.PYTHON_KEYWORDS
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
             continue
