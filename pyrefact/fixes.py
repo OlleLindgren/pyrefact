@@ -993,6 +993,10 @@ def move_imports_to_toplevel(source: str) -> str:
                 continue
             safe_position_lineno = min(module_import_linenos)
 
+        source_lines = source.splitlines()
+        while safe_position_lineno > 1 and re.findall(r"^\s+", source_lines[safe_position_lineno]):
+            safe_position_lineno -= 1
+
         new_node = ast.ImportFrom(
             module=node.module,
             names=node.names,
@@ -1000,6 +1004,9 @@ def move_imports_to_toplevel(source: str) -> str:
             lineno=safe_position_lineno,
         )
         additions.append(new_node)
+
+    # Remove duplicates
+    additions = {parsing.unparse(x): x for x in additions}.values()
 
     if removals or additions:
         logger.debug("Moving imports to toplevel")

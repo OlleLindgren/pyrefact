@@ -58,6 +58,38 @@ def call3():
     print(math.sum([3]))
             """,
         ),
+        (
+            """
+import os
+from numpy import (
+    integer, ndarray, dtype as _dtype, asarray, frombuffer
+)
+from numpy.core.multiarray import _flagdict, flagsobj
+def foo():
+    from numpy import intp as c_intp
+    print(199)
+def woo():
+    from numpy import intp as c_intp
+    print(199)
+def hoo():
+    from numpy import intp as c_intp
+    print(199)
+            """,
+            """
+import os
+from numpy import intp as c_intp
+from numpy import (
+    integer, ndarray, dtype as _dtype, asarray, frombuffer
+)
+from numpy.core.multiarray import _flagdict, flagsobj
+def foo():
+    print(199)
+def woo():
+    print(199)
+def hoo():
+    print(199)
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
