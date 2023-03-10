@@ -407,6 +407,22 @@ for i in range(10):
         print(y)
             """,
         ),
+        (  # multiline string
+            """
+for i in range(100):
+    x = '''
+    abcde
+    '''
+    print(x * 2)
+            """,
+            """
+x = '''
+    abcde
+    '''
+for i in range(100):
+    print(x * 2)
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
