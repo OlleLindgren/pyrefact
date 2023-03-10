@@ -276,8 +276,8 @@ for user_id in iter_user_logins():
 date = '2022-03-01'
 start_time = '13:08:19'
 end_time = '19:01:31'
-start = f'{date}T{start_time}'
-end = f'{date}T{end_time}'
+start = f"{date}T{start_time}"
+end = f"{date}T{end_time}"
 for user_id in iter_user_logins():
     cursor.execute(
         '''
@@ -418,6 +418,22 @@ for i in range(100):
             """
 x = '''
     abcde
+    '''
+for i in range(100):
+    print(x * 2)
+            """,
+        ),
+        (  # multiline f string
+            """
+for i in range(100):
+    x = f'''
+    abcde{3}
+    '''
+    print(x * 2)
+            """,
+            """
+x = f'''
+    abcde{3}
     '''
 for i in range(100):
     print(x * 2)

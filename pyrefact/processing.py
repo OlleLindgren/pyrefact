@@ -59,9 +59,7 @@ def _substitute_original_strings(original_source: str, new_source: str) -> str:
         tmp = {
             src
             for src in sources
-            if parsing.is_valid_python(src)
-            and parsing.match_template(parsing.parse(src), template)
-        }
+            if parsing.is_valid_python(src) and parsing.match_template(parsing.parse(src), template)}
         sources.clear()
         sources.update(tmp)
 
@@ -73,8 +71,59 @@ def _substitute_original_strings(original_source: str, new_source: str) -> str:
         original_formattings = original_string_formattings[node.value]
         new_formatting = parsing.get_code(node, new_source)
         template = ast.Module(body=[ast.Expr(value=ast.Constant(value=node.value))])
-        if original_formattings and parsing.is_valid_python(new_formatting) and parsing.match_template(parsing.parse(new_formatting), template) and new_formatting not in original_formattings:
-            most_common_original_formatting = collections.Counter(original_formattings).most_common(1)[0][0]
+        if (
+            original_formattings
+            and parsing.is_valid_python(new_formatting)
+            and parsing.match_template(parsing.parse(new_formatting), template)
+            and new_formatting not in original_formattings
+        ):
+            most_common_original_formatting = collections.Counter(original_formattings).most_common(
+                1
+            )[0][0]
+            replacements[node] = most_common_original_formatting
+
+    return replace_nodes(new_source, replacements)
+
+
+def _substitute_original_fstrings(original_source: str, new_source: str) -> str:
+    """Ensure consistent string formattings in new and old source.
+
+    The reason for this to exist is that, without it, pyrefact will change the string
+    formattings of values in a very opinionated, and frankly not very nice way. For
+    example, multiline f-strings would be replaced by really long regular strings with
+    a bunch of newline characters in them, which looks horrible.
+
+    Args:
+        original_source (str): Original source code
+        new_source (str): New source code
+
+    Returns:
+        str: new_source, but with consistent string formattings as in original_source
+    """
+    original_ast = parsing.parse(original_source)
+    original_string_formattings = collections.defaultdict(set)
+    for node in parsing.walk(original_ast, ast.JoinedStr):
+        code = parsing.get_code(node, original_source)
+        unparsed_code = parsing.unparse(node)
+        if parsing.is_valid_python(code):
+            original_string_formattings[unparsed_code].add(code)
+
+    replacements = {}
+    new_ast = parsing.parse(new_source)
+    for node in parsing.walk(new_ast, ast.JoinedStr):
+        # If this new string formatting doesn't exist in the orignal source, find the most
+        # common orignal equivalent string formatting and use that instead.
+        unparsed_code = parsing.unparse(node)
+        original_formattings = original_string_formattings[unparsed_code]
+        new_formatting = parsing.get_code(node, new_source)
+        if (
+            original_formattings
+            and parsing.is_valid_python(new_formatting)
+            and new_formatting not in original_formattings
+        ):
+            most_common_original_formatting = collections.Counter(original_formattings).most_common(
+                1
+            )[0][0]
             replacements[node] = most_common_original_formatting
 
     return replace_nodes(new_source, replacements)
@@ -316,6 +365,7 @@ def alter_code(
             raise ValueError(f"Invalid action: {action}")
 
     source = _substitute_original_strings(original_source, source)
+    source = _substitute_original_fstrings(original_source, source)
 
     return source
 

@@ -98,7 +98,7 @@ else:
 
 do_stuff(var_1)
 if var_1 > 1 / z:
-    raise RuntimeError(f'Invalid value for {var_1}')
+    raise RuntimeError(f"Invalid value for {var_1}")
 
 print(random.randint(1 / z ** 2, -1 / (z + var_2 - var_1) ** 2))
             """,
