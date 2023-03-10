@@ -121,7 +121,7 @@ for var in range(11):
     params = {"password": 11, "username": 22}
 
     if var == 2:
-        params["x"] = True
+        params['x'] = True
     elif var == 11 and s == 3:
         params["y"] = var, s
     else:
@@ -135,17 +135,17 @@ for var in range(11):
         """,
             """
 def _pyrefact_abstraction_1(foo, s, var):
-    params = {'password': 11, 'username': 22}
+    params = {"password": 11, "username": 22}
 
     if var == 2:
         params['x'] = True
     elif var == 11 and s == 3:
-        params['y'] = (var, s)
+        params["y"] = (var, s)
     else:
-        params['xxx'] = 3
+        params["xxx"] = 3
 
     if foo:
-        params['is_foo'] = True
+        params["is_foo"] = True
 
     return params
 

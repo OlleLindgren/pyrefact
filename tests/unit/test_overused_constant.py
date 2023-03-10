@@ -35,7 +35,7 @@ h = "some/path/to/something/cool"
 g = "some/path/to/something/cool"
             """,
             """
-PYREFACT_OVERUSED_CONSTANT_0 = 'some/path/to/something/cool'
+PYREFACT_OVERUSED_CONSTANT_0 = "some/path/to/something/cool"
 x = PYREFACT_OVERUSED_CONSTANT_0
 y = PYREFACT_OVERUSED_CONSTANT_0
 z = PYREFACT_OVERUSED_CONSTANT_0
@@ -63,7 +63,7 @@ def bar():
             """,
             """
 import math
-PYREFACT_OVERUSED_CONSTANT_0 = 'some/path/to/something/cool'
+PYREFACT_OVERUSED_CONSTANT_0 = "some/path/to/something/cool"
 
 def foo():
     if False:
@@ -102,7 +102,7 @@ def foo():
 import math
 
 def foo():
-    pyrefact_overused_constant_0 = 'some/path/to/something/cool'
+    pyrefact_overused_constant_0 = "some/path/to/something/cool"
     if False:
         x = pyrefact_overused_constant_0
         y = pyrefact_overused_constant_0 + "qwerty"
@@ -143,7 +143,7 @@ def koo():
     print({"spam": 3, "eggs": 2, "snake": 1336}.get("spam"))
             """,
             """
-PYREFACT_OVERUSED_CONSTANT_0 = {'spam': 3, 'eggs': 2, 'snake': 1336}
+PYREFACT_OVERUSED_CONSTANT_0 = {"spam": 3, "eggs": 2, "snake": 1336}
 def foo():
     d = PYREFACT_OVERUSED_CONSTANT_0
     print(d.get("spam"))

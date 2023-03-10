@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import collections
 import functools
 import heapq
 import re
@@ -28,6 +29,55 @@ class Range(NamedTuple):
 class _Rewrite(NamedTuple):
     old: ast.AST | Range  # TODO replace with (start_char, end_char)
     new: ast.AST | str  # "" indicates a removal
+
+
+def _substitute_original_strings(original_source: str, new_source: str) -> str:
+    """Ensure consistent string formattings in new and old source.
+
+    The reason for this to exist is that, without it, pyrefact will change the string
+    formattings of values in a very opinionated, and frankly not very nice way. For
+    example, multiline f-strings would be replaced by really long regular strings with
+    a bunch of newline characters in them, which looks horrible.
+
+    Args:
+        original_source (str): Original source code
+        new_source (str): New source code
+
+    Returns:
+        str: new_source, but with consistent string formattings as in original_source
+    """
+    original_ast = parsing.parse(original_source)
+
+    original_string_formattings = collections.defaultdict(set)
+    for node in parsing.walk(original_ast, ast.Constant(value=str)):
+        original_string_formattings[node.value].add(parsing.get_code(node, original_source))
+
+    for value, sources in original_string_formattings.items():
+        template = ast.Module(body=[ast.Expr(value=ast.Constant(value=value))])
+        # Temporary set created and orignal sources object is overwritten with this, which is
+        # preferable to assigning a new set. Not so elegant perhaps.
+        tmp = {
+            src
+            for src in sources
+            if parsing.is_valid_python(src)
+            and parsing.match_template(parsing.parse(src), template)
+        }
+        sources.clear()
+        sources.update(tmp)
+
+    replacements = {}
+    new_ast = parsing.parse(new_source)
+    for node in parsing.walk(new_ast, ast.Constant(value=tuple(original_string_formattings))):
+        # If this new string formatting doesn't exist in the orignal source, find the most
+        # common orignal equivalent string formatting and use that instead.
+        original_formattings = original_string_formattings[node.value]
+        new_formatting = parsing.get_code(node, new_source)
+        template = ast.Module(body=[ast.Expr(value=ast.Constant(value=node.value))])
+        if original_formattings and parsing.is_valid_python(new_formatting) and parsing.match_template(parsing.parse(new_formatting), template) and new_formatting not in original_formattings:
+            most_common_original_formatting = collections.Counter(original_formattings).most_common(1)[0][0]
+            replacements[node] = most_common_original_formatting
+
+    return replace_nodes(new_source, replacements)
 
 
 def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str:
@@ -108,10 +158,26 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
     else:
         raise TypeError(f"Invalid replacement type: {type(new)}")
     lines = new_code.splitlines(keepends=True)
-    indent = " " * getattr(old, "col_offset", getattr(new, "col_offset", 0))
-    start_indent = " " * (len(code) - len(code.lstrip(" ")))
+    indent = getattr(old, "col_offset", getattr(new, "col_offset", 0))
+    indents = {i: indent for i in range(len(lines))}
+    indents[0] = len(code) - len(code.lstrip(" "))
+
+    try:
+        new_code_ast = parsing.parse(new_code)
+    except SyntaxError:
+        pass  # new_code is not necessarily valid python syntax in all cases
+    else:
+        for node in parsing.walk(new_code_ast, (ast.Constant(value=str), ast.JoinedStr)):
+            node_code = parsing.get_code(node, new_code)
+            if any(
+                node_code.startswith(prefix) and node_code.endswith(prefix[-3:])
+                for prefix in ("b'''", "r'''", "f'''", "'''", 'b"""', 'r"""', 'f"""', '"""')
+            ):
+                for lineno in range(node.lineno, node.end_lineno):
+                    indents[lineno] = 0
+
     new_code = "".join(
-        f"{indent if i > 0 else start_indent}{code}".rstrip()
+        f"{' ' * indents[i]}{code}".rstrip()
         + ("\n" if code.endswith("\n") else "")
         for i, code in enumerate(lines)
     )
@@ -197,6 +263,7 @@ def alter_code(
     """
     # If priority specified, prioritize some actions over others. This goes on a line number
     # level, so col_offset will be overridden by this.
+    original_source = source
     priorities = {
         modification_type: priority.index(modification_type)
         if modification_type in priority
@@ -247,6 +314,9 @@ def alter_code(
             source = replace_nodes(source, {value[0]: value[1]})
         else:
             raise ValueError(f"Invalid action: {action}")
+
+    source = _substitute_original_strings(original_source, source)
+
     return source
 
 

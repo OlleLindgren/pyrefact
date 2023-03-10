@@ -356,8 +356,8 @@ for i in range(10):
             """
 import h5py
 f = h5py.File("path/to/file.hdf5")
-outer_header = f['level_1']
-second_outer_header = f['level_2']
+outer_header = f["level_1"]
+second_outer_header = f["level_2"]
 for i in range(10):
     inner_header = outer_header[i]
     for y in x:
@@ -401,7 +401,7 @@ for i in range(10):
             """
 import h5py
 f = h5py.File("path/to/file.hdf5")
-nested_header = f['level_1']['level_3']['paths']
+nested_header = f["level_1"]["level_3"]["paths"]
 for i in range(10):
     for y in nested_header:
         print(y)
