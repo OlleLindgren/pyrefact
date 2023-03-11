@@ -5,7 +5,6 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyrefact"
 version = "75"
-
 description = "Automated Python refactoring"
 readme = "README.md"
 requires-python = ">=3.8"
