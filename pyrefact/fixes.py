@@ -208,11 +208,15 @@ def _get_func_name_start_end(
 def _fix_variable_names(
     source: str,
     renamings: Mapping[ast.AST, str],
-    preserve: Collection[str] = frozenset(),
-) -> str:
+    preserve: Collection[str] = frozenset(),) -> str:
+
     replacements = []
     ast_tree = parsing.parse(source)
-    blacklisted_names = parsing.get_imported_names(ast_tree) | constants.BUILTIN_FUNCTIONS | constants.PYTHON_KEYWORDS
+    blacklisted_names = (
+        parsing.get_imported_names(ast_tree)
+        | constants.BUILTIN_FUNCTIONS
+        | constants.PYTHON_KEYWORDS
+    )
     for node, substitutes in renamings.items():
         if len(substitutes) != 1:
             continue
@@ -1737,7 +1741,6 @@ def simplify_transposes(source: str) -> str:
 def remove_dead_ifs(source: str) -> str:
     root = parsing.parse(source)
 
-
     for node in parsing.walk(root, (ast.If, ast.While, ast.IfExp)):
         try:
             value = parsing.literal_value(node.test)
@@ -1997,7 +2000,6 @@ def _preferred_comprehension_type(node: ast.AST) -> ast.AST | ast.SetComp | ast.
 
 @processing.fix
 def implicit_defaultdict(source: str) -> str:
-
 
     assign_template = ast.Assign(
         targets=[parsing.Wildcard("target", ast.Name)],

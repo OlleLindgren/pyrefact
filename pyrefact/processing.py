@@ -161,7 +161,11 @@ def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str
             continue
         for bodytype in "body", "finalbody", "orelse":
             if body := getattr(node, bodytype, []):
-                if isinstance(body, list) and all(child in nodes for child in body) and node not in nodes:
+                if (
+                    isinstance(body, list)
+                    and all(child in nodes for child in body)
+                    and node not in nodes
+                ):
                     logger.debug("Found empty {bodytype}", bodytype=bodytype)
                     start_charno, _ = parsing.get_charnos(body[0], source)
                     passes.append(start_charno)
@@ -208,8 +212,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         raise TypeError(f"Invalid replacement type: {type(new)}")
     lines = new_code.splitlines(keepends=True)
     indent = getattr(old, "col_offset", getattr(new, "col_offset", 0))
-    indents = {i: indent for i in range(len(lines))}
-    indents[0] = len(code) - len(code.lstrip(" "))
+    indents = {**{i: indent for i in range(len(lines))}, 0: len(code) - len(code.lstrip(' '))}
 
     try:
         new_code_ast = parsing.parse(new_code)
