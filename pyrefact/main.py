@@ -323,10 +323,11 @@ def main(args: Sequence[str] | None = None) -> int:
         filename = filename.absolute()
         folder_contents[filename.parent].append(filename)
 
+    max_passes = 1 if args.safe else MAX_MODULE_PASSES
     for folder, filenames in folder_contents.items():
 
         module_passes = 0
-        for module_passes in range(1, 1 + MAX_MODULE_PASSES):
+        for module_passes in range(1, 1 + max_passes):
             changes = False
             for filename in filenames:
                 preserve = set()
