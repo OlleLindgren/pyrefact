@@ -3187,3 +3187,29 @@ def unused_zip_args(source: str) -> str:
         elif len(new_elts) > 1:  # > 1 args used => remove unused ones, keep zip
             yield node.target, ast.Tuple(elts=new_elts)
             yield node.iter, ast.Call(func=func, args=iters, keywords=[])
+
+
+def simplify_assign_immediate_return(source: str) -> str:
+    root = parsing.parse(source)
+
+    replacements = {}
+    removals = set()
+
+    for scope in parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)):
+
+        # For every variable, how many times is it assigned in this scope?
+        name_assign_counts = collections.Counter(
+            assignment.targets[0].id
+            for assignment in parsing.walk(scope, ast.Assign(targets=[ast.Name]))
+        )
+
+        assign_template = ast.Assign(targets=[parsing.Wildcard("common_variable", ast.Name)])
+        return_template = ast.Return(value=parsing.Wildcard("common_variable", ast.Name))
+        for (asmt, variable), (ret, _) in parsing.walk_sequence(root, assign_template, return_template):
+            # If a variable name is assigned only once in this scope, and then immediately returned,
+            # it should be removed.
+            if name_assign_counts[variable.id] == 1:
+                removals.add(asmt)
+                replacements[ret.value] = asmt.value
+
+    return processing.alter_code(source, root, replacements=replacements, removals=removals)

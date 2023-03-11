@@ -195,6 +195,7 @@ def format_code(
 
     source = abstractions.create_abstractions(source)
     source = abstractions.overused_constant(source, root_is_static=minimum_indent == 0)
+    source = fixes.simplify_assign_immediate_return(source)
 
     # If abstractions have added anything, there may be anti-patterns (redundant elif/else
     # usually) in the code, that should be removed.

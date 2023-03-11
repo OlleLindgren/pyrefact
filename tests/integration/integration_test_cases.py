@@ -478,6 +478,24 @@ print(E)
     ),
     (
         """
+def foo():
+    e = sum([
+        x**2
+        for x in (x for (_, x) in zip([i for (_, i) in enumerate(range(102, 202))], range(100)))
+    ])
+    return e
+
+print(foo())
+        """,
+        """
+def _foo():
+    return 328350
+
+print(_foo())
+        """,
+    ),
+    (
+        """
 import numpy  ;      import re; import heapq;
 d = {"x": 100, "y": 10}
 for x in d.keys():
