@@ -101,6 +101,7 @@ jobs:
         ./tests/numpy.sh
 
   deploy:
+    environment: deploy
     needs: [check, check-macos, check-windows]
     runs-on: ubuntu-latest
     steps:
@@ -124,4 +125,4 @@ jobs:
       uses: pypa/gh-action-pypi-publish@c7f29f7adef1a245bd91520e94867e5c6eedddcc
       with:
         user: __token__
-        password: ${{ secrets.PYPI_DEPLOY_TOKEN_MAINONLY }}
+        password: '${{ secrets.PYPI_DEPLOY_TOKEN_MAINONLY }}'
