@@ -19,17 +19,6 @@ def deindent_code(source: str, indent: int) -> str:
     return "".join(line[indent:] if line.strip() else line for line in lines)
 
 
-def _indent_code(source: str, indent: int) -> str:
-    lines = source.splitlines(keepends=True)
-    return "".join(" " * indent + line for line in lines)
-
-
-def _match_wrapping_whitespace(new: str, initial: str) -> str:
-    prefix_whitespace = max(re.findall(r"\A^[\s\n]*", initial), key=len)
-    suffix_whitespace = max(re.findall(r"[\s\n]*\Z$", initial), key=len)
-    return prefix_whitespace + new.strip() + suffix_whitespace
-
-
 def format_with_black(source: str, *, line_length: int = 100) -> str:
     """Format code with black.
 
@@ -39,20 +28,11 @@ def format_with_black(source: str, *, line_length: int = 100) -> str:
     Returns:
         str: Formatted source code.
     """
-    indent = get_indent(source)
-    deindented_code = deindent_code(source, indent)
     try:
-        formatted_deindented_code = black.format_str(
-            deindented_code, mode=black.Mode(line_length=max(60, line_length - indent))
-        )
-    except black.parsing.InvalidInput:
-        logger.error("Black raised InvalidInput on code:\n{}", deindented_code)
+        return black.format_str(source, mode=black.Mode(line_length=line_length))
+    except (SyntaxError, black.parsing.InvalidInput):
+        logger.error("Black raised InvalidInput on code:\n{}", source)
         return source
-
-    formatted_content = _indent_code(formatted_deindented_code, indent)
-    whitespace_adjusted_content = _match_wrapping_whitespace(formatted_content, source)
-
-    return whitespace_adjusted_content
 
 
 def collapse_trailing_parentheses(source: str) -> str:

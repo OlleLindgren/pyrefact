@@ -516,19 +516,17 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
         start, end = parsing.get_charnos(node, source, keep_first_indent=True)
 
         current_code = source[start:end]
-        elif_pattern = r"\A[\s\n]*(elif)"
-        if_pattern = r"\A[\s\n]*(if)"
+        elif_pattern = r"(\A[\s\n]*)(el)(if)"
+        if_pattern = r"(\A[\s\n]*)(if)"
         elif_matches = list(re.finditer(elif_pattern, current_code))
         if elif_matches:
-            re_match = elif_matches[0]
-            current_code = re.sub(
-                elif_pattern, re_match.group().replace("elif", "if"), current_code, 1
-            )
+            # Convert elif to if
+            current_code = re.sub(elif_pattern, r"\g<1>\g<3>", current_code, 1)
             new_code = formatting.format_with_black(
                 current_code, line_length=max(60, max_line_length)
             )
-            if_match = next(re.finditer(if_pattern, new_code))
-            new_code = re.sub(if_pattern, if_match.group().replace("if", "elif"), new_code, 1)
+            # Convert if to elif
+            new_code = re.sub(if_pattern, r"\g<1>el\g<2>", new_code, 1)
         else:
             new_code = formatting.format_with_black(
                 current_code, line_length=max(60, max_line_length)
@@ -1397,13 +1395,7 @@ def early_continue(source: str) -> str:
                     test=_negate_condition(stmt.test),
                 )
 
-    source = processing.alter_code(
-        source,
-        root,
-        additions=additions,
-        replacements=replacements,
-    )
-    return source
+    return processing.alter_code(source, root, additions=additions, replacements=replacements)
 
 
 @processing.fix
@@ -1715,9 +1707,7 @@ def inline_math_comprehensions(source: str) -> str:
         if assignment in replacements:
             del replacements[assignment]
 
-    source = processing.replace_nodes(source, replacements)
-
-    return source
+    return processing.replace_nodes(source, replacements)
 
 
 @processing.fix(restart_on_replace=True)
@@ -2967,6 +2957,7 @@ def deinterpolate_logging_args(source: str) -> str:
                 args=[format_string] + format_args,
                 keywords=node.keywords,
             )
+
 
 
 @processing.fix
