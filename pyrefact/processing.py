@@ -252,7 +252,14 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
 
 def replace_nodes(source: str, replacements: Mapping[ast.AST, ast.AST | str]) -> str:
     rewrites = sorted(
-        replacements.items(), key=lambda tup: (tup[0].lineno, tup[0].end_lineno), reverse=True
+        replacements.items(),
+        key=lambda tup: (
+            tup[0].lineno,
+            tup[0].end_lineno,
+            getattr(tup[0], "col_offset", 0),
+            getattr(tup[0], "end_col_offset", 0),
+        ),
+        reverse=True
     )
     for old, new in rewrites:
         rewrite = _Rewrite(old, new)
