@@ -130,6 +130,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = performance.remove_redundant_chained_calls(source)
     source = performance.remove_redundant_iter(source)
     source = performance.replace_sorted_heapq(source)
+    source = fixes.missing_context_manager(source)
 
     source = fixes.remove_duplicate_functions(source, preserve=preserve)
     source = fixes.fix_too_many_blank_lines(source)

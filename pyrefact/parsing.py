@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import collections
+import copy
 import dataclasses
 import functools
 import itertools
@@ -1144,3 +1145,12 @@ def code_dependencies_outputs(
         created_names.update(node_created)
         required_names.update(node_needed)
     return created_names_original, maybe_created_names, required_names
+
+
+def with_added_indent(node: ast.AST, indent: int):
+    clone = copy.deepcopy(node)
+    for child in ast.walk(clone):
+        if isinstance(child, ast.AST) and hasattr(child, "col_offset"):
+            child.col_offset += indent
+
+    return clone

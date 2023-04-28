@@ -3207,3 +3207,85 @@ def simplify_assign_immediate_return(source: str) -> str:
 
             yield asmt, None
             yield ret.value, asmt.value
+
+
+def missing_context_manager(source: str) -> str:
+    root = parsing.parse(source)
+
+    func_template = (
+        ast.Name(id="open"),
+        ast.Attribute(value=ast.Name(id="requests"), attr="Session"),
+        ast.Attribute(value=ast.Name(id="sqlite3"), attr="connect"),
+        ast.Attribute(value=ast.Name(id="tempfile"), attr="TemporaryFile"),
+        ast.Attribute(value=ast.Name(id="tempfile"), attr="NamedTemporaryFile"),
+        ast.Attribute(value=ast.Name(id="tempfile"), attr="TemporaryDirectory"),
+        ast.Attribute(value=ast.Name(id="zipfile"), attr="ZipFile"),
+        ast.Attribute(value=ast.Name(id="tarfile"), attr="TarFile"),
+        ast.Attribute(value=ast.Name(id="gzip"), attr="GzipFile"),
+        ast.Attribute(value=ast.Name(id="bz2"), attr="BZ2File"),
+        ast.Attribute(value=ast.Name(id="lzma"), attr="LZMAFile"),
+        ast.Attribute(value=ast.Name(id="socket"), attr="socket"),
+        ast.Attribute(value=ast.Name(id="threading"), attr="Lock"),
+        ast.Attribute(value=ast.Name(id="threading"), attr="RLock"),
+        ast.Attribute(value=ast.Name(id="multiprocessing"), attr="Pool"),
+        ast.Attribute(value=ast.Name(id="multiprocessing"), attr="Lock"),
+        ast.Attribute(value=ast.Name(id="multiprocessing"), attr="RLock"),
+        ast.Attribute(value=ast.Name(id="subprocess"), attr="Popen"),
+        ast.Attribute(value=ast.Name(id="ftplib"), attr="FTP"),
+        ast.Attribute(value=ast.Name(id="ftplib"), attr="FTP_TLS"),
+        ast.Attribute(value=ast.Name(id="smtplib"), attr="SMTP"),
+        ast.Attribute(value=ast.Name(id="smtplib"), attr="SMTP_SSL"),
+        ast.Attribute(value=ast.Name(id="imaplib"), attr="IMAP4"),
+        ast.Attribute(value=ast.Name(id="imaplib"), attr="IMAP4_SSL"),
+        ast.Attribute(value=ast.Name(id="poplib"), attr="POP3"),
+        ast.Attribute(value=ast.Name(id="poplib"), attr="POP3_SSL"),
+        ast.Attribute(value=ast.Name(id="ssl"), attr="wrap_socket"),
+        ast.Attribute(value=ast.Name(id="psycopg2"), attr="connect"),
+        ast.Attribute(value=ast.Name(id="pymysql"), attr="connect"),
+        ast.Attribute(value=ast.Name(id="pyodbc"), attr="connect"),
+        ast.Attribute(value=ast.Name(id=("connection", "con")), attr="cursor"),
+    )
+
+    template = ast.Assign(
+        targets=[parsing.Wildcard("target", ast.Name(id=str))],
+        value=parsing.Wildcard("value", ast.Call(func=func_template))
+    )
+
+    removals = []
+    replacements = {}
+    for (asmt, target, value), *nodes in parsing.walk_sequence(root, template, object, expand_last=True):
+        target_template = ast.Name(id=target.id)
+        if any(isinstance(node, (ast.Yield, ast.Return)) and parsing.walk(node, target_template) for node in nodes):
+            continue
+
+        nodes = [tup[0] for tup in nodes]
+        while nodes:
+            if parsing.walk(nodes[-1], target_template):
+                break
+
+            nodes.pop()
+
+        for i, node in enumerate(nodes):
+            if parsing.match_template(node, (
+                ast.Call(func=ast.Attribute(value=target_template, attr="close")),
+                ast.Expr(value=ast.Call(func=ast.Attribute(value=target_template, attr="close"))),
+            )):
+                nodes = nodes[:i]  # prevent the close() going into the with statement
+                removals.append(node)
+                break
+
+        removals.extend(nodes)
+
+        replacements[asmt] = ast.With(
+            items=[ast.withitem(context_expr=value, optional_vars=target)],
+            body=[parsing.with_added_indent(node, 4) for node in nodes],
+            lineno=asmt.lineno,
+            col_offset=asmt.col_offset)
+
+        break
+
+    if replacements:
+        source = processing.alter_code(source, root, replacements=replacements, removals=removals)
+        return missing_context_manager(source)
+
+    return source
