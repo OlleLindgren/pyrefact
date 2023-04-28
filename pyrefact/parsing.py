@@ -74,6 +74,11 @@ def _all_fields_consistent(
     return True
 
 
+@functools.lru_cache(maxsize=10000)
+def _make_match_type(fields: Tuple[str, ...]) -> type:
+    return collections.namedtuple("Match", fields)
+
+
 def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
     namedtuple_matches = []
     for match in matches:
@@ -97,8 +102,8 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
     # Always store node in special "root" field. Other contents of this field are discarded.
 
     # Sort in alphabetical order, but always with "root" first.
-    fields = sorted(namedtuple_vars.keys(), key=lambda k: (k != "root", k))
-    namedtuple_type = collections.namedtuple("Match", fields)
+    fields = tuple(sorted(namedtuple_vars.keys(), key=lambda k: (k != "root", k)))
+    namedtuple_type = _make_match_type(fields)
     return namedtuple_type(*(namedtuple_vars[field] for field in fields))
 
 
@@ -161,7 +166,7 @@ def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = f
         return (node,) if node is template else ()
 
     if isinstance(template, Wildcard):
-        namedtuple_type = collections.namedtuple("Match", (template.name,))
+        namedtuple_type = _make_match_type((template.name,))
         template_match = match_template(node, template.template, ignore=ignore)
         return namedtuple_type(template_match[0]) if len(template_match) == 1 else ()
 
