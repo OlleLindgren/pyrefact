@@ -75,22 +75,14 @@ def _all_fields_consistent(
 
 
 def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
-    matches_list = []
-    for m in matches:
-        if not m:
+    namedtuple_matches = []
+    for match in matches:
+        if not match:
             return ()
 
-        matches_list.append(m)
-
-    matches = matches_list
-
-    namedtuple_matches = []
-    tuple_matches = []
-    for match in matches:
-        if type(match) is tuple:
-            tuple_matches.append(match)
-        else:
+        if type(match) is not tuple:
             namedtuple_matches.append(match)
+
     if not namedtuple_matches:
         return (root,)
 
@@ -110,7 +102,7 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
     return namedtuple_type(*(namedtuple_vars[field] for field in fields))
 
 
-def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = ()) -> Tuple:
+def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = frozenset()) -> Tuple:
     """Match a node against a provided ast template.
 
     Args:
@@ -129,16 +121,17 @@ def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = (
     if isinstance(template, type):
         return (node,) if isinstance(node, template) else ()
 
-    ignore = frozenset(ignore)
-
     # A tuple indicates an or condition; the node must comply with any of
     # the templates in the child.
     # They may all be types for example, which boils down to the traditional
     # isinstance logic.
     # If there are wildcards, the first match is chosen.
     if isinstance(template, tuple):
-        return next(
-            filter(None, (match_template(node, child, ignore=ignore) for child in template)), ())
+        for child in template:
+            if match := match_template(node, child, ignore=ignore):
+                return match
+        return ()
+
     # A set indicates a variable length list, where all elements must match
     # against at least one of the templates in it.
     # If there are wildcards, the first match is chosen.
@@ -177,17 +170,26 @@ def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = (
     if not isinstance(node, ast.AST):
         return (node,) if node == template else ()
 
+    if not isinstance(node, type(template)):
+        return ()
+
     t_vars = vars(template)
     n_vars = vars(node)
 
-    if issubclass(type(node), type(template)) and t_vars.keys() - ignore <= n_vars.keys() - ignore:
-        matches = (
-            match_template(n_vars[key], t_vars[key], ignore=ignore)
-            for key in t_vars.keys() - ignore
-        )
-        return _merge_matches(node, matches)
+    if not isinstance(node, type(template)):
+        return ()
 
-    return ()
+    for k in t_vars:
+        if k in ignore:
+            continue
+        if k not in n_vars:
+            return ()
+
+    matches = (
+        match_template(n_vars[key], t_vars[key], ignore=ignore)
+        for key in t_vars.keys() - ignore
+    )
+    return _merge_matches(node, matches)
 
 
 @functools.lru_cache(maxsize=100)
