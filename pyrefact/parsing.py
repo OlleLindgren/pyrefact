@@ -790,6 +790,32 @@ def literal_value(node: ast.AST) -> bool:
             for left, op, comparator in zip([node.left] + node.comparators, node.ops, node.comparators)
         )
 
+    if match_template(node, ast.UnaryOp(op=ast.Not, operand=object)):
+        return not literal_value(node.operand)
+
+    if match_template(node, ast.BoolOp(op=(ast.And, ast.Or))):
+        if not node.values:
+            raise ValueError("Cannot find a deterministic value for an empty BoolOp")
+        if isinstance(node.op, ast.And):
+            # Return the first falsy value, if any.
+            # Otherwise return the last value.
+            for value in node.values:
+                result = literal_value(value)
+                if not result:
+                    return result
+
+            return result
+
+        if isinstance(node.op, ast.Or):
+            # Return the first non-falsy value, if any.
+            # Otherwise return the last value.
+            for value in node.values:
+                result = literal_value(value)
+                if result:
+                    return result
+
+            return result
+
     return ast.literal_eval(node)
 
 

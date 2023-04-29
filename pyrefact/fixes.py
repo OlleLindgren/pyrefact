@@ -1777,6 +1777,72 @@ def remove_dead_ifs(source: str) -> str:
                 node_start - start_offset, node_end
             ), "\n\n" + modified_body + "\n\n"
 
+    for node in parsing.walk(root, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+        generators = []
+        any_comprehension_modified = False
+        for comprehension in node.generators:
+            ifs = []
+            any_if_always_false = False
+            for if_ in comprehension.ifs:
+                try:
+                    value = parsing.literal_value(if_)
+                except ValueError:
+                    ifs.append(if_)
+                    continue
+
+                if not value:
+                    # Condition is always False, so the whole comprehension is dead
+                    any_if_always_false = True
+                    break
+
+                # (else): Condition is always True, so the condition can be removed.
+                # We skip adding it to ifs, so that will be the result.
+
+            if any_if_always_false:
+                any_comprehension_modified = True
+                continue
+
+            if len(ifs) < len(comprehension.ifs):
+                replacement = ast.comprehension(
+                    target=comprehension.target,
+                    iter=comprehension.iter,
+                    ifs=ifs,
+                    is_async=comprehension.is_async,
+                )
+                generators.append(replacement)
+                any_comprehension_modified = True
+            else:
+                generators.append(comprehension)
+
+        if not any_comprehension_modified:
+            continue
+
+        if generators:
+            yield (node, type(node)(**{**node.__dict__, "generators": generators}))
+            continue
+
+        # If all generators are dead, replace the comprehension with an empty container
+        # of the same type.
+
+        if isinstance(node, ast.ListComp):
+            yield (node, ast.List(elts=[]))
+            continue
+
+        if isinstance(node, ast.SetComp):
+            yield (node, ast.Call(func=ast.Name(id="set"), args=[], keywords=[]))
+            continue
+
+        # Although an empty generator would be more correctly replaced with iter([]) or
+        # some similar construct, I think that will just confuse people, so we replace
+        # it with a tuple instead, which is semantically equivalent and more readable.
+        if isinstance(node, ast.GeneratorExp):
+            yield (node, ast.Tuple(elts=[]))
+            continue
+
+        if isinstance(node, ast.DictComp):
+            yield (node, ast.Dict(keys=[], values=[]))
+            continue
+
 
 @processing.fix(restart_on_replace=True)
 def delete_commented_code(source: str) -> str:

@@ -95,6 +95,54 @@ print(3)
 print(2)
             """,
         ),
+        (
+            """
+y = (i for i in range(11) if not ())
+            """,
+            """
+y = (i for i in range(11))
+            """,
+        ),
+        (
+            """
+y = (i for i in range(11) if 7 and not () if foo() if bar() if baz() and wombat() ** 3)
+            """,
+            """
+y = (i for i in range(11) if foo() if bar() if baz() and wombat() ** 3)
+            """,
+        ),
+        (
+            """
+y = (i for i in range(11) if ())
+            """,
+            """
+y = ()
+            """,
+        ),
+        (
+            """
+y = [i for i in range(11) if ()]
+            """,
+            """
+y = []
+            """,
+        ),
+        (
+            """
+y = {i for i in range(11) if ()}
+            """,
+            """
+y = set()
+            """,
+        ),
+        (
+            """
+y = {i: i for i in range(11) if ()}
+            """,
+            """
+y = {}
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
