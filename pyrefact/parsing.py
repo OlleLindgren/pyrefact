@@ -1105,6 +1105,8 @@ def code_dependencies_outputs(
             required_names.update(
                 func.name
                 for func in walk(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
+            if isinstance(node, ast.Try):
+                maybe_created_names.update(name.id for name in walk(node, ast.Name(ctx=ast.Store)))
             continue
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             created_names.update(
