@@ -451,8 +451,7 @@ Foo.asdf()
         """,
         """
 def _asdf():
-    if 2 in {1, 2, 3}:
-        print(3)
+    print(3)
 _asdf()
 _asdf()
 _asdf()

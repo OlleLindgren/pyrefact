@@ -77,13 +77,11 @@ class Foo:
             """,
             """
 def asdf():
-    if 2 in {1, 2, 3}:
-        print(3)
+    print(3)
 class Foo:
     @staticmethod
     def asdf():
-        if 2 in {1, 2, 3}:
-            print(3)
+        print(3)
             """,
         ),
         (
@@ -102,10 +100,10 @@ import unittest
 class TestSomeStuff(unittest.TestCase):
     @staticmethod
     def test_important_stuff():
-        assert 1 == 3
+        assert False
     @staticmethod
     def test_important_stuff2():
-        assert 1 == 3
+        assert False
     def test_nonsense(self):
         self.assertEqual(1, 3)
             """,

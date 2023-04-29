@@ -91,7 +91,7 @@ b = x
 c = 2
 d = {2: 3}
 e = 14 if list((1, 2, 3)) else 13
-print(3 if 2 > 0 else 2)
+print(3)
 print(2)
             """,
         ),

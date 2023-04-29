@@ -1,6 +1,7 @@
 import ast
 import builtins
 import keyword
+import operator
 import sys
 import typing
 from types import MappingProxyType
@@ -305,6 +306,33 @@ REVERSE_OPERATOR_MAPPING = MappingProxyType(
         ast.NotIn: ast.In,
         ast.Is: ast.IsNot,
         ast.IsNot: ast.Is,
+    }
+)
+COMPARISON_OPERATORS = MappingProxyType(
+    {
+        ast.Eq: operator.eq,
+        ast.NotEq: operator.ne,
+        ast.Lt: operator.lt,
+        ast.LtE: operator.le,
+        ast.Gt: operator.gt,
+        ast.GtE: operator.ge,
+        ast.Is: operator.is_,
+        ast.IsNot: operator.is_not,
+        ast.In: lambda x, y: x in y,
+        ast.NotIn: lambda x, y: x not in y,
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod,
+        ast.Pow: operator.pow,
+        ast.LShift: operator.lshift,
+        ast.RShift: operator.rshift,
+        ast.BitOr: operator.or_,
+        ast.BitXor: operator.xor,
+        ast.BitAnd: operator.and_,
+        ast.MatMult: operator.matmul,
     }
 )
 
