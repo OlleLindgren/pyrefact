@@ -277,18 +277,6 @@ def _build_function_body(
     return body
 
 
-def _code_complexity_length(node: ast.AST) -> int:
-    node_unparse_length = len(re.sub(" *", "", parsing.unparse(node)))
-    node_string_length = len(
-        re.sub(
-            " *",
-            "",
-            "".join(child.value for child in parsing.walk(node, ast.Constant(value=str))),
-        )
-    )
-    return node_unparse_length - node_string_length
-
-
 def _get_function_insertion_lineno(
     containing_node: ast.AST, function_def_linenos: Collection[int], import_linenos: Collection[int]
 ) -> int:
@@ -379,11 +367,6 @@ def create_abstractions(source: str) -> str:
                 for child in nodes
                 for grandchild in ast.walk(child)
             )
-            if (
-                sum(_code_complexity_length(node) for node in nodes) < 100
-                and children_with_purpose < 3
-            ):
-                continue
             if children_with_purpose <= 2:
                 continue
 
