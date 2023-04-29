@@ -3314,9 +3314,9 @@ def simplify_boolean_expressions(source: str) -> str:
             if {True, False} in expression_conditions.values():
                 # Something can (in the or case) or must (in the and case) be both True and False
                 if isinstance(node.op, ast.Or):
-                    yield node, ast.Constant(value=True)
+                    yield node, ast.Constant(value=True, kind=None)
                 else:
-                    yield node, ast.Constant(value=False)
+                    yield node, ast.Constant(value=False, kind=None)
 
                 continue
 
@@ -3539,11 +3539,11 @@ def simplify_boolean_expressions(source: str) -> str:
                             redundant_or_values.add(lte_value)
 
             if always_false:
-                yield node, ast.Constant(value=False)
+                yield node, ast.Constant(value=False, kind=None)
                 continue
             
             if always_true:
-                yield node, ast.Constant(value=True)
+                yield node, ast.Constant(value=True, kind=None)
                 continue
 
             if redundant_and_values and isinstance(node.op, ast.And):
@@ -3559,13 +3559,13 @@ def simplify_boolean_expressions(source: str) -> str:
         if isinstance(node.op, ast.And):
             # One of node.values is always False => Expression is always False
             if any(isinstance(value, ast.Constant) and not value.value for value in node.values):
-                yield node, ast.Constant(value=False)
+                yield node, ast.Constant(value=False, kind=None)
                 continue
 
             # Remove all True values
             values = [value for value in node.values if not parsing.match_template(value, ast.Constant(value=True))]
             if not values:
-                yield node, ast.Constant(value=True)
+                yield node, ast.Constant(value=True, kind=None)
                 continue
 
             if len({parsing.unparse(value) for value in values}) == 1:
@@ -3579,13 +3579,13 @@ def simplify_boolean_expressions(source: str) -> str:
         elif isinstance(node.op, ast.Or):
             # One of node.values is always True => Expression is always True
             if any(isinstance(value, ast.Constant) and value.value for value in node.values):
-                yield node, ast.Constant(value=True)
+                yield node, ast.Constant(value=True, kind=None)
                 continue
 
             # Remove all False values
             values = [value for value in node.values if not parsing.match_template(value, ast.Constant(value=False))]
             if not values:
-                yield node, ast.Constant(value=False)
+                yield node, ast.Constant(value=False, kind=None)
                 continue
 
             if len({parsing.unparse(value) for value in values}) == 1:
@@ -3598,7 +3598,7 @@ def simplify_boolean_expressions(source: str) -> str:
 
     for node in parsing.walk(root, ast.UnaryOp):
         if isinstance(node.op, ast.Not) and isinstance(node.operand, ast.Constant):
-            yield node, ast.Constant(value=not node.operand.value)
+            yield node, ast.Constant(value=not node.operand.value, kind=None)
 
     for node in parsing.walk(root, regular_compare_template):
         operator = node.ops[0]
@@ -3608,24 +3608,24 @@ def simplify_boolean_expressions(source: str) -> str:
             right = parsing.literal_value(comparator)
         except ValueError:
             if isinstance(operator, ast.Eq) and parsing.unparse(node.left) == parsing.unparse(comparator):
-                yield node, ast.Constant(value=True)
+                yield node, ast.Constant(value=True, kind=None)
 
             continue
 
         if isinstance(operator, ast.Eq):
-            yield node, ast.Constant(value=left == right)
+            yield node, ast.Constant(value=left == right, kind=None)
 
         elif isinstance(operator, ast.NotEq):
-            yield node, ast.Constant(value=left != right)
+            yield node, ast.Constant(value=left != right, kind=None)
 
         elif isinstance(operator, ast.Gt):
-            yield node, ast.Constant(value=left > right)
+            yield node, ast.Constant(value=left > right, kind=None)
         
         elif isinstance(operator, ast.Lt):
-            yield node, ast.Constant(value=left < right)
+            yield node, ast.Constant(value=left < right, kind=None)
         
         elif isinstance(operator, ast.GtE):
-            yield node, ast.Constant(value=left >= right)
+            yield node, ast.Constant(value=left >= right, kind=None)
 
         elif isinstance(operator, ast.LtE):
-            yield node, ast.Constant(value=left <= right)
+            yield node, ast.Constant(value=left <= right, kind=None)
