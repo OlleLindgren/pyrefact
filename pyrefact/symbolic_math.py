@@ -635,7 +635,7 @@ def simplify_boolean_expressions_symmath(source: str) -> str:
         try:
             simplified = simplify_ast_boolop(node)
         except ValueError:
-            raise
+            continue
 
         if len(parsing.unparse(simplified)) < len(parsing.unparse(node)):
             yield node, simplified
