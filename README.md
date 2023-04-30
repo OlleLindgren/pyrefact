@@ -10,6 +10,7 @@ Unlike emerging AI tools, pyrefact is entirely rule based and does not share you
 
 * Move common code in `if`/`else` blocks before or after the `if`/`else`.
 * De-indent code with early `continue` and `return` statements.
+* Simplify boolean expressions.
 * Replace for loops with immediate `if` conditions with `filter`.
 * Remove commented code.
 * Move code into primitive functions.
