@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-from pyrefact import fixes
+from pyrefact import symbolic_math
 
 sys.path.append(str(Path(__file__).parents[1]))
 import testing_infra
@@ -272,7 +272,7 @@ y < 0 or y > 1
 
     for source, expected_abstraction in test_cases:
 
-        processed_content = fixes.simplify_boolean_expressions(source)
+        processed_content = symbolic_math.simplify_boolean_expressions(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
