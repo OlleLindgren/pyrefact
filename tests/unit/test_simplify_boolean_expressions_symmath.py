@@ -33,11 +33,19 @@ True
 (A and B) and (not A and not B)
 (A and B) and (A or B)
 a and b and not (not c or not d)
+(
+    testing_infra.check_fixes_equal(processed_content, expected_abstraction)
+    and True and not
+    testing_infra.check_fixes_equal(processed_content, expected_abstraction)
+)
             """,
             """
 False
 A and B
 a and b and c and d
+(
+    False
+)
             """,
         ),
     )
