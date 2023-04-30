@@ -260,6 +260,14 @@ y or ()
 y or ()
             """,
         ),
+        (
+            """
+y > 1 or (y < 0 or y > 1)
+            """,
+            """
+y < 0 or y > 1
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:

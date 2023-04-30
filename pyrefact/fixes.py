@@ -3394,7 +3394,13 @@ def simplify_boolean_expressions(source: str) -> str:
             # could be simplified to f(x) == 5. Since the asts that provided the Gt, Lt
             # and Eq constraints are also known, we know that we can remove the ones that
             # gave the gt and lt constraints.
-            for value in parsing.filter_nodes(node.values, regular_compare_template):
+            constraint_values = list(node.values)
+            for value in constraint_values:
+                if parsing.match_template(value, ast.BoolOp(op=type(node.op))):
+                    constraint_values.extend(value.values)
+                    continue
+
+            for value in parsing.filter_nodes(constraint_values, regular_compare_template):
                 left_is_unparsed = False
                 right_is_unparsed = False
                 try:
@@ -3442,7 +3448,22 @@ def simplify_boolean_expressions(source: str) -> str:
             always_true = False
             always_false = False
             for left, bounds in constant_bounds.items():
-                # Check for redundant constraints
+                # Check for identical constraints
+                for (thr1, thr1_value), (thr2, thr2_value) in itertools.chain.from_iterable(
+                    itertools.combinations(subset, 2)
+                    for subset in bounds.values()
+                ):
+                    if thr1 == thr2:
+                        if thr1_value in node.values:
+                            redundant_and_values.add(thr1_value)
+                            redundant_or_values.add(thr1_value)
+                        else:
+                            redundant_and_values.add(thr2_value)
+                            redundant_or_values.add(thr2_value)
+
+                # Check for redundant constraints, where one is stronger than the other.
+                # These checks purposefully do not cover the case where the two constraints
+                # are equal, since that is already covered by the previous check.
                 if len(bounds[ast.Eq]) >= 2:
                     for (eq1, _), (eq2, eq2_value) in itertools.combinations(bounds[ast.Eq], 2):
                         if eq1 == eq2:
@@ -3453,7 +3474,7 @@ def simplify_boolean_expressions(source: str) -> str:
 
                 if len(bounds[ast.Gt]) >= 2:
                     for (gt1, gt1_value), (gt2, gt2_value) in itertools.combinations(bounds[ast.Gt], 2):
-                        if gt1 >= gt2:
+                        if gt1 > gt2:
                             redundant_and_values.add(gt2_value)
                             redundant_or_values.add(gt1_value)
                         if gt1 < gt2:
@@ -3462,7 +3483,7 @@ def simplify_boolean_expressions(source: str) -> str:
 
                 if len(bounds[ast.Lt]) >= 2:
                     for (lt1, lt1_value), (lt2, lt2_value) in itertools.combinations(bounds[ast.Lt], 2):
-                        if lt1 <= lt2:
+                        if lt1 < lt2:
                             redundant_and_values.add(lt2_value)
                             redundant_or_values.add(lt1_value)
                         if lt1 > lt2:
@@ -3471,7 +3492,7 @@ def simplify_boolean_expressions(source: str) -> str:
 
                 if len(bounds[ast.GtE]) >= 2:
                     for (gte1, gte1_value), (gte2, gte2_value) in itertools.combinations(bounds[ast.GtE], 2):
-                        if gte1 >= gte2:
+                        if gte1 > gte2:
                             redundant_and_values.add(gte2_value)
                             redundant_or_values.add(gte1_value)
                         if gte1 < gte2:
@@ -3480,14 +3501,14 @@ def simplify_boolean_expressions(source: str) -> str:
 
                 if len(bounds[ast.LtE]) >= 2:
                     for (lte1, lte1_value), (lte2, lte2_value) in itertools.combinations(bounds[ast.LtE], 2):
-                        if lte1 <= lte2:
+                        if lte1 < lte2:
                             redundant_and_values.add(lte2_value)
                             redundant_or_values.add(lte1_value)
                         if lte1 > lte2:
                             redundant_and_values.add(lte1_value)
                             redundant_or_values.add(lte2_value)
 
-                # ==, != conflicts
+                # eq vs everything else
                 for eq, eq_value in bounds[ast.Eq]:
                     for neq, neq_value in bounds[ast.NotEq]:
                         if eq == neq:
@@ -3525,6 +3546,7 @@ def simplify_boolean_expressions(source: str) -> str:
                             redundant_or_values.add(eq_value)
                             redundant_and_values.add(lte_value)
 
+                # neq vs everything else, except eq
                 for neq, neq_value in bounds[ast.NotEq]:
                     for gt, gt_value in bounds[ast.Gt]:
                         if neq <= gt:
@@ -3554,7 +3576,7 @@ def simplify_boolean_expressions(source: str) -> str:
                         if neq <= lte:
                             always_true |= isinstance(node.op, ast.Or)
 
-                # >, >=, <, <= conflicts
+                # gt vs everything else, except eq and neq
                 for gt, gt_value in bounds[ast.Gt]:
                     for lt, lt_value in bounds[ast.Lt]:
                         if gt >= lt:
@@ -3582,6 +3604,7 @@ def simplify_boolean_expressions(source: str) -> str:
                             redundant_and_values.add(gt_value)
                             redundant_or_values.add(gte_value)
 
+                # gte vs everything else, except eq, neq and gt
                 for gte, gte_value in bounds[ast.GtE]:
                     for lt, lt_value in bounds[ast.Lt]:
                         if gte >= lt:
@@ -3595,6 +3618,7 @@ def simplify_boolean_expressions(source: str) -> str:
                         if gte <= lte:
                             always_true |= isinstance(node.op, ast.Or)
 
+                # lt vs everything else, except eq, neq, gt and gte (i.e. only lte)
                 for lt, lt_value in bounds[ast.Lt]:
                     for lte, lte_value in bounds[ast.LtE]:
                         if lt <= lte:
@@ -3614,13 +3638,21 @@ def simplify_boolean_expressions(source: str) -> str:
 
             if redundant_and_values and isinstance(node.op, ast.And):
                 values = [value for value in node.values if value not in redundant_and_values]
-                yield node, ast.BoolOp(op=node.op, values=values)
-                continue
+                if len(values) == 1:
+                    yield node, values[0]
+                    continue
+                if values != node.values:
+                    yield node, ast.BoolOp(op=node.op, values=values)
+                    continue
 
             if redundant_or_values and isinstance(node.op, ast.Or):
                 values = [value for value in node.values if value not in redundant_or_values]
-                yield node, ast.BoolOp(op=node.op, values=values)
-                continue
+                if len(values) == 1:
+                    yield node, values[0]
+                    continue
+                if values != node.values:
+                    yield node, ast.BoolOp(op=node.op, values=values)
+                    continue
 
         if isinstance(node.op, ast.And):
             # One of node.values is always False => Expression is always False
