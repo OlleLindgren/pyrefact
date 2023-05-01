@@ -53,7 +53,7 @@ a and b and c and d
     False
 )
             """,
-        ) if constants.PYTHON_VERSION > (3, 8) else ("", ""),
+        ) if constants.PYTHON_VERSION >= (3, 9) else ("", ""),
     )
 
     for source, expected_abstraction in test_cases:
