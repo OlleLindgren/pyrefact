@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-from pyrefact import symbolic_math
+from pyrefact import constants, symbolic_math
 
 sys.path.append(str(Path(__file__).parents[1]))
 import testing_infra
@@ -33,6 +33,15 @@ True
 (A and B) and (not A and not B)
 (A and B) and (A or B)
 a and b and not (not c or not d)
+            """,
+            """
+False
+A and B
+a and b and c and d
+            """,
+        ),
+        (
+            """
 (
     testing_infra.check_fixes_equal(processed_content, expected_abstraction)
     and True and not
@@ -40,14 +49,11 @@ a and b and not (not c or not d)
 )
             """,
             """
-False
-A and B
-a and b and c and d
 (
     False
 )
             """,
-        ),
+        ) if constants.PYTHON_VERSION > (3, 8) else ("", ""),
     )
 
     for source, expected_abstraction in test_cases:
