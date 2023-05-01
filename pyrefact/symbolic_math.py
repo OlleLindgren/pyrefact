@@ -637,5 +637,8 @@ def simplify_boolean_expressions_symmath(source: str) -> str:
         except ValueError:
             continue
 
-        if len(parsing.unparse(simplified)) < len(parsing.unparse(node)):
+        node_complexity = sum(len(x.values) for x in parsing.walk(node, ast.BoolOp))
+        simplified_complexity = sum(len(x.values) for x in parsing.walk(simplified, ast.BoolOp))
+
+        if simplified_complexity < node_complexity:
             yield node, simplified
