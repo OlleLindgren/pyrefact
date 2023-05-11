@@ -143,9 +143,10 @@ def _get_variable_name_substitutions(
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
             for node in parsing.iter_funcdefs(partial_tree):
-                if parsing.is_magic_method(node):
-                    continue
                 name = node.name
+                # Don't rename magic members, don't rename if there is inheritance.
+                if partial_tree.bases or parsing.is_magic_method(node):
+                    renamings[node] = {name}
                 funcdefs.append(node)
                 substitute = style.rename_variable(
                     name, private=parsing.is_private(name), static=False
@@ -155,6 +156,9 @@ def _get_variable_name_substitutions(
                     renamings[refnode].add(substitute)
             for node in parsing.iter_assignments(partial_tree):
                 name = node.id
+                # Don't rename magic members, don't rename if there is inheritance.
+                if partial_tree.bases or (name.startswith("__") and name.endswith("__")):
+                    renamings[node] = {name}
                 substitute = style.rename_variable(
                     name, private=parsing.is_private(name), static=False
                 )

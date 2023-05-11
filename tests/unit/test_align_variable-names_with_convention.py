@@ -128,6 +128,38 @@ def _foo():
     __def = 3
         """
         ),
+        (
+        """
+import unittest
+
+class TestFoo(unittest.TestCase):
+    def setUp(self):
+        pass
+
+class Foo(object):
+    def setUp(self):
+        pass
+
+class Spam:
+    def setUp(self):
+        pass
+        """,
+        """
+import unittest
+
+class _TestFoo(unittest.TestCase):
+    def setUp(self):
+        pass
+
+class _Foo(object):
+    def setUp(self):
+        pass
+
+class _Spam:
+    def set_up(self):
+        pass
+        """
+        ),
     )
     for source, expected_abstraction in test_cases:
 
