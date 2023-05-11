@@ -268,6 +268,14 @@ y > 1 or (y < 0 or y > 1)
 y < 0 or y > 1
             """,
         ),
+        (
+            """
+x = [a for a in range(10) if a % 2 == 0 and a > 5 and a % 2 == 0]
+            """,
+            """
+x = [a for a in range(10) if a % 2 == 0 and a > 5]
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:

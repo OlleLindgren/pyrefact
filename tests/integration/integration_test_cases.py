@@ -508,5 +508,14 @@ for d_x in D.values():
     print(d_x)
     print(re.findall(str(d_x), "asdf"))
         """,
-    )
+    ),
+    (
+        """
+x = [a for a in range(10) if a % 2 == 0 and a > 5 and a % 2 == 0]
+print(sum(x))
+        """,
+        """
+print(sum([a for a in range(10) if a % 2 == 0 and a > 5]))
+        """,
+    ),
 )

@@ -347,27 +347,33 @@ def simplify_boolean_expressions(source: str) -> str:
             always_true = False
             always_false = False
             for left, bounds in constant_bounds.items():
+                bounds_ordered = {
+                    operator_type: sorted(
+                        values,
+                        key=lambda tup: (tup[1].lineno, tup[1].col_offset)
+                    )
+                    for operator_type, values in bounds.items()
+                }
+                bounds.clear()
+                bounds.update(bounds_ordered)
                 # Check for identical constraints
                 for (thr1, thr1_value), (thr2, thr2_value) in itertools.chain.from_iterable(
                     itertools.combinations(subset, 2)
                     for subset in bounds.values()
                 ):
                     if thr1 == thr2:
-                        if thr1_value in node.values:
-                            redundant_and_values.add(thr1_value)
-                            redundant_or_values.add(thr1_value)
-                        else:
+                        if thr2_value in node.values:
                             redundant_and_values.add(thr2_value)
                             redundant_or_values.add(thr2_value)
+                        else:
+                            redundant_and_values.add(thr1_value)
+                            redundant_or_values.add(thr1_value)
 
                 # Check for redundant constraints, where one is stronger than the other.
                 # These checks purposefully do not cover the case where the two constraints
                 # are equal, since that is already covered by the previous check.
                 if len(bounds[ast.Eq]) >= 2:
                     for (eq1, _), (eq2, eq2_value) in itertools.combinations(bounds[ast.Eq], 2):
-                        if eq1 == eq2:
-                            redundant_and_values.add(eq2_value)
-                            redundant_or_values.add(eq2_value)
                         if eq1 != eq2:
                             always_false |= isinstance(node.op, ast.And)
 
