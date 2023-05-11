@@ -467,11 +467,7 @@ e = [
 print(e)
         """,
         """
-E = [
-    x**2
-    for x in range(100)
-    if x > 7
-]
+E = [x ** 2 for x in range(8, 100)]
 print(E)
         """,
     ),
@@ -515,7 +511,7 @@ x = [a for a in range(10) if a % 2 == 0 and a > 5 and a % 2 == 0]
 print(sum(x))
         """,
         """
-print(sum([a for a in range(10) if a % 2 == 0 and a > 5]))
+print(sum([a for a in range(6, 10) if a % 2 == 0]))
         """,
     ),
 )

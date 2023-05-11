@@ -11,6 +11,9 @@ from pyrefact import formatting
 def _remove_multi_whitespace(source: str) -> str:
     source = re.sub(r"(?<![^\n]) *\n", "", f"\n{source}\n")
     source = "".join(line for line in source.splitlines(keepends=True) if line.strip())
+
+    source = re.sub(r" +(?=\n)", "", source)
+
     return source
 
 
