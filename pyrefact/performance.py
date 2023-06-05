@@ -275,6 +275,22 @@ def replace_subscript_looping(source: str) -> str:
         if parsing.match_template(
             iterated_node.args,
             [ast.Call(func=ast.Name(id="len"), args=[ast.Name(id=subscripted_name)])],
+        ) and parsing.match_template(
+            comp.elt,
+            ast.Subscript(
+                value=ast.Name(id=subscripted_name),
+                slice=(
+                    ast.Index(value=ast.Name(id=subscript_name)),
+                    ast.Tuple(elts=[  # python >= 3.9
+                        ast.Index(value=ast.Name(id=subscript_name)),
+                        ast.Slice(),
+                    ]),
+                    ast.ExtSlice(dims=[  # python <= 3.8
+                        ast.Index(value=ast.Name(id=subscript_name)),
+                        ast.Slice(),
+                    ]),
+                ),
+            )
         ):
             replacements[comp] = ast.Call(
                 func=ast.Name(id=wrapper_function),
