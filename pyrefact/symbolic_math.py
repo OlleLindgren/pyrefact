@@ -806,7 +806,7 @@ def simplify_constrained_range(source: str) -> str:
                 if changes:
                     redundant_conditions.add(condition)
 
-        if start >= stop:
+        if stop is not None and start >= stop:
             new_comp = ast.comprehension(
                 target=comp.target, iter=ast.Tuple(elts=[]), ifs=[], is_async=comp.is_async
             )
