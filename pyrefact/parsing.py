@@ -107,7 +107,11 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
     return namedtuple_type(*(namedtuple_vars[field] for field in fields))
 
 
-def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = frozenset()) -> Tuple:
+def match_template(
+    node: ast.AST,
+    template: ast.AST,
+    ignore: Collection[str] = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset"))
+) -> Tuple:
     """Match a node against a provided ast template.
 
     Args:
@@ -180,9 +184,6 @@ def match_template(node: ast.AST, template: ast.AST, ignore: Collection[str] = f
 
     t_vars = vars(template)
     n_vars = vars(node)
-
-    if not isinstance(node, type(template)):
-        return ()
 
     for k in t_vars:
         if k in ignore:
