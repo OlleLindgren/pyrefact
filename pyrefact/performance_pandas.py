@@ -7,18 +7,14 @@ from pyrefact import constants, parsing, processing
 def replace_loc_at_iloc_iat(source: str) -> str:
     if constants.PYTHON_VERSION >= (3, 9):
         pattern = ast.Subscript(
-            value=parsing.Wildcard("attribute", ast.Attribute(attr=('loc', 'iloc'))),
-            slice=(
-                ast.Tuple(elts=[ast.Constant, ast.Constant]),
-                ast.Constant,
-            ))
+            value=parsing.Wildcard("attribute", ast.Attribute(attr=("loc", "iloc"))),
+            slice=(ast.Tuple(elts=[ast.Constant, ast.Constant]), ast.Constant),
+        )
     else:
         pattern = ast.Subscript(
-            value=parsing.Wildcard("attribute", ast.Attribute(attr=('loc', 'iloc'))),
-            slice=ast.Index(value=(
-                ast.Tuple(elts=[ast.Constant, ast.Constant]),
-                ast.Constant,
-            )))
+            value=parsing.Wildcard("attribute", ast.Attribute(attr=("loc", "iloc"))),
+            slice=ast.Index(value=(ast.Tuple(elts=[ast.Constant, ast.Constant]), ast.Constant)),
+        )
 
     root = parsing.parse(source)
     for _, attribute in parsing.walk_wildcard(root, pattern):
@@ -36,14 +32,12 @@ def replace_loc_at_iloc_iat(source: str) -> str:
 def replace_iterrows_index(source: str) -> str:
     root = parsing.parse(source)
 
-    target_template = ast.Tuple(elts=[
-        parsing.Wildcard("new_target", object),
-        ast.Name(id="_")])
+    target_template = ast.Tuple(elts=[parsing.Wildcard("new_target", object), ast.Name(id="_")])
     iter_template = ast.Call(
-        func=ast.Attribute(
-            value=parsing.Wildcard("underlying_object", object),
-            attr="iterrows"),
-        args=[], keywords=[])
+        func=ast.Attribute(value=parsing.Wildcard("underlying_object", object), attr="iterrows"),
+        args=[],
+        keywords=[],
+    )
 
     template = (
         ast.For(target=target_template, iter=iter_template),
@@ -59,11 +53,13 @@ def replace_iterrows_itertuples(source: str) -> str:
     root = parsing.parse(source)
     replacements = {}
     target_template = ast.Tuple(
-        elts=[ast.Name(id="_"), ast.Name(id=parsing.Wildcard("new_target_id", str))])
+        elts=[ast.Name(id="_"), ast.Name(id=parsing.Wildcard("new_target_id", str))]
+    )
     iter_template = ast.Call(
         func=ast.Attribute(value=parsing.Wildcard("underlying_object", object), attr="iterrows"),
         args=[],
-        keywords=[],)
+        keywords=[],
+    )
     template = ast.For(target=target_template, iter=iter_template)
     for node, new_target_id, underlying_object in parsing.walk_wildcard(root, template):
         # If new_target is modified, the underlying dataframe is also modified. This cannot be
@@ -77,7 +73,8 @@ def replace_iterrows_itertuples(source: str) -> str:
         new_target_altered_template = (
             ast.Subscript(value=new_target, ctx=(ast.Store, ast.Del)),
             ast.Subscript(value=ast.Attribute(value=new_target), ctx=(ast.Store, ast.Del)),
-            ast.Attribute(value=new_target, ctx=ast.Store),)
+            ast.Attribute(value=new_target, ctx=ast.Store),
+        )
         if any(any(parsing.walk(child, new_target_altered_template)) for child in node.body):
             continue
 
@@ -94,7 +91,8 @@ def replace_iterrows_itertuples(source: str) -> str:
             ast.Subscript(value=new_target, slice=(ast.Index(value=ast.Name), ast.Name)),
             ast.Subscript(
                 value=ast.Attribute(value=new_target, attr=("loc", "iloc")),
-                slice=(ast.Index(value=ast.Name), ast.Name),),)
+                slice=(ast.Index(value=ast.Name), ast.Name),
+        ),)
         if any(
             any(parsing.walk(child, unsupported_new_target_access_template)) for child in node.body
         ):
@@ -107,14 +105,17 @@ def replace_iterrows_itertuples(source: str) -> str:
             value=new_target,
             slice=(
                 ast.Index(value=ast.Constant(value=parsing.Wildcard("attr", str))),
-                ast.Constant(value=parsing.Wildcard("attr", str)),),)
+                ast.Constant(value=parsing.Wildcard("attr", str)),
+        ),)
         target_at_access_template = ast.Subscript(
             value=ast.Attribute(value=new_target, attr="at"),
             slice=(
                 ast.Index(value=ast.Constant(value=parsing.Wildcard("attr", str))),
-                ast.Constant(value=parsing.Wildcard("attr", str)),),)
+                ast.Constant(value=parsing.Wildcard("attr", str)),
+        ),)
         target_iat_access_template = ast.Subscript(
-            value=ast.Attribute(value=new_target, attr="iat"))
+            value=ast.Attribute(value=new_target, attr="iat")
+        )
         node_replacements = {}
         for child in node.body:
             for target_get_access, attr in parsing.walk_wildcard(child, target_get_access_template):
@@ -127,7 +128,8 @@ def replace_iterrows_itertuples(source: str) -> str:
                     slice=ast.BinOp(
                         left=target_iat_access.slice,
                         op=ast.Add(),
-                        right=ast.Constant(value=1, kind=None),),)
+                        right=ast.Constant(value=1, kind=None),
+                ),)
         # All mentions should have been replaced, otherwise something is wrong.
 
         # I'm aware that attribute accesses don't necessarily need to be replaced, but
@@ -135,12 +137,14 @@ def replace_iterrows_itertuples(source: str) -> str:
         # of access bad practice as you'll be confused about what is what. And then I have
         # to maintain a list of those and, ... well, it's just a bad idea.
         n_new_target_mentions = len(
-            [child for child in node.body for _ in parsing.walk(child, new_target)])
+            [child for child in node.body for _ in parsing.walk(child, new_target)]
+        )
         if n_new_target_mentions != len(node_replacements):
             continue
 
         new_iter = ast.Call(
-            func=ast.Attribute(value=underlying_object, attr="itertuples"), args=[], keywords=[])
+            func=ast.Attribute(value=underlying_object, attr="itertuples"), args=[], keywords=[]
+        )
         node_replacements[node.iter] = new_iter
         node_replacements[node.target] = new_target
 

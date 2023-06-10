@@ -34,8 +34,7 @@ def unparse(node: ast.AST) -> str:
             ast.AugAssign,
             ast.If,
             ast.IfExp,
-        ),
-    ):
+    ),):
         source = source.rstrip()
 
     line_length = max(60, 100 - getattr(node, "col_offset", 0))
@@ -110,7 +109,7 @@ def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[obj
 def match_template(
     node: ast.AST,
     template: ast.AST,
-    ignore: Collection[str] = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset"))
+    ignore: Collection[str] = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset")),
 ) -> Tuple:
     """Match a node against a provided ast template.
 
@@ -149,8 +148,8 @@ def match_template(
         if not isinstance(node, list):
             return ()
         matches = (
-            match_template(node_child, tuple(template), ignore=ignore)
-            for node_child in node)
+            match_template(node_child, tuple(template), ignore=ignore) for node_child in node
+        )
 
         return _merge_matches(node, matches)
     # A list indicates that the node must also be a list, and for every
@@ -160,7 +159,8 @@ def match_template(
         if isinstance(node, list) and len(node) == len(template):
             matches = (
                 match_template(child, template_child, ignore=ignore)
-                for child, template_child in zip(node, template))
+                for child, template_child in zip(node, template)
+            )
 
             return _merge_matches(node, matches)
 
@@ -192,8 +192,7 @@ def match_template(
             return ()
 
     matches = (
-        match_template(n_vars[key], t_vars[key], ignore=ignore)
-        for key in t_vars.keys() - ignore
+        match_template(n_vars[key], t_vars[key], ignore=ignore) for key in t_vars.keys() - ignore
     )
     return _merge_matches(node, matches)
 
@@ -259,9 +258,7 @@ def walk_wildcard(
 
 
 def walk(
-    scope: ast.AST,
-    node_template: ast.AST | Tuple[ast.AST, ...],
-    ignore: Collection[str] = (),
+    scope: ast.AST, node_template: ast.AST | Tuple[ast.AST, ...], ignore: Collection[str] = ()
 ) -> Sequence[ast.AST]:
     """Get nodes in scope of a particular type
 
@@ -276,7 +273,9 @@ def walk(
         yield node
 
 
-def _iter_wildcards(template: ast.AST, recursion_blacklist: Collection = None) -> Iterable[Wildcard]:
+def _iter_wildcards(
+    template: ast.AST, recursion_blacklist: Collection = None
+) -> Iterable[Wildcard]:
     if recursion_blacklist is None:
         recursion_blacklist = set()
     if id(template) in recursion_blacklist:
@@ -303,15 +302,15 @@ def walk_sequence(
 ) -> Iterable[Sequence[ast.AST]]:
     uncommon = set()
     for node in walk(
-        scope, tuple({*constants.AST_TYPES_WITH_BODY, *constants.AST_TYPES_WITH_ORELSE})):
-        for body in [
-            getattr(node, "body", []),
-            getattr(node, "orelse", []),]:
+        scope, tuple({*constants.AST_TYPES_WITH_BODY, *constants.AST_TYPES_WITH_ORELSE})
+    ):
+        for body in [getattr(node, "body", []), getattr(node, "orelse", [])]:
             if not body:
                 continue
 
             for nodes in zip(
-                *(body[i : len(body) - len(templates) + i + 1] for i in range(len(templates)))):
+                *(body[i : len(body) - len(templates) + i + 1] for i in range(len(templates)))
+            ):
                 all_matching = True
                 matches = []
                 for node, template in zip(nodes, templates):
@@ -511,10 +510,7 @@ def slice_of(node: ast.Subscript) -> ast.AST:
     return node_slice
 
 
-def has_side_effect(
-    node: ast.AST,
-    safe_callable_whitelist: Collection[str] = frozenset(),
-) -> bool:
+def has_side_effect(node: ast.AST, safe_callable_whitelist: Collection[str] = frozenset()) -> bool:
     """Determine if a statement has a side effect.
 
     A statement has a side effect if it can influence the outcome of a subsequent statement.
@@ -530,16 +526,7 @@ def has_side_effect(
 
     """
     if isinstance(
-        node,
-        (
-            ast.Yield,
-            ast.YieldFrom,
-            ast.Return,
-            ast.Raise,
-            ast.Continue,
-            ast.Break,
-            ast.Assert,
-        ),
+        node, (ast.Yield, ast.YieldFrom, ast.Return, ast.Raise, ast.Continue, ast.Break, ast.Assert)
     ):
         return True
 
@@ -549,11 +536,7 @@ def has_side_effect(
     if isinstance(node, ast.For):
         return any(
             has_side_effect(item, safe_callable_whitelist)
-            for item in itertools.chain(
-                [node.target],
-                [node.iter],
-                node.body,
-            )
+            for item in itertools.chain([node.target], [node.iter], node.body)
         )
 
     if isinstance(node, ast.Lambda):
@@ -565,13 +548,8 @@ def has_side_effect(
         return any(
             has_side_effect(item, safe_callable_whitelist)
             for item in itertools.chain(
-                node.posonlyargs,
-                node.args,
-                node.kwonlyargs,
-                node.kw_defaults,
-                node.defaults,
-            )
-        )
+                node.posonlyargs, node.args, node.kwonlyargs, node.kw_defaults, node.defaults
+        ))
 
     if node is None:
         return False
@@ -630,8 +608,7 @@ def has_side_effect(
             or (
                 isinstance(node.ctx, ast.Store)
                 and not (isinstance(node.value, ast.Name) and node.value.id == "_")
-            )
-        )
+        ))
 
     if isinstance(node, ast.Slice):
         return any(
@@ -780,7 +757,9 @@ def literal_value(node: ast.AST) -> bool:
     if has_side_effect(node):
         raise ValueError("Cannot find a deterministic value for a node with a side effect")
 
-    if match_template(node, ast.BinOp(op=tuple(constants.COMPARISON_OPERATORS), left=object, right=object)):
+    if match_template(
+        node, ast.BinOp(op=tuple(constants.COMPARISON_OPERATORS), left=object, right=object)
+    ):
         left = literal_value(node.left)
         right = literal_value(node.right)
         return constants.COMPARISON_OPERATORS[type(node.op)](left, right)
@@ -788,8 +767,9 @@ def literal_value(node: ast.AST) -> bool:
     if match_template(node, ast.Compare(left=object, ops={object}, comparators={object})):
         return all(
             constants.COMPARISON_OPERATORS[type(op)](literal_value(left), literal_value(comparator))
-            for left, op, comparator in zip([node.left] + node.comparators, node.ops, node.comparators)
-        )
+            for left, op, comparator in zip(
+                [node.left] + node.comparators, node.ops, node.comparators
+        ))
 
     if match_template(node, ast.UnaryOp(op=ast.Not, operand=object)):
         return not literal_value(node.operand)
@@ -1086,7 +1066,7 @@ def is_call(node: ast.AST, qualified_name: str | Collection[str]) -> bool:
 
 
 def assignment_targets(
-    node: ast.Assign | ast.AnnAssign | ast.AugAssign | ast.For
+    node: ast.Assign | ast.AnnAssign | ast.AugAssign | ast.For,
 ) -> Collection[ast.Name]:
     targets = set()
     if isinstance(node, (ast.AugAssign, ast.AnnAssign, ast.For)):
@@ -1099,7 +1079,8 @@ def assignment_targets(
 
 
 def code_dependencies_outputs(
-    code: Sequence[ast.AST],) -> Tuple[Collection[str], Collection[str], Collection[str]]:
+    code: Sequence[ast.AST],
+) -> Tuple[Collection[str], Collection[str], Collection[str]]:
     """Get required and created names in code.
 
     Args:
@@ -1120,7 +1101,8 @@ def code_dependencies_outputs(
         children = []
         if isinstance(node, (ast.While, ast.For, ast.If)):
             temp_children = (
-                [node.test] if isinstance(node, (ast.If, ast.While)) else [node.target, node.iter])
+                [node.test] if isinstance(node, (ast.If, ast.While)) else [node.target, node.iter]
+            )
             children = [node.body, node.orelse]
             if any(is_blocking(child) for child in ast.walk(node)):
                 created_names = maybe_created_names
@@ -1131,7 +1113,8 @@ def code_dependencies_outputs(
             required_names.update(name.id for name in walk(node, ast.Name))
             required_names.update(
                 func.name
-                for func in walk(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
+                for func in walk(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            )
             if isinstance(node, ast.Try):
                 maybe_created_names.update(name.id for name in walk(node, ast.Name(ctx=ast.Store)))
             continue

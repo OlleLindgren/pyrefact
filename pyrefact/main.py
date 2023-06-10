@@ -30,12 +30,7 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("paths", help="Paths to refactor", type=Path, nargs="*", default=())
     parser.add_argument(
-        "--preserve",
-        "-p",
-        help="Paths to preserve names in",
-        type=Path,
-        nargs="+",
-        default=(),
+        "--preserve", "-p", help="Paths to preserve names in", type=Path, nargs="+", default=()
     )
     parser.add_argument("--safe", "-s", help="Don't delete or rename anything", action="store_true")
     parser.add_argument(
@@ -229,10 +224,7 @@ def format_code(
 
 
 def format_file(
-    filename: Path,
-    *,
-    preserve: Collection[str] = frozenset(),
-    safe: bool = False,
+    filename: Path, *, preserve: Collection[str] = frozenset(), safe: bool = False
 ) -> int:
     """Fix a file.
 
@@ -330,7 +322,6 @@ def main(args: Sequence[str] | None = None) -> int:
 
     max_passes = 1 if args.safe else MAX_MODULE_PASSES
     for folder, filenames in folder_contents.items():
-
         module_passes = 0
         for module_passes in range(1, 1 + max_passes):
             changes = False

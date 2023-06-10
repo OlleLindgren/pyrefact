@@ -47,17 +47,13 @@ def _is_zip_product(comp: ast.ListComp | ast.GeneratorExp):
 
 def _wrap_np_dot(*args: ast.AST) -> ast.Call:
     return ast.Call(
-        func=ast.Attribute(value=ast.Name(id="np"), attr="dot"),
-        args=list(args),
-        keywords=[],
+        func=ast.Attribute(value=ast.Name(id="np"), attr="dot"), args=list(args), keywords=[]
     )
 
 
 def _wrap_np_matmul(*args: ast.AST) -> ast.Call:
     return ast.Call(
-        func=ast.Attribute(value=ast.Name(id="np"), attr="matmul"),
-        args=list(args),
-        keywords=[],
+        func=ast.Attribute(value=ast.Name(id="np"), attr="matmul"), args=list(args), keywords=[]
     )
 
 
@@ -72,8 +68,7 @@ def simplify_matmul_transposes(source: str) -> str:
     root = parsing.parse(source)
 
     target_template = ast.Call(
-        func=ast.Attribute(value=ast.Name(id=("np", "numpy")), attr="matmul"),
-        args=[object, object],
+        func=ast.Attribute(value=ast.Name(id=("np", "numpy")), attr="matmul"), args=[object, object]
     )
     for node in filter(parsing.is_transpose_operation, parsing.walk(root, ast.Attribute)):
         target = parsing.transpose_target(node)
@@ -109,8 +104,7 @@ def replace_implicit_matmul(source: str) -> str:
     comp_template = ast.ListComp(
         generators=[
             ast.comprehension(ifs=[], target=ast.Name, iter=(ast.Name, ast.Attribute(attr="T")))
-        ]
-    )
+    ])
 
     template = ast.Call(args=[ast.ListComp(elt=ast.ListComp)], keywords=[])
     for call in filter(_is_np_array_call, parsing.walk(root, template)):
@@ -138,5 +132,4 @@ def replace_implicit_matmul(source: str) -> str:
                         _wrap_np_matmul(
                             comp_inner.generators[0].iter,
                             wrap_transpose(comp_outer.generators[0].iter),
-                        )
-                    )
+                    ))

@@ -45,9 +45,7 @@ def optimize_contains_types(source: str) -> str:
     root = parsing.parse(source)
 
     sorted_list_tuple_call_template = ast.Call(
-        func=ast.Name(id=("sorted", "list", "tuple"), ctx=ast.Load),
-        args=[object],
-        keywords=[],
+        func=ast.Name(id=("sorted", "list", "tuple"), ctx=ast.Load), args=[object], keywords=[]
     )
 
     for node in filter(_is_contains_comparison, parsing.walk(root, ast.Compare)):
@@ -91,12 +89,15 @@ def remove_redundant_chained_calls(source: str) -> str:
         "iter": {"list", "tuple", "iter"},
         "reversed": {"list", "tuple"},
         "tuple": {"list", "tuple", "iter"},
-        "sum": {"list", "tuple", "iter", "sorted", "reversed"}}
+        "sum": {"list", "tuple", "iter", "sorted", "reversed"},
+    }
 
     templates = tuple(
         ast.Call(
-            func=ast.Name(id=key), args=[ast.Call(func=ast.Name(id=tuple(values)), args=[object])])
-        for key, values in outer_inner_redundancy_mapping.items())
+            func=ast.Name(id=key), args=[ast.Call(func=ast.Name(id=tuple(values)), args=[object])]
+        )
+        for key, values in outer_inner_redundancy_mapping.items()
+    )
 
     for node in parsing.walk(root, templates):
         arg = node.args[0].args[0]
@@ -115,8 +116,10 @@ def remove_redundant_chained_calls(source: str) -> str:
 
     templates = tuple(
         ast.Call(
-            func=ast.Name(id=tuple(values)), args=[ast.Call(func=ast.Name(id=key), args=[object])])
-        for key, values in inner_outer_redundancy_mapping.items())
+            func=ast.Name(id=tuple(values)), args=[ast.Call(func=ast.Name(id=key), args=[object])]
+        )
+        for key, values in inner_outer_redundancy_mapping.items()
+    )
 
     for node in parsing.walk(root, templates):
         yield node, node.args[0]
@@ -148,7 +151,6 @@ def replace_sorted_heapq(source: str) -> str:
     template_last_n = ast.Slice(lower=ast.UnaryOp(op=ast.USub), upper=None)
 
     for node in parsing.walk(root, template_sorted_subscript):
-
         args = node.value.args
         keywords = node.value.keywords
         node_slice = parsing.slice_of(node)
@@ -180,9 +182,7 @@ def replace_sorted_heapq(source: str) -> str:
                         func=builtin_reversed,
                         keywords=[],
                         args=[ast.Call(func=func, args=[value] + args, keywords=keywords)],
-                    )
-                ],
-            )
+            )],)
             yield node, replacement
 
 
@@ -215,8 +215,7 @@ def replace_subscript_looping(source: str) -> str:
             and any(
                 {name.id for name in parsing.walk(node, ast.Name)}
                 & {name.id for name in parsing.walk(comp.generators[0], ast.Name)}
-            )
-        }
+        )}
         if not all(
             parsing.match_template(
                 subscript, ast.Subscript(value=(ast.Name, ast.Attribute(value=ast.Name)))
@@ -244,18 +243,13 @@ def replace_subscript_looping(source: str) -> str:
                     (
                         ast.Name(id=subscript_name),
                         ast.Tuple(
-                            elts=[
-                                (
-                                    ast.Slice,
-                                    ast.Name(id=subscript_name),
-                                    ast.Index(value=ast.Name(id=subscript_name)),
-                                )
-                            ]
+                            elts=[(
+                                ast.Slice,
+                                ast.Name(id=subscript_name),
+                                ast.Index(value=ast.Name(id=subscript_name)),
+                            )]
                             * 2
-                        ),
-                    ),
-                )
-            )
+            ),),))
             for subscript in elt_subscripts
         ):
             # All subscripts are not a[i, :], a[:, i] or a[i]
@@ -281,17 +275,16 @@ def replace_subscript_looping(source: str) -> str:
                 value=ast.Name(id=subscripted_name),
                 slice=(
                     ast.Index(value=ast.Name(id=subscript_name)),
-                    ast.Tuple(elts=[  # python >= 3.9
-                        ast.Index(value=ast.Name(id=subscript_name)),
-                        ast.Slice(),
+                    ast.Tuple(
+                        elts=[  # python >= 3.9
+                            ast.Index(value=ast.Name(id=subscript_name)),
+                            ast.Slice(),
                     ]),
-                    ast.ExtSlice(dims=[  # python <= 3.8
-                        ast.Index(value=ast.Name(id=subscript_name)),
-                        ast.Slice(),
-                    ]),
-                ),
-            )
-        ):
+                    ast.ExtSlice(
+                        dims=[  # python <= 3.8
+                            ast.Index(value=ast.Name(id=subscript_name)),
+                            ast.Slice(),
+        ]),),),):
             replacements[comp] = ast.Call(
                 func=ast.Name(id=wrapper_function),
                 args=[ast.Name(id=subscripted_name)],

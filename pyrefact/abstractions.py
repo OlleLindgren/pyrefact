@@ -116,22 +116,18 @@ def _definite_external_effects(
 
     body_effects = {}
     for child in node.body:
-        body_effects.update(
-            {
-                hash_node(n, safe_callables): n
-                for n in _definite_external_effects(child, safe_callables)
-            }
-        )
+        body_effects.update({
+            hash_node(n, safe_callables): n
+            for n in _definite_external_effects(child, safe_callables)
+        })
         if parsing.is_blocking(node):
             break
     orelse_effects = {}
     for child in node.body:
-        orelse_effects.update(
-            {
-                hash_node(n, safe_callables): n
-                for n in _definite_external_effects(child, safe_callables)
-            }
-        )
+        orelse_effects.update({
+            hash_node(n, safe_callables): n
+            for n in _definite_external_effects(child, safe_callables)
+        })
         if parsing.is_blocking(node):
             break
     for key in body_effects.keys() & orelse_effects:
@@ -210,8 +206,7 @@ def _group_nodes_by_purpose(body: Sequence[ast.AST]) -> Iterable[Sequence[ast.AS
 
 
 def _build_function_body(
-    nodes: Sequence[ast.AST],
-    return_injection_type: ast.AST,
+    nodes: Sequence[ast.AST], return_injection_type: ast.AST
 ) -> ast.FunctionDef:
     """Build function from nodes.
 
@@ -245,15 +240,12 @@ def _build_function_body(
                     test=node.test,
                     body=_build_function_body(node.body, return_injection_type),
                     orelse=_build_function_body(node.orelse, return_injection_type),
-                )
-            )
+            ))
         elif isinstance(node, ast.With):
             body.append(
                 ast.With(
-                    items=node.items,
-                    body=_build_function_body(node.body, return_injection_type),
-                )
-            )
+                    items=node.items, body=_build_function_body(node.body, return_injection_type)
+            ))
         elif isinstance(node, ast.For):
             body.append(
                 ast.For(
@@ -261,16 +253,14 @@ def _build_function_body(
                     iter=node.iter,
                     body=node.body,
                     orelse=_build_function_body(node.orelse, return_injection_type),
-                )
-            )
+            ))
         elif isinstance(node, ast.While):
             body.append(
                 ast.While(
                     test=node.test,
                     body=node.body,
                     orelse=_build_function_body(node.orelse, return_injection_type),
-                )
-            )
+            ))
         else:
             body.append(node)
 
@@ -415,9 +405,7 @@ def create_abstractions(source: str) -> str:
                 if purpose[0] == ast.Continue:
                     call = ast.UnaryOp(op=ast.Not(), operand=call)
                 function_call = ast.If(
-                    test=call,
-                    body=[purpose[0](col_offset=nodes[0].col_offset + 4)],
-                    orelse=[],
+                    test=call, body=[purpose[0](col_offset=nodes[0].col_offset + 4)], orelse=[]
                 )
                 return_value = purpose[0] == ast.Continue
                 function_body = _build_function_body(nodes, purpose[0]) + [
@@ -439,10 +427,7 @@ def create_abstractions(source: str) -> str:
                 pure_nested_if = len(nodes) == 1 and all(
                     len(n.body) == len(n.orelse) == 1 for n in ifs
                 )
-                function_body = _build_function_body(
-                    nodes,
-                    purpose[0] if pure_nested_if else None,
-                )
+                function_body = _build_function_body(nodes, purpose[0] if pure_nested_if else None)
                 if not pure_nested_if:
                     if not isinstance(nodes[0], (ast.Assign, ast.AnnAssign)) and not all(
                         len(n.body) == len(n.orelse) == 1 for n in parsing.walk(nodes[0], ast.If)
@@ -489,16 +474,11 @@ def create_abstractions(source: str) -> str:
                 and len(return_args) == 1
                 and parsing.match_template(
                     nodes_after_abstraction,
-                    [
-                        (
-                            ast.Return(value=ast.Name),
-                            ast.Expr(
-                                value=(ast.Yield(value=ast.Name), ast.YieldFrom(value=ast.Name))
-                            ),
-                        )
-                    ],
-                )
-            )
+                    [(
+                        ast.Return(value=ast.Name),
+                        ast.Expr(
+                            value=(ast.Yield(value=ast.Name), ast.YieldFrom(value=ast.Name))
+            ),)],))
 
             if is_singular_return_reassignment and isinstance(
                 nodes_after_abstraction[0], ast.Return
@@ -520,8 +500,7 @@ def create_abstractions(source: str) -> str:
 
             if isinstance(nodes_after_abstraction[0], ast.Return):
                 inlined_return_call = ast.Return(
-                    value=function_call.value,
-                    lineno=function_call.lineno,
+                    value=function_call.value, lineno=function_call.lineno
                 )
             else:
                 inlined_return_call = ast.Expr(
@@ -556,7 +535,8 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
         ast.Dict(keys={ast.Constant}, values={ast.Constant}),
         ast.Set(elts={ast.Constant}),
         ast.Tuple(elts={ast.Constant}),
-        ast.List(elts={ast.Constant}),)
+        ast.List(elts={ast.Constant}),
+    )
 
     candidates = set(parsing.walk(root, template))
 
@@ -567,8 +547,8 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
     # For every node, all scopes it can be found in
     scope_node_definitions = collections.defaultdict(set)
     for scope in itertools.chain(
-        [root], parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef))):
-
+        [root], parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ):
         for node in parsing.walk(scope, ast.AST):
             scope_node_definitions[node].add(scope)
 
@@ -601,10 +581,12 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
 
         # root is a Module and has no lineno
         best_common_scope = max(
-            common_scopes, key=lambda node: getattr(node, "lineno", 1), default=root)
+            common_scopes, key=lambda node: getattr(node, "lineno", 1), default=root
+        )
         variable_name = f"pyrefact_overused_constant_{i}"
         variable_name = style.rename_variable(
-            variable_name, static=best_common_scope is root and root_is_static, private=False)
+            variable_name, static=best_common_scope is root and root_is_static, private=False
+        )
 
         name = ast.Name(id=variable_name)
         assign = parsing.parse(f"{variable_name} = {code}").body[0]
@@ -638,21 +620,18 @@ def simplify_if_control_flow(source: str) -> str:
 
         node_body_names = sorted(
             (name for n in node.body for name in parsing.walk(n, ast.Name)),
-            key=lambda n: (n.lineno, n.col_offset)
+            key=lambda n: (n.lineno, n.col_offset),
         )
         node_orelse_names = sorted(
             (name for n in node.orelse for name in parsing.walk(n, ast.Name)),
-            key=lambda n: (n.lineno, n.col_offset)
+            key=lambda n: (n.lineno, n.col_offset),
         )
         if len(node_body_names) != len(node_orelse_names):
             continue
 
         differing_names_index_name_mapping = {
             i: names
-            for i, names in enumerate(zip(
-                node_body_names,
-                node_orelse_names,
-            ))
+            for i, names in enumerate(zip(node_body_names, node_orelse_names))
             if len({n.id for n in names}) > 1
         }
         something = collections.defaultdict(list)
@@ -667,25 +646,26 @@ def simplify_if_control_flow(source: str) -> str:
 
         bodies = [node.body, node.orelse]
 
-        body_equivalent_function_srcs = [
-            [parsing.unparse(ast.FunctionDef(
-                name="func",
-                args=ast.arguments(
-                    posonlyargs=[],
-                    args=[],
-                    vararg=None,
-                    kwonlyargs=[],
-                    kw_defaults=[],
-                    kwarg=None,
-                    defaults=[],
-                ),
-                body=body,
-                decorator_list=[],
-                returns=None,
-                lineno=0,
-                end_lineno=0 + len(body),
-                col_offset=0,
-                end_col_offset=0,
+        body_equivalent_function_srcs = [[
+            parsing.unparse(
+                ast.FunctionDef(
+                    name="func",
+                    args=ast.arguments(
+                        posonlyargs=[],
+                        args=[],
+                        vararg=None,
+                        kwonlyargs=[],
+                        kw_defaults=[],
+                        kwarg=None,
+                        defaults=[],
+                    ),
+                    body=body,
+                    decorator_list=[],
+                    returns=None,
+                    lineno=0,
+                    end_lineno=0 + len(body),
+                    col_offset=0,
+                    end_col_offset=0,
             ))]  # Put as single element in list to emulate mutable string
             for body in bodies
         ]
@@ -725,7 +705,8 @@ def simplify_if_control_flow(source: str) -> str:
                 root,
                 replacements=replacements,
                 additions=additions,
-                priority=("additions", "replacements"),)
+                priority=("additions", "replacements"),
+            )
 
             return simplify_if_control_flow(source)
 

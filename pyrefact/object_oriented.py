@@ -76,8 +76,7 @@ def remove_unused_self_cls(source: str) -> str:
                     ctx=ast.Load(),
                     lineno=funcdef.lineno - 1,
                     col_offset=funcdef.col_offset,
-                ),
-            )
+            ),)
             args = funcdef.args.posonlyargs or funcdef.args.args
             if args:
                 del args[0]
@@ -134,7 +133,6 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
 
     replacements = {}
     for classdef in sorted(parsing.iter_classdefs(root), key=lambda cd: cd.lineno, reverse=True):
-
         for funcdef in parsing.iter_funcdefs(classdef):
             if funcdef.name in attributes_to_preserve:
                 continue
@@ -204,8 +202,7 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
                     ],
                     returns=funcdef.returns,
                     lineno=classdef.lineno - 1,
-                )
-            )
+            ))
 
         if delete or additions:
             source = processing.remove_nodes(source, delete, root)

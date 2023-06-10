@@ -80,11 +80,17 @@ def _symmath_expr_to_ast(expression, conversion: Mapping[str, ast.AST]):
             return conversion[expression]
         return ast.Name(id=expression.name)
     if isinstance(expression, sympy.And):
-        return ast.BoolOp(op=ast.And(), values=[_symmath_expr_to_ast(v, conversion) for v in expression.args])
+        return ast.BoolOp(
+            op=ast.And(), values=[_symmath_expr_to_ast(v, conversion) for v in expression.args]
+        )
     if isinstance(expression, sympy.Or):
-        return ast.BoolOp(op=ast.Or(), values=[_symmath_expr_to_ast(v, conversion) for v in expression.args])
+        return ast.BoolOp(
+            op=ast.Or(), values=[_symmath_expr_to_ast(v, conversion) for v in expression.args]
+        )
     if isinstance(expression, sympy.Not):
-        return ast.UnaryOp(op=ast.Not(), operand=_symmath_expr_to_ast(expression.args[0], conversion))
+        return ast.UnaryOp(
+            op=ast.Not(), operand=_symmath_expr_to_ast(expression.args[0], conversion)
+        )
     if isinstance(expression, sympy.logic.boolalg.BooleanTrue):
         return ast.Constant(value=True, kind=None)
     if isinstance(expression, sympy.logic.boolalg.BooleanFalse):
@@ -146,11 +152,7 @@ def _sum_range(rng: ast.Call) -> ast.AST:
     if parsing.match_template(end, ast.Constant(value=0)):
         return _sum_int_squares_to(end)
 
-    return ast.BinOp(
-        left=_sum_int_squares_to(end),
-        op=ast.Sub(),
-        right=_sum_int_squares_to(start),
-    )
+    return ast.BinOp(left=_sum_int_squares_to(end), op=ast.Sub(), right=_sum_int_squares_to(start))
 
 
 @_simplify_math
@@ -201,13 +203,10 @@ def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> a
 
 @processing.fix
 def simplify_math_iterators(source: str) -> str:
-
     root = parsing.parse(source)
 
     template = ast.Call(
-        func=ast.Name(id=tuple(constants.MATH_FUNCTIONS)),
-        keywords=[],
-        args=[object],
+        func=ast.Name(id=tuple(constants.MATH_FUNCTIONS)), keywords=[], args=[object]
     )
     basic_types_template = {ast.Name, ast.Constant, ast.UnaryOp, ast.BinOp}
     basic_iter_template = (
@@ -263,10 +262,10 @@ def simplify_boolean_expressions(source: str) -> str:
     regular_compare_template = ast.Compare(
         left=object,
         ops=[(ast.Eq, ast.NotEq, ast.Gt, ast.Lt, ast.GtE, ast.LtE)],
-        comparators=[object])
+        comparators=[object],
+    )
 
     for node in parsing.walk(root, ast.BoolOp):
-
         if isinstance(node.op, (ast.And, ast.Or)):
             # Find opposite expressions
             expression_conditions = collections.defaultdict(set)
@@ -349,8 +348,7 @@ def simplify_boolean_expressions(source: str) -> str:
             for left, bounds in constant_bounds.items():
                 bounds_ordered = {
                     operator_type: sorted(
-                        values,
-                        key=lambda tup: (tup[1].lineno, tup[1].col_offset)
+                        values, key=lambda tup: (tup[1].lineno, tup[1].col_offset)
                     )
                     for operator_type, values in bounds.items()
                 }
@@ -358,8 +356,7 @@ def simplify_boolean_expressions(source: str) -> str:
                 bounds.update(bounds_ordered)
                 # Check for identical constraints
                 for (thr1, thr1_value), (thr2, thr2_value) in itertools.chain.from_iterable(
-                    itertools.combinations(subset, 2)
-                    for subset in bounds.values()
+                    itertools.combinations(subset, 2) for subset in bounds.values()
                 ):
                     if thr1 == thr2:
                         if thr2_value in node.values:
@@ -378,7 +375,9 @@ def simplify_boolean_expressions(source: str) -> str:
                             always_false |= isinstance(node.op, ast.And)
 
                 if len(bounds[ast.Gt]) >= 2:
-                    for (gt1, gt1_value), (gt2, gt2_value) in itertools.combinations(bounds[ast.Gt], 2):
+                    for (gt1, gt1_value), (gt2, gt2_value) in itertools.combinations(
+                        bounds[ast.Gt], 2
+                    ):
                         if gt1 > gt2:
                             redundant_and_values.add(gt2_value)
                             redundant_or_values.add(gt1_value)
@@ -387,7 +386,9 @@ def simplify_boolean_expressions(source: str) -> str:
                             redundant_or_values.add(gt2_value)
 
                 if len(bounds[ast.Lt]) >= 2:
-                    for (lt1, lt1_value), (lt2, lt2_value) in itertools.combinations(bounds[ast.Lt], 2):
+                    for (lt1, lt1_value), (lt2, lt2_value) in itertools.combinations(
+                        bounds[ast.Lt], 2
+                    ):
                         if lt1 < lt2:
                             redundant_and_values.add(lt2_value)
                             redundant_or_values.add(lt1_value)
@@ -396,7 +397,9 @@ def simplify_boolean_expressions(source: str) -> str:
                             redundant_or_values.add(lt2_value)
 
                 if len(bounds[ast.GtE]) >= 2:
-                    for (gte1, gte1_value), (gte2, gte2_value) in itertools.combinations(bounds[ast.GtE], 2):
+                    for (gte1, gte1_value), (gte2, gte2_value) in itertools.combinations(
+                        bounds[ast.GtE], 2
+                    ):
                         if gte1 > gte2:
                             redundant_and_values.add(gte2_value)
                             redundant_or_values.add(gte1_value)
@@ -405,7 +408,9 @@ def simplify_boolean_expressions(source: str) -> str:
                             redundant_or_values.add(gte2_value)
 
                 if len(bounds[ast.LtE]) >= 2:
-                    for (lte1, lte1_value), (lte2, lte2_value) in itertools.combinations(bounds[ast.LtE], 2):
+                    for (lte1, lte1_value), (lte2, lte2_value) in itertools.combinations(
+                        bounds[ast.LtE], 2
+                    ):
                         if lte1 < lte2:
                             redundant_and_values.add(lte2_value)
                             redundant_or_values.add(lte1_value)
@@ -536,7 +541,7 @@ def simplify_boolean_expressions(source: str) -> str:
             if always_false:
                 yield node, ast.Constant(value=False, kind=None)
                 continue
-            
+
             if always_true:
                 yield node, ast.Constant(value=True, kind=None)
                 continue
@@ -566,7 +571,11 @@ def simplify_boolean_expressions(source: str) -> str:
                 continue
 
             # Remove all True values
-            values = [value for value in node.values if not parsing.match_template(value, ast.Constant(value=True))]
+            values = [
+                value
+                for value in node.values
+                if not parsing.match_template(value, ast.Constant(value=True))
+            ]
             if not values:
                 yield node, ast.Constant(value=True, kind=None)
                 continue
@@ -586,7 +595,11 @@ def simplify_boolean_expressions(source: str) -> str:
                 continue
 
             # Remove all False values
-            values = [value for value in node.values if not parsing.match_template(value, ast.Constant(value=False))]
+            values = [
+                value
+                for value in node.values
+                if not parsing.match_template(value, ast.Constant(value=False))
+            ]
             if not values:
                 yield node, ast.Constant(value=False, kind=None)
                 continue
@@ -610,7 +623,9 @@ def simplify_boolean_expressions(source: str) -> str:
             left = parsing.literal_value(node.left)
             right = parsing.literal_value(comparator)
         except ValueError:
-            if isinstance(operator, ast.Eq) and parsing.unparse(node.left) == parsing.unparse(comparator):
+            if isinstance(operator, ast.Eq) and parsing.unparse(node.left) == parsing.unparse(
+                comparator
+            ):
                 yield node, ast.Constant(value=True, kind=None)
 
             continue
@@ -623,10 +638,10 @@ def simplify_boolean_expressions(source: str) -> str:
 
         elif isinstance(operator, ast.Gt):
             yield node, ast.Constant(value=left > right, kind=None)
-        
+
         elif isinstance(operator, ast.Lt):
             yield node, ast.Constant(value=left < right, kind=None)
-        
+
         elif isinstance(operator, ast.GtE):
             yield node, ast.Constant(value=left >= right, kind=None)
 
@@ -659,8 +674,7 @@ def simplify_constrained_range(source: str) -> str:
     # {y for y in range(18, 99) if y % 2 == 0} => {y for y in range(18, 99, 2)}
 
     comprehension_template = ast.comprehension(
-        iter=ast.Call(func=ast.Name(id="range"), keywords=[]),
-        target=ast.Name(id=str),
+        iter=ast.Call(func=ast.Name(id="range"), keywords=[]), target=ast.Name(id=str)
     )
     template = (
         ast.GeneratorExp(generators=[comprehension_template]),
@@ -709,32 +723,41 @@ def simplify_constrained_range(source: str) -> str:
                 conditions.add(condition)
 
         gt_template = (
-            ast.Compare(left=ast.Name(id=target_name), ops=[ast.Gt()], comparators=[ast.Constant()]),
-            ast.Compare(left=ast.Constant(), ops=[ast.Lt()], comparators=[ast.Name(id=target_name)]),
-        )
+            ast.Compare(
+                left=ast.Name(id=target_name), ops=[ast.Gt()], comparators=[ast.Constant()]
+            ),
+            ast.Compare(
+                left=ast.Constant(), ops=[ast.Lt()], comparators=[ast.Name(id=target_name)]
+        ),)
         lt_template = (
-            ast.Compare(left=ast.Name(id=target_name), ops=[ast.Lt()], comparators=[ast.Constant()]),
-            ast.Compare(left=ast.Constant(), ops=[ast.Gt()], comparators=[ast.Name(id=target_name)]),
-        )
+            ast.Compare(
+                left=ast.Name(id=target_name), ops=[ast.Lt()], comparators=[ast.Constant()]
+            ),
+            ast.Compare(
+                left=ast.Constant(), ops=[ast.Gt()], comparators=[ast.Name(id=target_name)]
+        ),)
         gte_template = (
-            ast.Compare(left=ast.Name(id=target_name), ops=[ast.GtE()], comparators=[ast.Constant()]),
-            ast.Compare(left=ast.Constant(), ops=[ast.LtE()], comparators=[ast.Name(id=target_name)]),
-        )
+            ast.Compare(
+                left=ast.Name(id=target_name), ops=[ast.GtE()], comparators=[ast.Constant()]
+            ),
+            ast.Compare(
+                left=ast.Constant(), ops=[ast.LtE()], comparators=[ast.Name(id=target_name)]
+        ),)
         lte_template = (
-            ast.Compare(left=ast.Name(id=target_name), ops=[ast.LtE()], comparators=[ast.Constant()]),
-            ast.Compare(left=ast.Constant(), ops=[ast.GtE()], comparators=[ast.Name(id=target_name)]),
-        )
+            ast.Compare(
+                left=ast.Name(id=target_name), ops=[ast.LtE()], comparators=[ast.Constant()]
+            ),
+            ast.Compare(
+                left=ast.Constant(), ops=[ast.GtE()], comparators=[ast.Name(id=target_name)]
+        ),)
         eq_template = (
-            ast.Compare(left=ast.Name(id=target_name), ops=[ast.Eq()], comparators=[ast.Constant()]),
-            ast.Compare(left=ast.Constant(), ops=[ast.Eq()], comparators=[ast.Name(id=target_name)]),
-        )
-        templates = (
-            gt_template,
-            lt_template,
-            gte_template,
-            lte_template,
-            eq_template,
-        )
+            ast.Compare(
+                left=ast.Name(id=target_name), ops=[ast.Eq()], comparators=[ast.Constant()]
+            ),
+            ast.Compare(
+                left=ast.Constant(), ops=[ast.Eq()], comparators=[ast.Name(id=target_name)]
+        ),)
+        templates = (gt_template, lt_template, gte_template, lte_template, eq_template)
 
         if parsing.match_template(step, ast.Constant(value=int)) and step.value < 0:
             continue
@@ -784,7 +807,9 @@ def simplify_constrained_range(source: str) -> str:
                     redundant_conditions.add(condition)
 
         if start >= stop:
-            new_comp = ast.comprehension(target=comp.target, iter=ast.Tuple(elts=[]), ifs=[], is_async=comp.is_async)
+            new_comp = ast.comprehension(
+                target=comp.target, iter=ast.Tuple(elts=[]), ifs=[], is_async=comp.is_async
+            )
             yield node, type(node)(generators=[new_comp], elt=node.elt)
 
         if not redundant_conditions:
@@ -802,7 +827,11 @@ def simplify_constrained_range(source: str) -> str:
         if start is not None and step is not None:
             yield comp.iter, ast.Call(
                 func=ast.Name(id="range"),
-                args=[ast.Constant(value=start, kind=None), ast.Constant(value=stop, kind=None), ast.Constant(value=step, kind=None)],
+                args=[
+                    ast.Constant(value=start, kind=None),
+                    ast.Constant(value=stop, kind=None),
+                    ast.Constant(value=step, kind=None),
+                ],
                 keywords=[],
             )
 
@@ -815,9 +844,7 @@ def simplify_constrained_range(source: str) -> str:
 
         else:
             yield comp.iter, ast.Call(
-                func=ast.Name(id="range"),
-                args=[ast.Constant(value=stop, kind=None)],
-                keywords=[],
+                func=ast.Name(id="range"), args=[ast.Constant(value=stop, kind=None)], keywords=[]
             )
 
         return

@@ -59,7 +59,8 @@ def _substitute_original_strings(original_source: str, new_source: str) -> str:
         tmp = {
             src
             for src in sources
-            if parsing.is_valid_python(src) and parsing.match_template(parsing.parse(src), template)}
+            if parsing.is_valid_python(src) and parsing.match_template(parsing.parse(src), template)
+        }
         sources.clear()
         sources.update(tmp)
 
@@ -212,7 +213,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         raise TypeError(f"Invalid replacement type: {type(new)}")
     lines = new_code.splitlines(keepends=True)
     indent = getattr(old, "col_offset", getattr(new, "col_offset", 0))
-    indents = {**{i: indent for i in range(len(lines))}, 0: len(code) - len(code.lstrip(' '))}
+    indents = {**{i: indent for i in range(len(lines))}, 0: len(code) - len(code.lstrip(" "))}
 
     try:
         new_code_ast = parsing.parse(new_code)
@@ -229,8 +230,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
                     indents[lineno] = 0
 
     new_code = "".join(
-        f"{' ' * indents[i]}{code}".rstrip()
-        + ("\n" if code.endswith("\n") else "")
+        f"{' ' * indents[i]}{code}".rstrip() + ("\n" if code.endswith("\n") else "")
         for i, code in enumerate(lines)
     )
     if new_code:
@@ -259,7 +259,7 @@ def replace_nodes(source: str, replacements: Mapping[ast.AST, ast.AST | str]) ->
             getattr(tup[0], "col_offset", 0),
             getattr(tup[0], "end_col_offset", 0),
         ),
-        reverse=True
+        reverse=True,
     )
     for old, new in rewrites:
         rewrite = _Rewrite(old, new)
@@ -289,7 +289,7 @@ def insert_nodes(source: str, additions: Collection[ast.AST]) -> str:
             + ["\n"]
             + [" " * col_offset + line for line in addition.splitlines(keepends=True)]
             + ["\n"] * (not addition.endswith("\n"))
-            + lines[node.lineno:]
+            + lines[node.lineno :]
         )
 
     return "".join(lines)
@@ -302,7 +302,8 @@ def alter_code(
     additions: Collection[ast.AST] = frozenset(),
     removals: Collection[ast.AST] = frozenset(),
     replacements: Mapping[ast.AST, ast.AST] = MappingProxyType({}),
-    priority: Sequence[Literal["additions", "removals", "replacements"]] = (),) -> str:
+    priority: Sequence[Literal["additions", "removals", "replacements"]] = (),
+) -> str:
     """Alter python code.
 
     This coordinates additions, removals and replacements in a safe way.
@@ -327,42 +328,42 @@ def alter_code(
         modification_type: priority.index(modification_type)
         if modification_type in priority
         else 3 + len(priority)
-        for modification_type in ("additions", "removals", "replacements")}
+        for modification_type in ("additions", "removals", "replacements")
+    }
     # Yes, this unparsing is an expensive way to sort the nodes.
     # However, this runs relatively infrequently and should not have a big
     # performance impact.
     actions = [
-        *(
-            (
-                x.lineno,
-                -priorities["additions"],
-                getattr(x, "col_offset", 0),
-                "add",
-                parsing.unparse(x),
-                x,
+        *((
+            x.lineno,
+            -priorities["additions"],
+            getattr(x, "col_offset", 0),
+            "add",
+            parsing.unparse(x),
+            x,
             )
             for x in additions
         ),
-        *(
-            (
-                x.lineno,
-                -priorities["removals"],
-                getattr(x, "col_offset", 0),
-                "delete",
-                parsing.unparse(x),
-                x,
+        *((
+            x.lineno,
+            -priorities["removals"],
+            getattr(x, "col_offset", 0),
+            "delete",
+            parsing.unparse(x),
+            x,
             )
             for x in removals
         ),
-        *(
-            (
-                x.lineno,
-                -priorities["replacements"],
-                getattr(x, "col_offset", 0),
-                "replace",
-                parsing.unparse(x),
-                (x, y),)
-            for x, y in replacements.items()),]
+        *((
+            x.lineno,
+            -priorities["replacements"],
+            getattr(x, "col_offset", 0),
+            "replace",
+            parsing.unparse(x),
+            (x, y),
+            )
+            for x, y in replacements.items()
+    ),]
     # a < d => deletions will go before additions if same lineno and reversed sorting.
     for *_, action, _, value in sorted(actions, reverse=True):
         if action == "add":
@@ -395,7 +396,6 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
     def fix_decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(source, *args, **kwargs):
-
             # Track rewrite history as an infinite loop guard
             history = set()
             if restart_on_replace:
@@ -413,9 +413,7 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
             rewrites = (_Rewrite(old, new or "") for old, new in func(source, *args, **kwargs))
             if sort_order:
                 rewrites = sorted(
-                    rewrites,
-                    key=functools.partial(_get_charnos, source=source),
-                    reverse=True,
+                    rewrites, key=functools.partial(_get_charnos, source=source), reverse=True
                 )
 
             for rewrite in rewrites:
