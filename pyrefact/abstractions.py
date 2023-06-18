@@ -448,6 +448,7 @@ def create_abstractions(source: str) -> str:
                 args=signature_args,
                 body=function_body,
                 decorator_list=[],
+                type_params=[],
                 returns=returns,
                 lineno=insertion_lineno,
                 end_lineno=insertion_lineno + len(function_body),  # This isn't necessarily accurate
@@ -661,6 +662,7 @@ def simplify_if_control_flow(source: str) -> str:
                     ),
                     body=body,
                     decorator_list=[],
+                    type_params=[],
                     returns=None,
                     lineno=0,
                     end_lineno=0 + len(body),

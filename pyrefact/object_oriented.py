@@ -200,6 +200,7 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
                     decorator_list=[
                         dec for dec in funcdef.decorator_list if dec not in staticmethod_decorators
                     ],
+                    type_params=[],
                     returns=funcdef.returns,
                     lineno=classdef.lineno - 1,
             ))
