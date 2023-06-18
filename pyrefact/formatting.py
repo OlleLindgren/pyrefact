@@ -2,6 +2,7 @@
 import re
 
 import black
+import compactify
 
 from pyrefact import logs as logger
 
@@ -44,4 +45,4 @@ def collapse_trailing_parentheses(source: str) -> str:
     Returns:
         str: _description_
     """
-    return re.sub(r"(?<=[\)\}\]])(,?)\s*\n\s*(?=[\)\}\]\n])", r"\1", source)
+    return compactify.format_code(source)
