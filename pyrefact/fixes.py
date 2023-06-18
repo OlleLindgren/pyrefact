@@ -2344,7 +2344,8 @@ def invalid_escape_sequence(source: str) -> str:
         code = parsing.get_code(node, source)
         # Normal string containing backslash but no valid escape sequences
         if (
-            code[0] in "'\""
+            code
+            and code[0] in "'\""
             and "\\" in code
             and not any(sequence in code for sequence in valid_escape_sequences)
         ):
