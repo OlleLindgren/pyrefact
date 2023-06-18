@@ -2,7 +2,7 @@
 
 Pyrefact does advanced python refactoring, with the goal of simplifying complicated code, deleting dead code, and improving performance.
 
-Unlike emerging AI tools, pyrefact is entirely rule based and does not share your code with any third parties. Pyrefact can however break your code in some cases, and is not suitable for your company's CI chain.
+Unlike emerging AI tools, pyrefact is entirely rule based and does not share your code with any third parties. Pyrefact can however break your code in some cases, and is not suitable for CI or other automated workflows.
 
 ## Features
 
@@ -89,4 +89,4 @@ Pyrefact requires `python>=3.8`, and is tested on CPython 3.8, 3.9, 3.10, 3.11 a
 
 ### Pypy
 
-Pyrefact is supported and tested on Pypy3.9. Pypy3.8 is not supported. Pyrefact is slightly faster on Pypy3.9 than on CPython3.9, but only for large repos as the JIT compile overhead is otherwise too large to make up.
+Pyrefact is tested on Pypy3.9.
