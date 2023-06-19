@@ -121,6 +121,29 @@ def match_template(
         Tuple:
             If node matches, a namedtuple with node as the first element, and
             any wildcards as other fields. Otherwise, an empty tuple.
+
+    Essentially, asts match themselves. However, there are a few special rules:
+    * Types match instances of that type, and nothing else.
+    * Tuples denote OR syntax, where the node must match any of the templates in the tuple.
+    * Sets denote variable length lists, where all elements must match against at least one of the templates in it.
+    * Wildcards have a template, and match any node that matches that template. They also extract the matched node
+        into a field with the wildcard's name. If the same wildcard is used multiple times, all the matched nodes
+        must unparse to the same source code.
+
+    Examples of templates, and what they match:
+    # Match the int 1
+    `ast.Constant(value=1)`
+    # Match the float 1.0
+    `ast.Constant(value=1.0)`
+    # Match any int
+    `ast.Constant(value=int)`
+    # Tuples denote OR syntax, match any int or float
+    `ast.Constant(value=(int, float))`
+    # Match the variable x
+    `ast.Name(id="x")`
+    # Match x(1) and y(1)
+    `ast.Call(func=ast.Name(id=("x", "y")), args=[ast.Constant(value=1)])`
+
     """
     # A type indicates that the node should be an instance of that type,
     # and nothing else. A tuple indicates that the node should be any of
@@ -229,7 +252,9 @@ def _group_nodes_in_scope(scope: ast.AST) -> Mapping[ast.AST, Sequence[ast.AST]]
 def walk_wildcard(
     scope: ast.AST, node_template: ast.AST | Tuple[ast.AST, ...], ignore: Collection[str] = ()
 ) -> Sequence[Tuple[ast.AST, ...]]:
-    """Get nodes in scope of a particular type. Match wildcards.
+    """Iterate over all nodes in scope that match a particular type or template.
+
+    The `node_template` argument supports the same syntax as in match_template().
 
     Args:
         scope (ast.AST): Scope to search
@@ -260,7 +285,11 @@ def walk_wildcard(
 def walk(
     scope: ast.AST, node_template: ast.AST | Tuple[ast.AST, ...], ignore: Collection[str] = ()
 ) -> Sequence[ast.AST]:
-    """Get nodes in scope of a particular type
+    """Iterate over all nodes in scope that match a particular type or template.
+
+    The `node_template` argument supports the same syntax as in match_template(), but
+    only the matched node is returned, and not the full match with wildcards. To get
+    the full match, use `walk_wildcard()` instead.
 
     Args:
         scope (ast.AST): Scope to search
