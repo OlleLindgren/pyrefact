@@ -34,3 +34,4 @@ include = ["pyrefact*"]
 
 [tool.black]
 skip_magic_trailing_comma = true
+line_length = 100
