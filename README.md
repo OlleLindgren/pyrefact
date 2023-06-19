@@ -73,6 +73,10 @@ pyrefact /path/to/filename.py --safe
 cat /path/to/filename.py | pyrefact --from-stdin
 ```
 
+## Contributing
+
+To contribute to Pyrefact, please view [CONTRIBUTING.md](/CONTRIBUTING.md)
+
 ## VS Code Extension
 
 Pyrefact is also available as a VS Code extension, simply named `Pyrefact`. The extension allows you to use pyrefact as your formatter, similar to how other formatting extensions work. 
