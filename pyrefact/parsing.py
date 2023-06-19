@@ -329,6 +329,7 @@ def _iter_wildcards(
 def walk_sequence(
     scope: ast.Module, *templates: ast.AST, expand_first: bool = False, expand_last: bool = False
 ) -> Iterable[Sequence[ast.AST]]:
+    """Iterate over all sequences of nodes in scope that match a sequence of templates."""
     uncommon = set()
     for node in walk(
         scope, tuple({*constants.AST_TYPES_WITH_BODY, *constants.AST_TYPES_WITH_ORELSE})

@@ -393,6 +393,16 @@ def _get_charnos(obj: _Rewrite, source: str):
 
 
 def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) -> Callable:
+    """Convert an iterator of (before, after) asts to a function that fixes source code.
+
+    Args:
+        maybe_func (Callable): Function to fix source code. If not provided, this is a decorator.
+        restart_on_replace (bool, optional): If True, restarts the rewrite loop on replacements.
+            This is needed when a replacement may alter the code in a way that makes it hard for
+            the rewriter to properly place the next rewrite. Defaults to False.
+        sort_order (bool, optional): If True, sorts the rewrites by line number and col_offset.
+    """
+
     def fix_decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(source, *args, **kwargs):
