@@ -171,13 +171,19 @@ class TraceResult(NamedTuple):
 
 @functools.lru_cache(maxsize=100_000)
 def trace_origin(
-    name: str, source: str, working_directory: Path = None, __all__: bool = False
-) -> Tuple[int, str]:
-    if working_directory is None:
-        working_directory = Path.cwd()
-    else:
-        working_directory = Path(working_directory)
+    name: str, source: str, *, __all__: bool = False
+) -> TraceResult:
+    """Trace the origin of a name in python source code.
 
+    Args:
+        name (str): Name to trace
+        source (str): Source code to trace name in
+        __all__ (bool, optional): If True, and __all__ is defined in source,
+            use __all__ as a filter for importable names. Defaults to False.
+
+    Returns:
+        (source, ast, lineno) of the origin of name in source.
+    """
     root = parsing.parse(source)
     nodes = set(
         parsing.walk(
@@ -193,16 +199,20 @@ def trace_origin(
                 ast.NamedExpr,
     ),))
 
-    all_template = ast.Assign(targets=[ast.Name(id="__all__")], value=ast.List(elts={str}))
-    all_extend_template = ast.Call(
-        func=ast.Attribute(value=ast.Name(id="__all__"), attr="extend"),
-        args=[(ast.Tuple(elts={str}), ast.List(elts={str}))],
-    )
-    all_append_template = ast.Call(
-        func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str]
-    )
-
+    # Try to figure out what the __all__ variable in source may contain at runtime.
+    # The point of this is that, if __all__ is defined, only the names in __all__ are
+    # importable from outside the module.
+    # Without this, we could for example think that `os` was accessible in `pathlib`,
+    # and end up putting `from pathlib import os` in generated code.
     if __all__:
+        all_template = ast.Assign(targets=[ast.Name(id="__all__")], value=ast.List(elts={str}))
+        all_extend_template = ast.Call(
+            func=ast.Attribute(value=ast.Name(id="__all__"), attr="extend"),
+            args=[(ast.Tuple(elts={str}), ast.List(elts={str}))],
+        )
+        all_append_template = ast.Call(
+            func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str]
+        )
         all_filter = set()
         for node in parsing.filter_nodes(root.body, all_template):
             all_filter.update(node.value.elts)
@@ -235,16 +245,22 @@ def trace_origin(
                 if module_spec is None or module_spec.origin is None:
                     continue
 
+                # This is likely the best way to truly check the __all__ of a module,
+                # but if a user has forgotten the `if __name__ == "__main__":` guard,
+                # we might end up executing code that we shouldn't if we try that. So
+                # only builtins are imported this way.
                 if module_spec.origin in {"frozen", "built-in"}:
                     if name in dir(__import__(node.module)):
                         return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
                     continue
 
+                # For non-builtin modules (unfortunately including much of the stdlib),
+                # we try to parse the ast of the module to figure out what __all__ is
+                # likely to contain. This is pretty accurate, but not perfect.
                 with Path(module_spec.origin).open("r", encoding="utf-8") as stream:
                     module_source = stream.read()
-
-                if trace_origin(name, module_source, working_directory, __all__=True):
+                if trace_origin(name, module_source, __all__=True):
                     return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
