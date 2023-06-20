@@ -50,6 +50,32 @@ import time
 print(time.time())
             """,
         ),
+        (
+            """
+from time import *
+from os import *
+from pathlib import *
+from datetime import *
+
+print(f'''
+Working directory: {getcwd()}
+Current time:      {datetime.now().isoformat()}
+Created:           {datetime.datetime.utcfromtimestamp(stat(__file__).st_ctime)}
+Last modified:     {datetime.datetime.utcfromtimestamp(stat(__file__).st_mtime)}
+''')
+            """,
+            """
+from os import getcwd, stat
+from datetime import datetime
+
+print(f'''
+Working directory: {getcwd()}
+Current time:      {datetime.now().isoformat()}
+Created:           {datetime.datetime.utcfromtimestamp(stat(__file__).st_ctime)}
+Last modified:     {datetime.datetime.utcfromtimestamp(stat(__file__).st_mtime)}
+''')
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:

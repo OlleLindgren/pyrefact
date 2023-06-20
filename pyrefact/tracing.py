@@ -238,7 +238,10 @@ def trace_origin(
                     continue
 
                 if node.module in constants.PYTHON_311_STDLIB:
-                    if name in dir(__import__(node.module)):
+                    # Logic copied from _get_exports_list() in os.py from python3.12.0b2
+                    module = __import__(node.module)
+                    exports = getattr(module, "__all__", [x for x in dir(module) if not x.startswith("_")])
+                    if name in exports:
                         return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
                 module_spec = importlib.util.find_spec(node.module)
@@ -250,7 +253,9 @@ def trace_origin(
                 # we might end up executing code that we shouldn't if we try that. So
                 # only builtins are imported this way.
                 if module_spec.origin in {"frozen", "built-in"}:
-                    if name in dir(__import__(node.module)):
+                    module = __import__(node.module)
+                    exports = getattr(module, "__all__", [x for x in dir(module) if not x.startswith("_")])
+                    if name in exports:
                         return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
                     continue
