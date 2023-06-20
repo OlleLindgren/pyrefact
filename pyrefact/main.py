@@ -7,6 +7,7 @@ import collections
 import io
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
@@ -145,6 +146,9 @@ def format_code(
     safe: bool = False,
     keep_imports: bool = False,
 ) -> str:
+    if re.findall(r"# pyrefact: skip_file", source):
+        return source
+
     source = fixes.fix_tabs(source)
     source = fixes.fix_rmspace(source)
     source = fixes.fix_too_many_blank_lines(source)
