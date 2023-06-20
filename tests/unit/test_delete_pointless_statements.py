@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 
 from pyrefact.fixes import delete_pointless_statements

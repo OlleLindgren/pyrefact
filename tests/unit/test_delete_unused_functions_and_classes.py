@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 
 from pyrefact.fixes import delete_unused_functions_and_classes
