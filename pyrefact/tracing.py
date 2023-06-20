@@ -170,7 +170,7 @@ class TraceResult(NamedTuple):
 
 
 @functools.lru_cache(maxsize=100_000)
-def trace_origin(name: str, source: str, working_directory: Path = None) -> Tuple[int, str]:
+def trace_origin(name: str, source: str, working_directory: Path = None, __all__: bool = False) -> Tuple[int, str]:
     if working_directory is None:
         working_directory = Path.cwd()
     else:
@@ -179,7 +179,23 @@ def trace_origin(name: str, source: str, working_directory: Path = None) -> Tupl
     root = parsing.parse(source)
     nodes = set(parsing.walk(root, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Assign, ast.AnnAssign, ast.NamedExpr)))
 
-    all_template = ast.Assign(targets=[ast.Name(id="all")], value=(ast.List, ast.Tuple))
+    all_template = ast.Assign(targets=[ast.Name(id="__all__")], value=ast.List(elts={str}))
+    all_extend_template = ast.Call(func=ast.Attribute(value=ast.Name(id="__all__"), attr="extend"), args=[(ast.Tuple(elts={str}), ast.List(elts={str}))])
+    all_append_template = ast.Call(func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str])
+
+    if __all__:
+        all_filter = set()
+        for node in parsing.filter_nodes(root.body, all_template):
+            all_filter.update(node.value.elts)
+
+        for node in parsing.walk(root, all_extend_template):
+            all_filter.update(node.value.elts)
+
+        for node in parsing.walk(root, all_append_template):
+            all_filter.update(node.args[0])
+
+        if name not in all_filter:
+            return None
 
     for node in sorted(nodes, key=lambda n: (n.lineno, n.col_offset), reverse=True):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -212,7 +228,7 @@ def trace_origin(name: str, source: str, working_directory: Path = None) -> Tupl
                                 if name in all_node.elts:
                                     return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
-                        elif trace_origin(name, module_source, working_directory):
+                        elif trace_origin(name, module_source, working_directory, __all__=True):
                             return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
