@@ -73,6 +73,8 @@ pyrefact /path/to/filename.py --safe
 cat /path/to/filename.py | pyrefact --from-stdin
 ```
 
+It is possible to disable pyrefact for a given file by adding a comment with `pyrefact: skip_file` anywhere in the file, as done [here](tests/unit/test_trace_origin.py).
+
 ## Contributing
 
 To contribute to Pyrefact, please view [CONTRIBUTING.md](/CONTRIBUTING.md)
