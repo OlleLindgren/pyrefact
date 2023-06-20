@@ -4,7 +4,7 @@ import itertools
 import re
 from typing import Collection, Iterable, Sequence, Tuple
 
-from pyrefact import constants, parsing, processing, style
+from pyrefact import constants, parsing, processing, style, tracing
 
 
 class _EverythingContainer:
@@ -314,7 +314,7 @@ def _get_constant_insertion_lineno(scope: ast.AST) -> int:
 def create_abstractions(source: str) -> str:
     root = parsing.parse(source)
     global_names = (
-        _scoped_dependencies(root) | parsing.get_imported_names(root) | constants.BUILTIN_FUNCTIONS
+        _scoped_dependencies(root) | tracing.get_imported_names(root) | constants.BUILTIN_FUNCTIONS
     )
     for node in parsing.iter_funcdefs(root):
         global_names.add(node.name)
@@ -360,7 +360,7 @@ def create_abstractions(source: str) -> str:
             if children_with_purpose <= 2:
                 continue
 
-            created_names, _, required_names = parsing.code_dependencies_outputs(nodes)
+            created_names, _, required_names = tracing.code_dependencies_outputs(nodes)
             if len(created_names) > 1:
                 continue
 

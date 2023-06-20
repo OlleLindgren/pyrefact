@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Maing script for running all tests."""
+import argparse
 import itertools
 import logging
 import sys
+import traceback
 from pathlib import Path
+from typing import Sequence
 
 sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).parent / "unit"))
@@ -16,12 +19,19 @@ from pyrefact import logs as logger
 logger.set_level(logging.DEBUG)
 
 
-def main() -> int:
+def _parse_args(args: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--verbose", action="store_true")
+    return parser.parse_args(args)
+
+
+def main(args: Sequence[str]) -> int:
     """Run all scripts in the pyrefact/tests folder.
 
     Returns:
         int: 0 if successful, otherwise 1.
     """
+    args = _parse_args(args)
     return_codes = {}
     unit_tests = testing_infra.iter_unit_tests()
     integration_tests = testing_infra.iter_integration_tests()
@@ -32,7 +42,10 @@ def main() -> int:
         try:
             return_codes[relpath] = module.main()
         except Exception as error:
-            return_codes[relpath] = error
+            if args.verbose:
+                return_codes[relpath] = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+            else:
+                return_codes[relpath] = error
 
     if not set(return_codes.values()) - {0}:
         print("PASSED")
@@ -48,4 +61,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

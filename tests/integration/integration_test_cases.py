@@ -6,23 +6,38 @@ INTEGRATION_TEST_CASES = (
     ("", ""),
     (
         """
-for x in range(100):
-    if x > 10:
-        y = 13
-    else:
-        x += 1
-        x *= 12
-        print(x > 30)
-        y = 100 - sum(x, 2, 3)
-print(x)
+from os import *
+from typing import *
+def foo() -> Tuple[int, Sequence[int]]:
+    for x in range(100):
+        if x > 10:
+            y = 13
+        else:
+            x += 1
+            x *= 12
+            print(x > 30)
+            y = 100 - sum(x, 2, 3)
+            print(getcwd())
+    return 1, (1, 2, 3)
+    print(x)
+
+if __name__ == "__main__":
+    foo()
         """,
         """
-for x in range(100):
-    if x <= 10:
-        x += 1
-        x *= 12
-        print(x > 30)
-print(x)
+from os import getcwd
+from typing import Sequence, Tuple
+def _foo() -> Tuple[int, Sequence[int]]:
+    for x in range(100):
+        if x <= 10:
+            x += 1
+            x *= 12
+            print(x > 30)
+            print(getcwd())
+    return 1, (1, 2, 3)
+
+if __name__ == "__main__":
+    _foo()
         """,
     ),
     (

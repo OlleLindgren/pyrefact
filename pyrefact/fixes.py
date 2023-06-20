@@ -10,31 +10,9 @@ from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 import isort
 import rmspace
 
-from pyrefact import abstractions, constants, formatting
+from pyrefact import abstractions, constants, formatting, tracing
 from pyrefact import logs as logger
 from pyrefact import parsing, processing, style
-
-
-def _get_undefined_variables(source: str) -> Collection[str]:
-    root = parsing.parse(source)
-    imported_names = parsing.get_imported_names(root)
-    defined_names = set()
-    referenced_names = set()
-    for node in parsing.walk(root, ast.Name):
-        if isinstance(node.ctx, ast.Load):
-            referenced_names.add(node.id)
-        elif isinstance(node.ctx, ast.Store):
-            defined_names.add(node.id)
-    for node in parsing.walk(root, ast.arg):
-        defined_names.add(node.arg)
-
-    return (
-        referenced_names
-        - defined_names
-        - imported_names
-        - {name.split(".")[0] for name in imported_names}
-        - constants.BUILTIN_FUNCTIONS
-    )
 
 
 def _get_uses_of(node: ast.AST, scope: ast.AST, source: str) -> Iterable[ast.Name]:
@@ -215,7 +193,7 @@ def _fix_variable_names(
     replacements = []
     ast_tree = parsing.parse(source)
     blacklisted_names = (
-        parsing.get_imported_names(ast_tree)
+        tracing.get_imported_names(ast_tree)
         | constants.BUILTIN_FUNCTIONS
         | constants.PYTHON_KEYWORDS
     )
@@ -298,7 +276,7 @@ def add_missing_imports(source: str) -> str:
     Returns:
         str: Source code with added imports
     """
-    undefined_variables = _get_undefined_variables(source)
+    undefined_variables = tracing.get_undefined_variables(source)
     if undefined_variables:
         return _fix_undefined_variables(source, undefined_variables)
 
@@ -320,7 +298,7 @@ def _get_unused_imports(ast_tree: ast.Module) -> Collection[str]:
     Returns:
         Collection[str]: A collection of names that are imported but never used.
     """
-    imports = parsing.get_imported_names(ast_tree)
+    imports = tracing.get_imported_names(ast_tree)
 
     names = {node.id for node in parsing.walk(ast_tree, ast.Name(ctx=ast.Load))}
     for node in parsing.walk(ast_tree, ast.Attribute):
@@ -630,7 +608,7 @@ def _iter_unused_names(
     if parsing.match_template(scope, ast.AST(finalbody=list)):
         bodies.append(scope.finalbody)
     if isinstance(scope, (ast.For, ast.While)):
-        *_, required_names = parsing.code_dependencies_outputs([scope])
+        *_, required_names = tracing.code_dependencies_outputs([scope])
         preserve = preserve | required_names
 
     for body in filter(None, bodies):
@@ -642,7 +620,7 @@ def _iter_unused_names(
         }
         name_mentions = collections.defaultdict(set)
         for node in body:
-            _, created_names, required_names = parsing.code_dependencies_outputs([node])
+            _, created_names, required_names = tracing.code_dependencies_outputs([node])
             for name in itertools.chain(created_names, required_names):
                 name_mentions[name].add(node)
         # (3) And group the code in the smallest possible sequences that will contain
@@ -654,14 +632,14 @@ def _iter_unused_names(
         }
         # (4) For every (name, node_sequence) in that grouping,
         for name, sequence in name_node_sequences.items():
-            _, created_names, required_names = parsing.code_dependencies_outputs(sequence)
+            _, created_names, required_names = tracing.code_dependencies_outputs(sequence)
             # (7) For every (node) at position (i) in the sequence,
             for i, node in enumerate(sequence):
                 remainder = sequence[i + 1 :]
                 if isinstance(node, (ast.For, ast.While)):
                     remainder.extend(sequence[:i])
-                _, node_created, _ = parsing.code_dependencies_outputs([node])
-                subsequent_created, _, subsequent_required = parsing.code_dependencies_outputs(
+                _, node_created, _ = tracing.code_dependencies_outputs([node])
+                subsequent_created, _, subsequent_required = tracing.code_dependencies_outputs(
                     remainder
                 )
                 # (8) If (name) is in its outputs, but (name) is not in the dependencies of
@@ -718,10 +696,10 @@ def move_before_loop(source: str) -> str:
                 continue  # i.e. x += 1
 
             remainder = scope.body[i + 1 :] + scope.body[:i]
-            definite_created_names, maybe_created_names, _ = parsing.code_dependencies_outputs(
+            definite_created_names, maybe_created_names, _ = tracing.code_dependencies_outputs(
                 remainder
             )
-            _, node_created_names, node_required_names = parsing.code_dependencies_outputs([node])
+            _, node_created_names, node_required_names = tracing.code_dependencies_outputs([node])
 
             before = scope.body[:i]
             recursive_before_children = itertools.chain(
@@ -731,7 +709,7 @@ def move_before_loop(source: str) -> str:
             if any(parsing.is_blocking(child) for child in recursive_before_children):
                 continue
 
-            _, before_created, before_required = parsing.code_dependencies_outputs(before)
+            _, before_created, before_required = tracing.code_dependencies_outputs(before)
 
             # If the loop may create names that the node depends on, keep it in the loop
             if maybe_created_names & node_required_names:
@@ -744,7 +722,7 @@ def move_before_loop(source: str) -> str:
             if node_created_names & (before_required | before_created):
                 continue
 
-            _, header_created, header_required = parsing.code_dependencies_outputs(header_scope)
+            _, header_created, header_required = tracing.code_dependencies_outputs(header_scope)
 
             if header_created & node_required_names:
                 continue

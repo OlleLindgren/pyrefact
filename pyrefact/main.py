@@ -20,6 +20,7 @@ from pyrefact import (
     performance_numpy,
     performance_pandas,
     symbolic_math,
+    tracing,
 )
 
 MAX_MODULE_PASSES = 5
@@ -53,6 +54,7 @@ def _single_run_fixes(source: str) -> str:
     """
     source = fixes.deinterpolate_logging_args(source)
     source = fixes.invalid_escape_sequence(source)
+    source = tracing.fix_starred_imports(source)
     return source
 
 
@@ -289,7 +291,7 @@ def main(args: Sequence[str] | None = None) -> int:
         with open(filename, "r", encoding="utf-8") as stream:
             source = stream.read()
         ast_root = parsing.parse(source)
-        imported_names = parsing.get_imported_names(ast_root)
+        imported_names = tracing.get_imported_names(ast_root)
         for node in parsing.walk(ast_root, (ast.Name, ast.Attribute)):
             if isinstance(node, ast.Name) and node.id in imported_names:
                 used_names[_namespace_name(filename)].add(node.id)
