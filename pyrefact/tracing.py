@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 import ast
 import collections
@@ -198,6 +199,9 @@ def trace_origin(name: str, source: str, working_directory: Path = None) -> Tupl
 
                             continue
 
+                        if module_spec.origin is None:
+                            continue
+
                         with Path(module_spec.origin).open("r", encoding="utf-8") as stream:
                             module_source = stream.read()
 
@@ -278,7 +282,8 @@ def fix_starred_imports(source: str) -> str:
         if names:
             yield node, ast.ImportFrom(
                 module=node.module,
-                names=[ast.alias(name=name) for name in sorted(names)],
+                names=[ast.alias(name=name, asname=None) for name in sorted(names)],
+                level=0,
             )
 
     # Remove remaining starred imports
