@@ -5,7 +5,7 @@ import collections
 import functools
 import importlib
 from pathlib import Path
-from typing import Collection, Iterable, Sequence, Tuple, NamedTuple
+from typing import Collection, Iterable, NamedTuple, Sequence, Tuple
 
 from pyrefact import constants, parsing, processing
 
@@ -170,18 +170,37 @@ class TraceResult(NamedTuple):
 
 
 @functools.lru_cache(maxsize=100_000)
-def trace_origin(name: str, source: str, working_directory: Path = None, __all__: bool = False) -> Tuple[int, str]:
+def trace_origin(
+    name: str, source: str, working_directory: Path = None, __all__: bool = False
+) -> Tuple[int, str]:
     if working_directory is None:
         working_directory = Path.cwd()
     else:
         working_directory = Path(working_directory)
 
     root = parsing.parse(source)
-    nodes = set(parsing.walk(root, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Assign, ast.AnnAssign, ast.NamedExpr)))
+    nodes = set(
+        parsing.walk(
+            root,
+            (
+                ast.Import,
+                ast.ImportFrom,
+                ast.FunctionDef,
+                ast.AsyncFunctionDef,
+                ast.ClassDef,
+                ast.Assign,
+                ast.AnnAssign,
+                ast.NamedExpr,
+    ),))
 
     all_template = ast.Assign(targets=[ast.Name(id="__all__")], value=ast.List(elts={str}))
-    all_extend_template = ast.Call(func=ast.Attribute(value=ast.Name(id="__all__"), attr="extend"), args=[(ast.Tuple(elts={str}), ast.List(elts={str}))])
-    all_append_template = ast.Call(func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str])
+    all_extend_template = ast.Call(
+        func=ast.Attribute(value=ast.Name(id="__all__"), attr="extend"),
+        args=[(ast.Tuple(elts={str}), ast.List(elts={str}))],
+    )
+    all_append_template = ast.Call(
+        func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str]
+    )
 
     if __all__:
         all_filter = set()
@@ -204,41 +223,42 @@ def trace_origin(name: str, source: str, working_directory: Path = None, __all__
                     return TraceResult(parsing.get_code(node, source), node.lineno, node)
                 if alias.asname is None and alias.name == name:
                     return TraceResult(parsing.get_code(node, source), node.lineno, node)
-                if alias.name == "*":
-                    if node.module in constants.PYTHON_311_STDLIB and name in dir(__import__(node.module)):
+
+                if alias.name != "*":
+                    continue
+
+                if node.module in constants.PYTHON_311_STDLIB:
+                    if name in dir(__import__(node.module)):
                         return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
-                    if module_spec := importlib.util.find_spec(node.module):
-                        if module_spec.origin in {"frozen", "built-in"}:
-                            if name in dir(__import__(node.module)):
-                                return TraceResult(parsing.get_code(node, source), node.lineno, node)
+                module_spec = importlib.util.find_spec(node.module)
+                if module_spec is None or module_spec.origin is None:
+                    continue
 
-                            continue
+                if module_spec.origin in {"frozen", "built-in"}:
+                    if name in dir(__import__(node.module)):
+                        return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
-                        if module_spec.origin is None:
-                            continue
+                    continue
 
-                        with Path(module_spec.origin).open("r", encoding="utf-8") as stream:
-                            module_source = stream.read()
+                with Path(module_spec.origin).open("r", encoding="utf-8") as stream:
+                    module_source = stream.read()
 
-                        module_root = parsing.parse(module_source)
-                        # if __all__ exists, name is importable from there iff it is in __all__
-                        if all_nodes := tuple(parsing.filter_nodes(module_root.body, all_template)):
-                            for all_node in all_nodes:
-                                if name in all_node.elts:
-                                    return TraceResult(parsing.get_code(node, source), node.lineno, node)
-
-                        elif trace_origin(name, module_source, working_directory, __all__=True):
-                            return TraceResult(parsing.get_code(node, source), node.lineno, node)
+                if trace_origin(name, module_source, working_directory, __all__=True):
+                    return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             if node.name == name:
                 return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
-        if isinstance(node, (ast.Assign, ast.AnnAssign)) and any(target.id == name for target in parsing.assignment_targets(node)):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and any(
+            target.id == name for target in parsing.assignment_targets(node)
+        ):
             return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
-        if isinstance(node, ast.NamedExpr) and parsing.match_template(node.target, ast.Name(id=name)):
+        if isinstance(node, ast.NamedExpr) and parsing.match_template(
+            node.target, ast.Name(id=name)
+        ):
             return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
     return None
@@ -289,7 +309,7 @@ def fix_starred_imports(source: str) -> str:
     undefined_names = get_undefined_variables(source)
     for name in undefined_names:
         if trace_result := trace_origin(name, source):
-            node_source, lineno, node = trace_result
+            *_, node = trace_result
 
             if parsing.match_template(node, template):
                 starred_import_name_mapping[node].add(name)
