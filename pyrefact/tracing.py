@@ -273,11 +273,16 @@ def trace_origin(
 
                     continue
 
+                origin = Path(module_spec.origin)
+                if origin.suffix != ".py":  # We may get .so files for some modules
+                    continue
+
                 # For non-builtin modules (unfortunately including much of the stdlib),
                 # we try to parse the ast of the module to figure out what __all__ is
                 # likely to contain. This is pretty accurate, but not perfect.
-                with Path(module_spec.origin).open("r", encoding="utf-8") as stream:
+                with origin.open("r", encoding="utf-8") as stream:
                     module_source = stream.read()
+
                 if trace_origin(name, module_source, __all__=True):
                     return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
