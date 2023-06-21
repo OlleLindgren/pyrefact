@@ -170,7 +170,7 @@ class TraceResult(NamedTuple):
     ast: ast.AST
 
 
-def trace_module_source_file(module: str) -> Path | None:
+def trace_module_source_file(module: str) -> str | None:
     try:
         sys.path.append(str(Path.cwd()))
 
@@ -265,6 +265,9 @@ def trace_origin(
                     exports = getattr(module, "__all__", [x for x in dir(module) if not x.startswith("_")])
                     if name in exports:
                         return TraceResult(parsing.get_code(node, source), node.lineno, node)
+
+                if node.module is None:
+                    continue
 
                 origin = trace_module_source_file(node.module)
 
@@ -396,6 +399,9 @@ def fix_reimported_names(source: str) -> str:
 
     for node in parsing.walk(root, ast.ImportFrom):
         if node.module in constants.PYTHON_311_STDLIB:
+            continue
+
+        if node.module is None:
             continue
 
         origin = trace_module_source_file(node.module)
