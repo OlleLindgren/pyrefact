@@ -2787,14 +2787,24 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
         ]
         if isinstance(assigned_value, (ast.List, ast.Set)):
             elts = assigned_value.elts + other_elts
-            replacement = type(assigned_value)(elts=elts)
+
+            if isinstance(assigned_value, ast.List):
+                replacement = ast.List(elts=elts)
+            else:
+                replacement = ast.Set(elts=elts)
+
             yield assigned_value, replacement
             for m in matches:
                 yield m.root, None
 
         elif isinstance(assigned_value, (ast.ListComp, ast.SetComp)):
             elts = [ast.Starred(value=assigned_value)] + other_elts
-            replacement = type(assigned_value)(elts=elts)
+
+            if isinstance(assigned_value, ast.ListComp):
+                replacement = ast.List(elts=elts)
+            else:
+                replacement = ast.Set(elts=elts)
+
             yield assigned_value, replacement
             for m in matches:
                 yield m.root, None
