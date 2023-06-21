@@ -4,6 +4,7 @@ import ast
 import collections
 import functools
 import importlib
+import sys
 from pathlib import Path
 from typing import Collection, Iterable, NamedTuple, Sequence, Tuple
 
@@ -247,7 +248,16 @@ def trace_origin(
                     if name in exports:
                         return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
-                module_spec = importlib.util.find_spec(node.module)
+                try:
+                    sys.path.append(str(Path.cwd()))
+
+                    module_spec = importlib.util.find_spec(node.module)
+                    if module_spec is None or module_spec.origin is None:
+                        continue
+
+                finally:
+                    sys.path.pop()
+
                 if module_spec is None or module_spec.origin is None:
                     continue
 
