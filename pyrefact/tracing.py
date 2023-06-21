@@ -206,10 +206,10 @@ def trace_origin(
     # Without this, we could for example think that `os` was accessible in `pathlib`,
     # and end up putting `from pathlib import os` in generated code.
     if __all__:
-        all_template = ast.Assign(targets=[ast.Name(id="__all__")], value=ast.List(elts={str}))
+        all_template = ast.Assign(targets=[ast.Name(id="__all__")], value=ast.List(elts={ast.Constant(value=str)}))
         all_extend_template = ast.Call(
             func=ast.Attribute(value=ast.Name(id="__all__"), attr="extend"),
-            args=[(ast.Tuple(elts={str}), ast.List(elts={str}))],
+            args=[(ast.Tuple(elts={ast.Constant(value=str)}), ast.List(elts={ast.Constant(value=str)}))],
         )
         all_append_template = ast.Call(
             func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str]
@@ -219,13 +219,13 @@ def trace_origin(
 
         if all_nodes:
             for node in all_nodes:
-                all_filter.update(node.value.elts)
+                all_filter.update(constant.value for constant in node.value.elts)
 
             for node in parsing.walk(root, all_extend_template):
-                all_filter.update(node.value.elts)
+                all_filter.update(constant.value for constant in node.args[0].elts)
 
             for node in parsing.walk(root, all_append_template):
-                all_filter.update(node.args[0])
+                all_filter.add(node.args[0])
 
             if name not in all_filter:
                 return None
