@@ -56,6 +56,7 @@ def _single_run_fixes(source: str) -> str:
     source = fixes.deinterpolate_logging_args(source)
     source = fixes.invalid_escape_sequence(source)
     source = tracing.fix_starred_imports(source)
+    source = tracing.fix_reimported_names(source)
     return source
 
 

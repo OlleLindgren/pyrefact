@@ -170,6 +170,20 @@ class TraceResult(NamedTuple):
     lineno: int
 
 
+def trace_module_source_file(module: str) -> Path | None:
+    try:
+        sys.path.append(str(Path.cwd()))
+
+        module_spec = importlib.util.find_spec(module)
+        if module_spec is None:
+            return None
+
+        return module_spec.origin
+
+    finally:
+        sys.path.pop()
+
+
 @functools.lru_cache(maxsize=100_000)
 def trace_origin(
     name: str, source: str, *, __all__: bool = False
@@ -248,24 +262,13 @@ def trace_origin(
                     if name in exports:
                         return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
-                try:
-                    sys.path.append(str(Path.cwd()))
-
-                    module_spec = importlib.util.find_spec(node.module)
-                    if module_spec is None or module_spec.origin is None:
-                        continue
-
-                finally:
-                    sys.path.pop()
-
-                if module_spec is None or module_spec.origin is None:
-                    continue
+                origin = trace_module_source_file(node.module)
 
                 # This is likely the best way to truly check the __all__ of a module,
                 # but if a user has forgotten the `if __name__ == "__main__":` guard,
                 # we might end up executing code that we shouldn't if we try that. So
                 # only builtins are imported this way.
-                if module_spec.origin in {"frozen", "built-in"}:
+                if origin in {"frozen", "built-in"}:
                     module = __import__(node.module)
                     exports = getattr(module, "__all__", [x for x in dir(module) if not x.startswith("_")])
                     if name in exports:
@@ -273,7 +276,7 @@ def trace_origin(
 
                     continue
 
-                origin = Path(module_spec.origin)
+                origin = Path(origin)
                 if origin.suffix != ".py":  # We may get .so files for some modules
                     continue
 
@@ -365,3 +368,96 @@ def fix_starred_imports(source: str) -> str:
     for node in parsing.filter_nodes(root.body, template):
         if not parsing.match_template(node, tuple(starred_import_name_mapping)):
             yield node, None
+
+
+def fix_reimported_names(source: str) -> str:
+    """Remove reimported names from imports."""
+
+    root = parsing.parse(source)
+
+    all_template = ast.Assign(targets=[ast.Name(id="__all__")], value=ast.List(elts={ast.Constant(value=str)}))
+    module_from_imports = collections.defaultdict(set)
+    additions = set()
+    removals = set()
+    replacements = {}
+
+    for node in parsing.walk(root, ast.ImportFrom):
+        if node.module in constants.PYTHON_311_STDLIB:
+            continue
+
+        origin = trace_module_source_file(node.module)
+        if origin in {"frozen", "built-in"}:
+            continue
+
+        origin = Path(origin)
+        if origin.suffix != ".py":
+            continue
+
+        if origin.name == "__init__.py":
+            continue
+
+        with origin.open("r", encoding="utf-8") as stream:
+            module_source = stream.read()
+
+        module_root = parsing.parse(module_source)
+        if any(parsing.filter_nodes(module_root.body, all_template)):
+            continue
+
+        node_names = []
+        for alias in node.names:
+            asname = alias.asname
+            name = alias.name
+
+            if trace_result := trace_origin(name, module_source, __all__=True):
+                _, module_import_node, _ = trace_result
+                if isinstance(module_import_node, ast.ImportFrom):
+                    # Remove this alias from node.names
+                    # Add this alias to things that should be imported from module_import_node.module
+                    original_name = next(
+                        alias.name
+                        for alias in module_import_node.names
+                        if alias.asname == name or (alias.asname is None and alias.name == name)
+                    )
+                    if asname == original_name:
+                        new_alias = ast.alias(name=original_name, asname=None)
+                    else:
+                        new_alias = ast.alias(name=original_name, asname=asname)
+
+                    module_from_imports[module_import_node.module].add(new_alias)
+
+                elif isinstance(module_import_node, ast.Import):
+                    # Remove this alias from node.names
+                    # Add module_import_node, but with the alias changed from name -> asname if exists, and asname != name
+                    original_name = next(
+                        alias.name
+                        for alias in module_import_node.names
+                        if alias.asname == name or (alias.asname is None and alias.name == name)
+                    )
+                    if asname == original_name:
+                        new_alias = ast.alias(name=original_name, asname=None)
+                    else:
+                        new_alias = ast.alias(name=original_name, asname=asname)
+
+                    additions.add(ast.Import(names=[new_alias]))
+                else:
+                    node_names.append(alias)
+            else:
+                node_names.append(alias)
+
+        if node_names != node.names:
+            if node_names:
+                replacements[node] = ast.ImportFrom(
+                    module=node.module,
+                    names=node_names,
+                    level=node.level,
+                )
+            else:
+                removals.add(node)
+
+    for module, aliases in module_from_imports.items():
+        additions.add(ast.ImportFrom(module=module, names=sorted(aliases), level=0))
+
+    if additions or removals or replacements:
+        source = processing.alter_code(source, root, additions=additions, removals=removals, replacements=replacements)
+
+    return source
