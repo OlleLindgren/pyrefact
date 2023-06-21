@@ -280,6 +280,9 @@ def trace_origin(
 
                     continue
 
+                if origin is None:
+                    continue
+
                 origin = Path(origin)
                 if origin.suffix != ".py":  # We may get .so files for some modules
                     continue
