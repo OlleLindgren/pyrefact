@@ -166,15 +166,19 @@ class TraceResult(NamedTuple):
     """Result of tracing."""
 
     source: str
-    ast: ast.AST
     lineno: int
+    ast: ast.AST
 
 
 def trace_module_source_file(module: str) -> Path | None:
     try:
         sys.path.append(str(Path.cwd()))
 
-        module_spec = importlib.util.find_spec(module)
+        try:
+            module_spec = importlib.util.find_spec(module)
+        except ModuleNotFoundError:
+            return None
+
         if module_spec is None:
             return None
 
@@ -381,12 +385,18 @@ def fix_reimported_names(source: str) -> str:
     removals = set()
     replacements = {}
 
+    import_insert_lineno = min(
+        (node.lineno for node in parsing.walk(root, (ast.ImportFrom, ast.Import))), default=-1
+    )
+    if import_insert_lineno == -1:
+        return source  # No imports, nothing to do
+
     for node in parsing.walk(root, ast.ImportFrom):
         if node.module in constants.PYTHON_311_STDLIB:
             continue
 
         origin = trace_module_source_file(node.module)
-        if origin in {"frozen", "built-in"}:
+        if origin in {"frozen", "built-in", None}:
             continue
 
         origin = Path(origin)
@@ -409,7 +419,7 @@ def fix_reimported_names(source: str) -> str:
             name = alias.name
 
             if trace_result := trace_origin(name, module_source, __all__=True):
-                _, module_import_node, _ = trace_result
+                *_, module_import_node = trace_result
                 if isinstance(module_import_node, ast.ImportFrom):
                     # Remove this alias from node.names
                     # Add this alias to things that should be imported from module_import_node.module
@@ -438,7 +448,7 @@ def fix_reimported_names(source: str) -> str:
                     else:
                         new_alias = ast.alias(name=original_name, asname=asname)
 
-                    additions.add(ast.Import(names=[new_alias]))
+                    additions.add(ast.Import(names=[new_alias]), lineno=import_insert_lineno)
                 else:
                     node_names.append(alias)
             else:
@@ -455,7 +465,7 @@ def fix_reimported_names(source: str) -> str:
                 removals.add(node)
 
     for module, aliases in module_from_imports.items():
-        additions.add(ast.ImportFrom(module=module, names=sorted(aliases), level=0))
+        additions.add(ast.ImportFrom(module=module, names=sorted(aliases), level=0, lineno=import_insert_lineno))
 
     if additions or removals or replacements:
         source = processing.alter_code(source, root, additions=additions, removals=removals, replacements=replacements)
