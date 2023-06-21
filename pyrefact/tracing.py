@@ -465,7 +465,7 @@ def fix_reimported_names(source: str) -> str:
                 removals.add(node)
 
     for module, aliases in module_from_imports.items():
-        additions.add(ast.ImportFrom(module=module, names=sorted(aliases), level=0, lineno=import_insert_lineno))
+        additions.add(ast.ImportFrom(module=module, names=sorted(aliases, key=lambda alias: alias.name), level=0, lineno=import_insert_lineno))
 
     if additions or removals or replacements:
         source = processing.alter_code(source, root, additions=additions, removals=removals, replacements=replacements)
