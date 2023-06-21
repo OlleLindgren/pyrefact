@@ -214,17 +214,20 @@ def trace_origin(
             func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str]
         )
         all_filter = set()
-        for node in parsing.filter_nodes(root.body, all_template):
-            all_filter.update(node.value.elts)
+        all_nodes = tuple(parsing.filter_nodes(root.body, all_template))
 
-        for node in parsing.walk(root, all_extend_template):
-            all_filter.update(node.value.elts)
+        if all_nodes:
+            for node in all_nodes:
+                all_filter.update(node.value.elts)
 
-        for node in parsing.walk(root, all_append_template):
-            all_filter.update(node.args[0])
+            for node in parsing.walk(root, all_extend_template):
+                all_filter.update(node.value.elts)
 
-        if name not in all_filter:
-            return None
+            for node in parsing.walk(root, all_append_template):
+                all_filter.update(node.args[0])
+
+            if name not in all_filter:
+                return None
 
     for node in sorted(nodes, key=lambda n: (n.lineno, n.col_offset), reverse=True):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
