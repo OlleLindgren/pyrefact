@@ -176,7 +176,7 @@ def trace_module_source_file(module: str) -> str | None:
 
         try:
             module_spec = importlib.util.find_spec(module)
-        except ModuleNotFoundError:
+        except ImportError:
             return None
 
         if module_spec is None:
