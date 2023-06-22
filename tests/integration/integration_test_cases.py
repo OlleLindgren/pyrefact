@@ -347,13 +347,20 @@ print(U)
     (
         """
 import pandas as pd
+import pandas as pd
+import pandas as pd
+import pandas as pd
 df = pd.DataFrame([{"foo": 10 + i, "bar": 10 - i} for i in list(range(10))])
+import pandas as pd
 x = 0
+import pandas as pd
 for _, row in df.iterrows():
     x += row.iloc[1] + row.loc["foo"] - row["bar"]
 for ix, _ in df.iterrows():
     x += ix
 print(x)
+import pandas as pd
+import pandas as pd
             """,
         """
 import pandas as pd

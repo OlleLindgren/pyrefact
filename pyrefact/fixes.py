@@ -3288,3 +3288,149 @@ def missing_context_manager(source: str) -> str:
         return missing_context_manager(source)
 
     return source
+
+
+def _fix_duplicate_from_imports(source: str) -> str:
+    """Remove duplicate from-style imports from the same module."""
+    root = parsing.parse(source)
+
+    module_import_aliases = collections.defaultdict(set)
+    module_import_nodes = collections.defaultdict(list)
+
+    for node in parsing.walk(root, ast.ImportFrom):
+        module_import_aliases[node.module].update((alias.name, alias.asname if alias.asname != alias.name else None) for alias in node.names)
+        module_import_nodes[node.module].append(node)
+
+    replacements = {}
+    removals = set()
+    for module, import_nodes in module_import_nodes.items():
+        if len(import_nodes) > 1:
+            replacements[import_nodes[0]] = ast.ImportFrom(
+                module=module,
+                names=[
+                    ast.alias(name=name, asname=asname)
+                    for name, asname in sorted(
+                        module_import_aliases[module],
+                        key=lambda t: (
+                            t[0],
+                            t[1] is not None,
+                            t[1]
+                ))],
+                level=import_nodes[0].level,
+            )
+            removals.update(import_nodes[1:])
+
+    if replacements:
+        source = processing.alter_code(source, root, replacements=replacements, removals=removals)
+        return _fix_duplicate_regular_imports(source)
+
+    return source
+
+
+def _fix_duplicate_regular_imports(source: str) -> str:
+    """Remove duplicate plain imports from the same module."""
+    root = parsing.parse(source)
+
+    import_aliases = collections.defaultdict(set)
+    import_nodes = collections.defaultdict(list)
+
+    for node in parsing.walk(root, ast.Import):
+        for alias in node.names:
+            asname = alias.asname if alias.asname != alias.name and alias.asname is not None else alias.name
+            name = alias.name
+
+            import_nodes[asname].append(node)
+            import_aliases[name].add(asname)
+
+    replacements = {}
+    removals = set()
+
+    for asname, nodes in import_nodes.items():
+        if len(nodes) > 1:
+            for node in nodes[1:]:
+                new_aliases = {
+                    (alias.name, alias.asname if alias.asname != alias.name else None)
+                    for alias in node.names
+                    if (alias.asname or alias.name) != asname
+                }
+                new_names = [
+                    ast.alias(name=name, asname=asname)
+                    for name, asname in sorted(new_aliases,
+                    key=lambda t: (
+                        t[0],
+                        t[1] is not None,
+                        t[1]
+                ))]
+                if new_names:
+                    replacements[node] = ast.Import(names=new_names)
+                else:
+                    removals.add(node)
+
+    if replacements or removals:
+        source = processing.alter_code(source, root, replacements=replacements, removals=removals)
+        return _fix_duplicate_regular_imports(source)
+
+    return source
+
+
+def _breakout_stacked_imports(source: str) -> str:
+    """Breakout stacked imports in the same statement onto separate lines."""
+    root = parsing.parse(source)
+
+    replacements = {}
+    additions = set()
+
+    for node in parsing.walk(root, ast.Import):
+        if len(node.names) > 1:
+            names = sorted(
+                {(alias.name, alias.asname) for alias in node.names},
+                key=lambda t: (
+                    t[0],
+                    t[1] is not None,
+                    t[1]
+            ))
+            names = [
+                ast.alias(name=name, asname=asname if asname != name else None)
+                for name, asname in names
+            ]
+            replacements[node] = ast.Import(names=[names[0]])
+            for name in names[1:]:
+                additions.add(ast.Import(names=[name], lineno=node.lineno, col_offset=node.col_offset))
+
+    if replacements or additions:
+        source = processing.alter_code(source, root, replacements=replacements, additions=additions)
+
+    return source
+
+
+def _fix_imported_as_self_or_unsorted(source: str) -> str:
+    root = parsing.parse(source)
+
+    replacements = {}
+    for node in parsing.walk(root, ast.Import):
+        names = [(alias.name, alias.asname) for alias in node.names]
+        expected_names = sorted([(name, asname if asname != name else None) for name, asname in names], key=lambda t: (t[0], t[1] is not None, t[1]))
+        if names != expected_names:
+            replacements[node] = ast.Import(names=[ast.alias(name=name, asname=asname) for name, asname in expected_names])
+    
+    for node in parsing.walk(root, ast.ImportFrom):
+        names = [(alias.name, alias.asname) for alias in node.names]
+        expected_names = sorted([(name, asname if asname != name else None) for name, asname in names], key=lambda t: (t[0], t[1] is not None, t[1]))
+        if names != expected_names:
+            replacements[node] = ast.ImportFrom(module=node.module, names=[ast.alias(name=name, asname=asname) for name, asname in expected_names], level=node.level)
+
+    if replacements:
+        source = processing.alter_code(source, root, replacements=replacements)
+
+    return source
+
+
+def fix_duplicate_imports(source: str) -> str:
+    """Fix duplicate imports in the same statement."""
+
+    source = _fix_duplicate_from_imports(source)
+    source = _fix_duplicate_regular_imports(source)
+    source = _breakout_stacked_imports(source)
+    source = _fix_imported_as_self_or_unsorted(source)
+
+    return source

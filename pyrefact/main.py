@@ -146,6 +146,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.missing_context_manager(source)
 
     source = fixes.remove_duplicate_functions(source, preserve=preserve)
+    source = fixes.fix_duplicate_imports(source)
     source = fixes.fix_too_many_blank_lines(source)
 
     return source
