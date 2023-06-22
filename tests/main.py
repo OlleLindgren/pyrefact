@@ -43,7 +43,9 @@ def main(args: Sequence[str]) -> int:
             return_codes[relpath] = module.main()
         except Exception as error:
             if args.verbose:
-                return_codes[relpath] = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+                return_codes[relpath] = "".join(
+                    traceback.format_exception(type(error), error, error.__traceback__)
+                )
             else:
                 return_codes[relpath] = error
 
@@ -53,7 +55,7 @@ def main(args: Sequence[str]) -> int:
 
     print("Some tests failed")
     print(f"{'Test path':<50}   Return code")
-    for (test, return_code) in return_codes.items():
+    for test, return_code in return_codes.items():
         if return_code != 0:
             print(f"./{test:<50} {return_code}")
     print("FAILED")

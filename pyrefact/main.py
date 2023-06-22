@@ -162,7 +162,9 @@ def format_code(
     if parsing.is_valid_python(source):
         minimum_indent = 0
     else:
-        minimum_indent = min(inspect.indentsize(line) for line in source.splitlines() if line.strip())
+        minimum_indent = min(
+            inspect.indentsize(line) for line in source.splitlines() if line.strip()
+        )
         source = textwrap.dedent(source)
 
     if not parsing.is_valid_python(source):

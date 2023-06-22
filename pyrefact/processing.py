@@ -213,7 +213,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         raise TypeError(f"Invalid replacement type: {type(new)}")
 
     if isinstance(old, Range):
-        source = source[:old.start] + new_code + source[old.end:]
+        source = source[: old.start] + new_code + source[old.end :]
         return source
 
     lines = new_code.splitlines(keepends=True)

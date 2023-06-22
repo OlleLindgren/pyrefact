@@ -189,9 +189,7 @@ def trace_module_source_file(module: str) -> str | None:
 
 
 @functools.lru_cache(maxsize=100_000)
-def trace_origin(
-    name: str, source: str, *, __all__: bool = False
-) -> TraceResult:
+def trace_origin(name: str, source: str, *, __all__: bool = False) -> TraceResult:
     """Trace the origin of a name in python source code.
 
     Args:
@@ -224,11 +222,15 @@ def trace_origin(
     # Without this, we could for example think that `os` was accessible in `pathlib`,
     # and end up putting `from pathlib import os` in generated code.
     if __all__:
-        all_template = ast.Assign(targets=[ast.Name(id="__all__")], value=ast.List(elts={ast.Constant(value=str)}))
+        all_template = ast.Assign(
+            targets=[ast.Name(id="__all__")], value=ast.List(elts={ast.Constant(value=str)})
+        )
         all_extend_template = ast.Call(
             func=ast.Attribute(value=ast.Name(id="__all__"), attr="extend"),
-            args=[(ast.Tuple(elts={ast.Constant(value=str)}), ast.List(elts={ast.Constant(value=str)}))],
-        )
+            args=[(
+                ast.Tuple(elts={ast.Constant(value=str)}),
+                ast.List(elts={ast.Constant(value=str)}),
+        )],)
         all_append_template = ast.Call(
             func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str]
         )
@@ -262,7 +264,9 @@ def trace_origin(
                 if node.module in constants.PYTHON_311_STDLIB:
                     # Logic copied from _get_exports_list() in os.py from python3.12.0b2
                     module = __import__(node.module)
-                    exports = getattr(module, "__all__", [x for x in dir(module) if not x.startswith("_")])
+                    exports = getattr(
+                        module, "__all__", [x for x in dir(module) if not x.startswith("_")]
+                    )
                     if name in exports:
                         return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
@@ -277,7 +281,9 @@ def trace_origin(
                 # only builtins are imported this way.
                 if origin in {"frozen", "built-in"}:
                     module = __import__(node.module)
-                    exports = getattr(module, "__all__", [x for x in dir(module) if not x.startswith("_")])
+                    exports = getattr(
+                        module, "__all__", [x for x in dir(module) if not x.startswith("_")]
+                    )
                     if name in exports:
                         return TraceResult(parsing.get_code(node, source), node.lineno, node)
 
@@ -385,7 +391,9 @@ def fix_reimported_names(source: str) -> str:
 
     root = parsing.parse(source)
 
-    all_template = ast.Assign(targets=[ast.Name(id="__all__")], value=ast.List(elts={ast.Constant(value=str)}))
+    all_template = ast.Assign(
+        targets=[ast.Name(id="__all__")], value=ast.List(elts={ast.Constant(value=str)})
+    )
     module_from_imports = collections.defaultdict(set)
     additions = set()
     removals = set()
@@ -466,17 +474,23 @@ def fix_reimported_names(source: str) -> str:
         if node_names != node.names:
             if node_names:
                 replacements[node] = ast.ImportFrom(
-                    module=node.module,
-                    names=node_names,
-                    level=node.level,
+                    module=node.module, names=node_names, level=node.level
                 )
             else:
                 removals.add(node)
 
     for module, aliases in module_from_imports.items():
-        additions.add(ast.ImportFrom(module=module, names=sorted(aliases, key=lambda alias: alias.name), level=0, lineno=import_insert_lineno))
+        additions.add(
+            ast.ImportFrom(
+                module=module,
+                names=sorted(aliases, key=lambda alias: alias.name),
+                level=0,
+                lineno=import_insert_lineno,
+        ))
 
     if additions or removals or replacements:
-        source = processing.alter_code(source, root, additions=additions, removals=removals, replacements=replacements)
+        source = processing.alter_code(
+            source, root, additions=additions, removals=removals, replacements=replacements
+        )
 
     return source
