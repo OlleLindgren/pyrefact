@@ -94,4 +94,4 @@ Pyrefact requires `python>=3.8`, and is tested on CPython 3.8, 3.9, 3.10, 3.11 a
 
 ### Pypy
 
-Pyrefact is tested on Pypy3.9.
+Pyrefact is tested on Pypy3.10.
