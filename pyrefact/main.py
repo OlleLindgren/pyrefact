@@ -4,11 +4,13 @@ from __future__ import annotations
 import argparse
 import ast
 import collections
+import inspect
 import io
 import logging
 import os
 import re
 import sys
+import textwrap
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
 
@@ -160,11 +162,8 @@ def format_code(
     if parsing.is_valid_python(source):
         minimum_indent = 0
     else:
-        lines = source.splitlines()
-        minimum_indent = min(len(line) - len(line.lstrip()) for line in lines if line)
-        source = "".join(
-            line[minimum_indent:] if line else line for line in source.splitlines(keepends=True)
-        )
+        minimum_indent = min(inspect.indentsize(line) for line in source.splitlines() if line.strip())
+        source = textwrap.dedent(source)
 
     if not parsing.is_valid_python(source):
         logger.debug("Result is not valid python.")
@@ -230,7 +229,10 @@ def format_code(
     source = fixes.fix_line_lengths(source)
     source = fixes.fix_rmspace(source)
 
-    return "".join(f"{' ' * minimum_indent}{line}" for line in source.splitlines(keepends=True))
+    if minimum_indent > 0:
+        source = textwrap.indent(source, " " * minimum_indent)
+
+    return source
 
 
 def format_file(

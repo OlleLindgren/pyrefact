@@ -7,6 +7,7 @@ import dataclasses
 import functools
 import itertools
 import re
+import textwrap
 import traceback
 from typing import Collection, Iterable, Mapping, Sequence, Tuple
 
@@ -43,8 +44,7 @@ def unparse(node: ast.AST) -> str:
     except (SyntaxError, ValueError):
         source = formatting.format_with_black(source, line_length=line_length)
     source = formatting.collapse_trailing_parentheses(source)
-    indent = formatting.get_indent(source)
-    source = formatting.deindent_code(source, indent).lstrip()
+    source = textwrap.dedent(source).lstrip()
 
     return source
 
