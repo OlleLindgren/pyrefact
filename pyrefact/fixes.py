@@ -9,9 +9,16 @@ from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 
 import rmspace
 
-from pyrefact import abstractions, constants, formatting, tracing
-from pyrefact import logs as logger
-from pyrefact import parsing, processing, style
+from pyrefact import (
+    abstractions,
+    constants,
+    formatting,
+    logs as logger,
+    parsing,
+    processing,
+    style,
+    tracing,
+)
 
 
 def _get_uses_of(node: ast.AST, scope: ast.AST, source: str) -> Iterable[ast.Name]:
@@ -3282,7 +3289,10 @@ def _fix_duplicate_from_imports(source: str) -> str:
     module_import_nodes = collections.defaultdict(list)
 
     for node in parsing.walk(root, ast.ImportFrom):
-        module_import_aliases[node.module].update((alias.name, alias.asname if alias.asname != alias.name else None) for alias in node.names)
+        module_import_aliases[node.module].update(
+            (alias.name, alias.asname if alias.asname != alias.name else None)
+            for alias in node.names
+        )
         module_import_nodes[node.module].append(node)
 
     replacements = {}
@@ -3294,12 +3304,8 @@ def _fix_duplicate_from_imports(source: str) -> str:
                 names=[
                     ast.alias(name=name, asname=asname)
                     for name, asname in sorted(
-                        module_import_aliases[module],
-                        key=lambda t: (
-                            t[0],
-                            t[1] is not None,
-                            t[1]
-                ))],
+                        module_import_aliases[module], key=lambda t: (t[0], t[1] is not None, t[1])
+                )],
                 level=import_nodes[0].level,
             )
             removals.update(import_nodes[1:])
@@ -3320,7 +3326,11 @@ def _fix_duplicate_regular_imports(source: str) -> str:
 
     for node in parsing.walk(root, ast.Import):
         for alias in node.names:
-            asname = alias.asname if alias.asname != alias.name and alias.asname is not None else alias.name
+            asname = (
+                alias.asname
+                if alias.asname != alias.name and alias.asname is not None
+                else alias.name
+            )
             name = alias.name
 
             import_nodes[asname].append(node)
@@ -3339,12 +3349,9 @@ def _fix_duplicate_regular_imports(source: str) -> str:
                 }
                 new_names = [
                     ast.alias(name=name, asname=asname)
-                    for name, asname in sorted(new_aliases,
-                    key=lambda t: (
-                        t[0],
-                        t[1] is not None,
-                        t[1]
-                ))]
+                    for name, asname in sorted(
+                        new_aliases, key=lambda t: (t[0], t[1] is not None, t[1])
+                )]
                 if new_names:
                     replacements[node] = ast.Import(names=new_names)
                 else:
@@ -3365,21 +3372,20 @@ def _breakout_stacked_imports(source: str) -> str:
     additions = set()
 
     for node in parsing.walk(root, ast.Import):
-        if len(node.names) > 1:
-            names = sorted(
-                {(alias.name, alias.asname) for alias in node.names},
-                key=lambda t: (
-                    t[0],
-                    t[1] is not None,
-                    t[1]
-            ))
-            names = [
-                ast.alias(name=name, asname=asname if asname != name else None)
-                for name, asname in names
-            ]
-            replacements[node] = ast.Import(names=[names[0]])
-            for name in names[1:]:
-                additions.add(ast.Import(names=[name], lineno=node.lineno, col_offset=node.col_offset))
+        if len(node.names) <= 1:
+            continue
+
+        names = sorted(
+            {(alias.name, alias.asname) for alias in node.names},
+            key=lambda t: (t[0], t[1] is not None, t[1]),
+        )
+        names = [
+            ast.alias(name=name, asname=asname if asname != name else None)
+            for name, asname in names
+        ]
+        replacements[node] = ast.Import(names=[names[0]])
+        for name in names[1:]:
+            additions.add(ast.Import(names=[name], lineno=node.lineno, col_offset=node.col_offset))
 
     if replacements or additions:
         source = processing.alter_code(source, root, replacements=replacements, additions=additions)
@@ -3393,15 +3399,27 @@ def _fix_imported_as_self_or_unsorted(source: str) -> str:
     replacements = {}
     for node in parsing.walk(root, ast.Import):
         names = [(alias.name, alias.asname) for alias in node.names]
-        expected_names = sorted([(name, asname if asname != name else None) for name, asname in names], key=lambda t: (t[0], t[1] is not None, t[1]))
+        expected_names = sorted(
+            [(name, asname if asname != name else None) for name, asname in names],
+            key=lambda t: (t[0], t[1] is not None, t[1]),
+        )
         if names != expected_names:
-            replacements[node] = ast.Import(names=[ast.alias(name=name, asname=asname) for name, asname in expected_names])
-    
+            replacements[node] = ast.Import(
+                names=[ast.alias(name=name, asname=asname) for name, asname in expected_names]
+            )
+
     for node in parsing.walk(root, ast.ImportFrom):
         names = [(alias.name, alias.asname) for alias in node.names]
-        expected_names = sorted([(name, asname if asname != name else None) for name, asname in names], key=lambda t: (t[0], t[1] is not None, t[1]))
+        expected_names = sorted(
+            [(name, asname if asname != name else None) for name, asname in names],
+            key=lambda t: (t[0], t[1] is not None, t[1]),
+        )
         if names != expected_names:
-            replacements[node] = ast.ImportFrom(module=node.module, names=[ast.alias(name=name, asname=asname) for name, asname in expected_names], level=node.level)
+            replacements[node] = ast.ImportFrom(
+                module=node.module,
+                names=[ast.alias(name=name, asname=asname) for name, asname in expected_names],
+                level=node.level,
+            )
 
     if replacements:
         source = processing.alter_code(source, root, replacements=replacements)
@@ -3423,14 +3441,14 @@ def _is_stdlib(node: ast.Import | ast.ImportFrom) -> bool:
     """Determine if all modules in an import statement are from the standard library."""
     if isinstance(node, ast.ImportFrom):
         return (node.module or "").split(".")[0] in constants.PYTHON_311_STDLIB
-    
+
     if isinstance(node, ast.Import):
         return {alias.name.split(".")[0] for alias in node.names} <= constants.PYTHON_311_STDLIB
 
     raise ValueError(f"Expected Import or ImportFrom, got {type(node)}")
 
 
-def _import_group_key(node: ast.Import|ast.ImportFrom) -> Tuple[int, int]:
+def _import_group_key(node: ast.Import | ast.ImportFrom) -> Tuple[int, int]:
     return (
         not (isinstance(node, ast.ImportFrom) and node.module == "__future__"),
         not _is_stdlib(node),
@@ -3451,19 +3469,13 @@ def _sort_import_statements(source: str) -> str:
     groups = [
         [m[0] for m in matches]
         for matches in parsing.walk_sequence(
-            root,
-            (ast.Import, ast.ImportFrom),
-            expand_first=True,
-            expand_last=True
-        )
-    ]
+            root, (ast.Import, ast.ImportFrom), expand_first=True, expand_last=True
+    )]
     node_groups = collections.defaultdict(list)
     for group in groups:
         for node in group:
             node_groups[node].append(group)
-    node_groups = {
-        node: max(node_groups, key=len) for node, node_groups in node_groups.items()
-    }
+    node_groups = {node: max(node_groups, key=len) for node, node_groups in node_groups.items()}
     groups = {id(group): group for group in node_groups.values()}.values()
     groups = sorted(groups, key=lambda group: min(n.lineno for n in group))
 

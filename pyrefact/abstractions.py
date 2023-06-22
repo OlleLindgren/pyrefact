@@ -512,11 +512,9 @@ def create_abstractions(source: str) -> str:
             removals.extend(nodes)
             additions.append(function_def)
 
-    source = processing.alter_code(
+    return processing.alter_code(
         source, root, additions=additions, removals=removals, replacements=replacements
     )
-
-    return source
 
 
 def overused_constant(source: str, *, root_is_static: bool) -> str:
@@ -596,9 +594,7 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
         additions.add(assign)
         replacements.update({node: name for node in nodes})
 
-    source = processing.alter_code(source, root, additions=additions, replacements=replacements)
-
-    return source
+    return processing.alter_code(source, root, additions=additions, replacements=replacements)
 
 
 def simplify_if_control_flow(source: str) -> str:

@@ -8,8 +8,8 @@ import re
 from types import MappingProxyType
 from typing import Callable, Collection, Iterable, Literal, Mapping, NamedTuple, Sequence
 
-from pyrefact import logs as logger
-from pyrefact import parsing
+from pyrefact import logs as logger, parsing
+
 
 MSG_INFO_REPLACE = """{fix_function_name:<40}: Replacing code:
 {old_code}
@@ -213,8 +213,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         raise TypeError(f"Invalid replacement type: {type(new)}")
 
     if isinstance(old, Range):
-        source = source[: old.start] + new_code + source[old.end :]
-        return source
+        return source[: old.start] + new_code + source[old.end :]
 
     lines = new_code.splitlines(keepends=True)
     indent = getattr(old, "col_offset", getattr(new, "col_offset", 0))

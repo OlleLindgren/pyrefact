@@ -150,5 +150,5 @@ def replace_iterrows_itertuples(source: str) -> str:
 
         replacements.update(node_replacements)
     template = ast.comprehension(target=target_template, iter=iter_template)
-    source = processing.alter_code(source, root, replacements=replacements)
-    return source
+
+    return processing.alter_code(source, root, replacements=replacements)

@@ -112,8 +112,7 @@ def simplify_ast_boolop(node: ast.BoolOp | ast.UnaryOp) -> ast.BoolOp | ast.Unar
     expression, conversion = _ast_to_symmath_expr(node)
     expression = expression.simplify()
 
-    simplified_node = _symmath_expr_to_ast(expression, conversion)
-    return simplified_node
+    return _symmath_expr_to_ast(expression, conversion)
 
 
 def _simplify_math(f: Callable) -> ast.AST:
@@ -359,18 +358,15 @@ def simplify_boolean_expressions(source: str) -> str:
                     itertools.combinations(subset, 2) for subset in bounds.values()
                 ):
                     if thr1 == thr2:
-                        if thr2_value in node.values:
-                            redundant_and_values.add(thr2_value)
-                            redundant_or_values.add(thr2_value)
-                        else:
-                            redundant_and_values.add(thr1_value)
-                            redundant_or_values.add(thr1_value)
+                        redundant_value = thr2_value if thr2_value in node.values else thr1_value
+                        redundant_and_values.add(redundant_value)
+                        redundant_or_values.add(redundant_value)
 
                 # Check for redundant constraints, where one is stronger than the other.
                 # These checks purposefully do not cover the case where the two constraints
                 # are equal, since that is already covered by the previous check.
                 if len(bounds[ast.Eq]) >= 2:
-                    for (eq1, _), (eq2, eq2_value) in itertools.combinations(bounds[ast.Eq], 2):
+                    for (eq1, _), (eq2, _) in itertools.combinations(bounds[ast.Eq], 2):
                         if eq1 != eq2:
                             always_false |= isinstance(node.op, ast.And)
 
@@ -719,8 +715,8 @@ def simplify_constrained_range(source: str) -> str:
             if parsing.match_template(condition, ast.BoolOp(op=ast.And())):
                 ifs.extend(condition.values)
                 continue
-            else:
-                conditions.add(condition)
+
+            conditions.add(condition)
 
         gt_template = (
             ast.Compare(

@@ -11,8 +11,7 @@ import textwrap
 import traceback
 from typing import Collection, Iterable, Mapping, Sequence, Tuple
 
-from pyrefact import constants, formatting
-from pyrefact import logs as logger
+from pyrefact import constants, formatting, logs as logger
 
 
 def unparse(node: ast.AST) -> str:
