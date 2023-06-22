@@ -211,6 +211,11 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         new_code = parsing.unparse(new)
     else:
         raise TypeError(f"Invalid replacement type: {type(new)}")
+
+    if isinstance(old, Range):
+        source = source[:old.start] + new_code + source[old.end:]
+        return source
+
     lines = new_code.splitlines(keepends=True)
     indent = getattr(old, "col_offset", getattr(new, "col_offset", 0))
     indents = {**{i: indent for i in range(len(lines))}, 0: len(code) - len(code.lstrip(" "))}
