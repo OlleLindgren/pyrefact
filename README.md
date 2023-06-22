@@ -53,6 +53,7 @@ Unlike emerging AI tools, pyrefact is entirely rule based and does not share you
 * Delete unused imports.
 * Refactor star imports (e.g. `from pathlib import *`) to normal imports (e.g. `from pathlib import Path`)
 * Move builtin and otherwise safe imports to toplevel.
+* Replace indirect imports with direct imports, in cases where a name is imported from a file that also imports that name. Exceptions exists for `__init__.py` files, and files that define `__all__`.
 * Add missing imports by guessing what you probably wanted.
   * For example, if `Sequence` is used but never defined, it will insert `from typing import Sequence` at the top of the file.
 
