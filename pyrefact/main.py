@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import ast
 import collections
-import inspect
 import io
 import logging
 import os
@@ -28,6 +27,16 @@ from pyrefact import (
 
 MAX_MODULE_PASSES = 5
 MAX_FILE_PASSES = 25
+
+
+def _inspect_indentsize(line: str) -> int:
+    """Return the indent size, in spaces, at the start of a line of text.
+
+    This function is the same as the undocumented inspect.indentsize() function in the stdlib.
+    For stability, we copy the code here rather than depending on the undocumented stdlib function.
+    """
+    expline = line.expandtabs()
+    return len(expline) - len(expline.lstrip())
 
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
@@ -163,7 +172,7 @@ def format_code(
         minimum_indent = 0
     else:
         minimum_indent = min(
-            inspect.indentsize(line) for line in source.splitlines() if line.strip()
+            _inspect_indentsize(line) for line in source.splitlines() if line.strip()
         )
         source = textwrap.dedent(source)
 
