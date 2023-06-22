@@ -513,7 +513,7 @@ print(_foo())
     ),
     (
         """
-import numpy  ;      import re; import heapq;
+import numpy, re, heapq
 d = {"x": 100, "y": 10}
 for x in d.keys():
     print(d[x])

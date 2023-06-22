@@ -59,11 +59,6 @@ Unlike emerging AI tools, pyrefact is entirely rule based and does not share you
 * Add missing imports by guessing what you probably wanted.
   * For example, if `Sequence` is used but never defined, it will insert `from typing import Sequence` at the top of the file.
 
-### Cleanup
-
-* Run [isort](https://pycqa.github.io/isort/) to organize imports.
-* Run [black](https://black.readthedocs.io/en/stable/) on added code, modified code, and lines that are longer than 100 characters.
-
 ## Usage
 
 The `--preserve` flag lets you define places where code is used. When this is set, pyrefact will try to keep these usages intact.

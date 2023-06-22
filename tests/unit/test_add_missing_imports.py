@@ -89,7 +89,12 @@ from typing import (
 y = Iterable
             """,
             """
-from typing import Iterable, Sequence, Tuple, TypeVar
+from typing import Iterable
+from typing import (
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 y = Iterable
             """,
         ),
@@ -97,7 +102,7 @@ y = Iterable
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.add_missing_imports(source)
-        processed_content = fixes.fix_isort(processed_content)  # Or the order will be random
+        processed_content = fixes.sort_imports(processed_content)  # or the order will be random
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1
 

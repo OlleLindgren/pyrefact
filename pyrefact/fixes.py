@@ -7,7 +7,6 @@ import itertools
 import re
 from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 
-import isort
 import rmspace
 
 from pyrefact import abstractions, constants, formatting, tracing
@@ -450,19 +449,6 @@ def fix_rmspace(source: str) -> str:
         str: Source code, without trailing whitespace
     """
     return rmspace.format_str(source)
-
-
-def fix_isort(source: str, *, line_length: int = 100) -> str:
-    """Format source code with isort
-
-    Args:
-        source (str): Python source code
-        line_length (int, optional): Line length. Defaults to 100.
-
-    Returns:
-        str: Source code, formatted with isort
-    """
-    return isort.code(source, config=isort.Config(profile="black", line_length=line_length))
 
 
 @processing.fix
@@ -991,8 +977,6 @@ def move_imports_to_toplevel(source: str) -> str:
     if removals or additions:
         logger.debug("Moving imports to toplevel")
         source = processing.alter_code(source, root, removals=removals, additions=additions)
-
-    # Isort will remove redundant imports
 
     return source
 
@@ -3431,6 +3415,79 @@ def fix_duplicate_imports(source: str) -> str:
     source = _fix_duplicate_from_imports(source)
     source = _fix_duplicate_regular_imports(source)
     source = _breakout_stacked_imports(source)
+
+    return source
+
+
+def _is_stdlib(node: ast.Import | ast.ImportFrom) -> bool:
+    """Determine if all modules in an import statement are from the standard library."""
+    if isinstance(node, ast.ImportFrom):
+        return (node.module or "").split(".")[0] in constants.PYTHON_311_STDLIB
+    
+    if isinstance(node, ast.Import):
+        return {alias.name.split(".")[0] for alias in node.names} <= constants.PYTHON_311_STDLIB
+
+    raise ValueError(f"Expected Import or ImportFrom, got {type(node)}")
+
+
+def _import_group_key(node: ast.Import|ast.ImportFrom) -> Tuple[int, int]:
+    return (
+        not (isinstance(node, ast.ImportFrom) and node.module == "__future__"),
+        not _is_stdlib(node),
+        node.level != 0 if isinstance(node, ast.ImportFrom) else False,
+        -node.level if isinstance(node, ast.ImportFrom) else 0,
+        isinstance(node, ast.ImportFrom) and node.module is not None,
+        isinstance(node, ast.ImportFrom),
+        (node.module or "") if isinstance(node, ast.ImportFrom) else "",
+        tuple(sorted(alias.name for alias in node.names)),
+        tuple(sorted(alias.asname or alias.name for alias in node.names)),
+    )
+
+
+def _sort_import_statements(source: str) -> str:
+    root = parsing.parse(source)
+
+    # Get unique groups of imports, such that they're as long as possible, and don't overlap.
+    groups = [
+        [m[0] for m in matches]
+        for matches in parsing.walk_sequence(
+            root,
+            (ast.Import, ast.ImportFrom),
+            expand_first=True,
+            expand_last=True
+        )
+    ]
+    node_groups = collections.defaultdict(list)
+    for group in groups:
+        for node in group:
+            node_groups[node].append(group)
+    node_groups = {
+        node: max(node_groups, key=len) for node, node_groups in node_groups.items()
+    }
+    groups = {id(group): group for group in node_groups.values()}.values()
+    groups = sorted(groups, key=lambda group: min(n.lineno for n in group))
+
+    # Sort each group.
+    replacements = {}
+    for nodes in groups:
+        if len(nodes) < 2 or set(nodes) & replacements.keys():
+            continue
+
+        sorted_nodes = sorted(nodes, key=_import_group_key)
+        for node, sorted_node in zip(nodes, sorted_nodes):
+            if node is not sorted_node:
+                replacements[node] = sorted_node
+
+    if replacements:
+        source = processing.alter_code(source, root, replacements=replacements)
+
+    return source
+
+
+def sort_imports(source: str) -> str:
+    """Sort imports in alphabetic order. Respect existing import groups."""
+
+    source = _sort_import_statements(source)
     source = _fix_imported_as_self_or_unsorted(source)
 
     return source

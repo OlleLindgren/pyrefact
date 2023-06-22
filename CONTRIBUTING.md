@@ -67,7 +67,7 @@ Here's how you can contribute code:
 
 ## Code Style
 
-The Pyrefact repo is formatted with isort, and periodically with [black-compact](https://github.com/OlleLindgren/black-compact), a fork of the regular black formatter.
+The Pyrefact repo is formatted with itself, and periodically with [black-compact](https://github.com/OlleLindgren/black-compact), a fork of the regular black formatter.
 What's more important than formatting, though, is that your commits don't include additional formatting beyond the actual changes you're making. So it's better that you format too little than too much.
 
 Appropriate formatting can be accomplished by:

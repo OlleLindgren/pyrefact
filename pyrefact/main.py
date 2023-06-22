@@ -231,12 +231,11 @@ def format_code(
         source = fixes.align_variable_names_with_convention(source, preserve=preserve)
 
     if minimum_indent == 0:
-        source = fixes.fix_isort(source, line_length=10_000)
         source = fixes.add_missing_imports(source)
         if not keep_imports:
             source = fixes.remove_unused_imports(source)
 
-        source = fixes.fix_isort(source)
+    source = fixes.sort_imports(source)
 
     source = fixes.fix_line_lengths(source)
     source = fixes.fix_rmspace(source)

@@ -55,32 +55,6 @@ import os as sys
 import pandas as pd
             """,
         ),
-        (
-            """
-import logging as logging
-            """,
-            """
-import logging
-            """,
-        ),
-        (
-            """
-from logging import info as info
-            """,
-            """
-from logging import info
-            """,
-        ),
-        (
-            """
-import logging as logging
-from logging import info as info
-            """,
-            """
-import logging
-from logging import info
-            """,
-        ),
     )
 
     for source, expected_abstraction in test_cases:
