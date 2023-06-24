@@ -41,8 +41,8 @@ ASSUMED_PACKAGES = frozenset((
 
 PACKAGE_ALIASES = {"pd": "pandas", "np": "numpy", "plt": "matplotlib.pyplot"}
 ASSUMED_SOURCES = {
-    "typing": frozenset(typing.__all__),
-    "pathlib": frozenset(pathlib.__all__),
+    "typing": frozenset(name for name in typing.__all__ if name[0].isupper() and not name[-1].isupper()),
+    "pathlib": frozenset(name for name in pathlib.__all__ if name[0].isupper()),
     "types": frozenset(name for name in types.__all__ if name.endswith("Type")),
 }
 PYTHON_311_STDLIB = frozenset((
