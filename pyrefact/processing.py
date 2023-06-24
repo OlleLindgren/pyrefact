@@ -427,7 +427,7 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
             rewrites = (_Rewrite(old, new or "") for old, new in func(source, *args, **kwargs))
             if sort_order:
                 rewrites = sorted(
-                    rewrites, key=functools.partial(_get_charnos, source=source), reverse=True
+                    set(rewrites), key=functools.partial(_get_charnos, source=source), reverse=True
                 )
 
             for rewrite in rewrites:
