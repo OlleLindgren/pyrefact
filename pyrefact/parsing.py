@@ -1111,14 +1111,40 @@ def with_added_indent(node: ast.AST, indent: int):
 
 
 class NameWildcardTransformer(ast.NodeTransformer):
-    def __init__(self, name_wildcard_mapping: Mapping[str, Wildcard], expand: Collection[str]):
+    def __init__(self, name_wildcard_mapping: Mapping[str, Wildcard], expand: Collection[str], ignore: Collection[str]):
         self.name_wildcard_mapping = name_wildcard_mapping
         self.expand = expand
+        self.ignore = frozenset(ignore)
 
     def visit(self, node):
         # This is where the recursion happens, so without this we won't be
         # visiting any nodes.
-        node = super().visit(node)
+        if isinstance(node, Wildcard):
+            template = self.visit(node.template)
+            node = Wildcard(node.name, template, node.common)
+        elif isinstance(node, tuple):
+            node = tuple(self.visit(child) for child in node)
+        elif isinstance(node, set):
+            node = {self.visit(child) for child in node}
+        elif isinstance(node, list):
+            node = [self.visit(child) for child in node]
+        elif isinstance(node, type):
+            return node
+        else:
+            node = super().visit(node)
+
+        # Delete attributes potentially present in ignore.
+        # This may happen with on the fly compiled templates, where these
+        # attributes are not explicitly set.
+        attrs_in_ignore = set(dir(node)) & self.ignore
+        if attrs_in_ignore:
+            new_attrs = {
+                attr: value
+                for attr, value in vars(node).items()
+                if attr not in self.ignore
+            }
+            node = type(node)(**new_attrs)
+
         if not self.expand:
             return node
 
@@ -1184,6 +1210,7 @@ def compile_template(
         **{name.strip("{}"): object for name in re.findall(r"\{\{\w+\}\}", source)},
         **wildcards,
     }
+    transformer = NameWildcardTransformer(name_wildcard_mapping, expand, ignore)
     for name, template in wildcards.items():
         wildcard_placeholder_name = f"____wildcard__{name}____"
         assert (
@@ -1191,7 +1218,9 @@ def compile_template(
         ), f"Bad wildcard name: `{name}` found in source."
 
         source = source.replace("{{" + name + "}}", wildcard_placeholder_name)
-        name_wildcard_mapping[wildcard_placeholder_name] = Wildcard(name, template)
+
+        wildcard = Wildcard(name, transformer.visit(template))
+        name_wildcard_mapping[wildcard_placeholder_name] = wildcard
 
     if unfilled_wildcards := re.findall(r"\{\{\w+\}\}", source):
         raise ValueError(f"Unfilled wildcards found in source: {unfilled_wildcards}")
@@ -1202,13 +1231,7 @@ def compile_template(
     if not template.body:
         raise ValueError("Template is empty.")
 
-    NameWildcardTransformer(name_wildcard_mapping, expand).visit(template)
-
-    for node in ast.walk(template):
-        for attr in ignore:
-            if hasattr(node, attr):
-                delattr(node, attr)
-
+    template = transformer.visit(template)
     template = template.body
 
     if len(template) > 1:
