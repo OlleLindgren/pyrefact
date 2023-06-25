@@ -221,7 +221,17 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         raise TypeError(f"Invalid replacement type: {type(new)}")
 
     if isinstance(old, Range):
-        return source[: old.start] + new_code + source[old.end :]
+        # Prevent whitespace-only changes from being applied
+        new_code_lines = [l.rstrip() for l in new_code.splitlines() if l.strip()]
+        code_lines = [l.rstrip() for l in code.splitlines() if l.strip()]
+        if new_code_lines == code_lines:
+            return source
+
+        new_code = source[: old.start] + new_code + source[old.end :]
+        logger.debug(
+            MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=code, new_code=new_code
+        )
+        return new_code
 
     lines = new_code.splitlines(keepends=True)
     indent = getattr(old, "col_offset", getattr(new, "col_offset", 0))

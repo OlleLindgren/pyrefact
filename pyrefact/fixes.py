@@ -501,11 +501,12 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
             )
 
         new_code = formatting.collapse_trailing_parentheses(new_code)
+        formatted_range = processing.Range(start, end)
         if new_code != formatting.collapse_trailing_parentheses(current_code) and (
-            not any((e >= start and s <= end for s, e in formatted_ranges))
+            not any(rng & formatted_range for rng in formatted_ranges)
         ):
-            yield node, new_code
-            formatted_ranges.add((start, end))
+            yield formatted_range, new_code
+            formatted_ranges.add(formatted_range)
 
 
 def align_variable_names_with_convention(
