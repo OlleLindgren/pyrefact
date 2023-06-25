@@ -839,6 +839,7 @@ def _iter_unreachable_nodes(body: Iterable[ast.AST]) -> Iterable[ast.AST]:
             after_block = True
 
 
+@processing.fix
 def delete_unused_functions_and_classes(
     source: str, preserve: Collection[str] = frozenset()
 ) -> str:
@@ -854,12 +855,8 @@ def delete_unused_functions_and_classes(
     root = parsing.parse(source)
 
     delete = set(_get_unused_functions_classes(root, preserve))
-
-    if delete:
-        logger.debug("Removing unused functions and classes")
-        source = processing.remove_nodes(source, delete, root)
-
-    return source
+    for node in delete:
+        yield node, None
 
 
 def delete_unreachable_code(source: str) -> str:
