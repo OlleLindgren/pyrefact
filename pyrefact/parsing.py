@@ -14,7 +14,9 @@ from typing import Collection, Iterable, Mapping, NamedTuple, Sequence, Set, Tup
 from pyrefact import constants, formatting, logs as logger
 
 
-def unparse(node: ast.AST) -> str:
+def unparse(node: ast.AST | str) -> str:
+    if isinstance(node, str):
+        return node  # Hack to allow format_template to accept strings matched by wildcards.
     if constants.PYTHON_VERSION >= (3, 9):
         return ast.unparse(node)
 
@@ -59,6 +61,16 @@ class Wildcard(ast.AST):
     @staticmethod
     def __iter__() -> Iterable:
         yield from ()
+
+    def __repr__(self) -> str:
+        if self.template is object and self.common is True:
+            return f"Wildcard({self.name!r})"
+        if self.template is object and self.common is not True:
+            return f"Wildcard({self.name!r}, common={self.common!r})"
+        if self.template is not object and self.common is True:
+            return f"Wildcard({self.name!r}, {self.template!r})"
+
+        return f"Wildcard({self.name!r}, {self.value!r}, {self.common!r})"
 
 
 def _all_fields_consistent(
@@ -1137,6 +1149,16 @@ class NameWildcardTransformer(ast.NodeTransformer):
     def visit_Attribute(self, node):
         new_attr = self.name_wildcard_mapping.get(node.attr, node.attr)
         new_node = ast.Attribute(value=self.visit(node.value), attr=new_attr, ctx=node.ctx)
+        return ast.copy_location(new_node, node)
+
+    def visit_alias(self, node):
+        new_name = self.name_wildcard_mapping.get(node.name, node.name)
+        new_asname = self.name_wildcard_mapping.get(node.asname, node.asname)
+
+        if (new_name, new_asname) == (node.name, node.asname):
+            return node
+
+        new_node = ast.alias(name=new_name, asname=new_asname)
         return ast.copy_location(new_node, node)
 
 
