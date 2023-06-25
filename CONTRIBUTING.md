@@ -16,33 +16,106 @@ Improve documentation: Pyrefact could always use more documentation. Whether it'
 
 ## Code Contributions
 
-Pyrefact is structured to apply a number of "fixes" in sequence after eacother, over and over until convergence or a maximum number of iterations.
-Although these have some categorization, most of them reside in [fixes.py](pyrefact/fixes.py), which is where most new ones will end up as well,
-although I am open to suggestions on how to improve this structure.
+Pyrefact is structured to apply a number of "fixes" in sequence after eacother, over and over until convergence or a maximum
+number of iterations. Contributions to the fixes made by pyrefact are encouraged.
 
-When writing a new fix, please follow one of two patterns:
+Although the fixes have some categorization, most of them reside in [fixes.py](pyrefact/fixes.py), so it makes sense to put new
+ones here as well, although the file is getting longer than I would like.
+
+Simple fixes can sometimes be implemented with a find-replace style pattern. This might look like the following:
 
 ```python
+from pyrefact import processing
+
 @processing.fix
-def my_simple_fix(source: str) -> str:
-    """A docstring explaining what this is for"""
-    root = parsing.parse(source)  # Use this instead of ast.parse(), as it is cached
-    template = ...  # Use templates to pattern-match problems you're fixing
-    for before in parsing.match_template(root, template):
-        after = ast.Constant(value=1, kind=None)
-        yield before, after  # With @procesisng.fix, we yield (before, after) pairs
+def remove_redundant_import_aliases(source: str) -> str:
+    find = "import {{something}} as {{something}}"
+    replace = "import {{something}}"
+    yield from processing.find_replace(source, find=find, replace=replace)
 ```
 
+Here, a few things are going on. `find` is a pattern that find_replace() will search for, and `replace` is what will be put instead
+when the find pattern is found. The double curly braces around `{{something}}` indicate that this is a wildcard, so this could
+match any python AST. Since we use the same name for `{{something}}` in both places in `find`, it must be the same code in both
+places. And, since we also put it in `replace`, the same code pattern matched as `something` in `find` will be put in `replace`.
+
+Next, create [/tests/unit/test_remove_redundant_import_aliases.py](/tests/unit/test_remove_redundant_import_aliases.py): 
+
 ```python
-def my_complicated_fix(source: str) -> str:
-    """A docstring explaining what this is for"""
-    root = parsing.parse(source)  # Use this instead of ast.parse(), as it is cached
-    template = ...  # Use templates to pattern-match problems you're fixing
-    for node in parsing.match_template(root, template):
-        # Do some replacements, removals or additions
-    # Modify source somehow
-    return source  # Without @processing.fix, we return a modified version of the initial source code
+#!/usr/bin/env python3
+
+import sys
+from pathlib import Path
+
+from pyrefact import fixes
+
+sys.path.append(str(Path(__file__).parents[1]))
+import testing_infra
+
+
+def main() -> int:
+    test_cases = (
+        (  # What it's intended to fix
+            """
+import z as z
+            """,
+            """
+import z
+            """,
+        ),
+        (  # What it should not touch
+            """
+import foo as bar
+            """,
+            """
+import foo as bar
+            """,
+        ),
+        (  # To test for conflicts, highlight limitations etc
+            """
+import b as b
+import x as y
+import z as z, k as k, h as kh
+import math as math
+import heapq as heapq
+import math
+import numpy, math
+import math as numpy
+            """,
+            """
+import b
+import x as y
+import z as z, k as k, h as kh
+import math
+import heapq
+import math
+import numpy, math
+import math as numpy
+            """,
+        ),
+    )
+
+    for source, expected_abstraction in test_cases:
+        processed_content = fixes.remove_redundant_import_aliases(source)
+        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
+            return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
 ```
+
+The code in this test file is mostly boilerplate that we could copy from any other similar test file, but we need to replace the
+test cases from wherever we copied it. In general, it's good to have:
+* A test case where it should fix exactly one thing
+  * This makes it clear what the function does, and what it should have done, but didn't, in case this test fails in the future.
+* A test case where it should fix nothing
+  * This can highlight the limits of the fix. E.g. what is out of scope and needs to be handled elsewhere.
+* A test case where it should fix multiple problems
+  * This would test for race conditions, which can be a problem.
 
 Next, copy any of the recently modified test files under [/tests/unit](/tests/unit), rename it to `test_<name_of_fix>.py`, and modify it so it tests your code.
 Feel free to also add or update the integration test cases in [integration_test_cases.py](/tests/integration/integration_test_cases.py) to test additional
