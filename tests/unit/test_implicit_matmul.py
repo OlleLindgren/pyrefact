@@ -84,12 +84,63 @@ print(np.sum((w - np.matmul(b.T, d).T).ravel()))
 print(np.sum((z - np.matmul(b.T, a.T)).ravel()))
             """,
         ),
+        (
+            """
+for i in range(len(left)):
+    for j in range(len(right[0])):
+        result[i][j] = np.dot(left[i] * right.T[j])
+            """,
+            """
+result = np.matmul(left, right)
+            """,
+        ),
+        (
+            """
+for i in range(len(left)):
+    for j in range(len(right[0])):
+        for k in range(len(right)):
+            result[i][j] += left[i][k] * right[k][j]
+            """,
+            """
+result = np.matmul(left, right)
+            """,
+        ),
+        (
+            """
+result = [
+    [
+        np.dot(left[i] * right.T[j])
+        for j in range(len(right[0]))
+    ]
+    for i in range(len(left))
+]
+            """,
+            """
+result = np.matmul(left, right)
+            """,
+        ),
+        (
+            """
+result = [
+    [
+        sum(
+            left[i][k] * right[k][j]
+            for k in range(len(right))
+        )
+        for j in range(len(right[0]))
+    ]
+    for i in range(len(left))
+]
+            """,
+            """
+result = np.matmul(left, right)
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
 
-        processed_content = performance.replace_subscript_looping(source)
-        processed_content = performance_numpy.replace_implicit_matmul(processed_content)
+        processed_content = performance_numpy.replace_implicit_matmul(source)
         processed_content = fixes.simplify_transposes(processed_content)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):

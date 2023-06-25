@@ -93,40 +93,102 @@ def replace_implicit_dot(source: str) -> str:
             yield call, _wrap_np_dot(*zip_args)
 
 
-@_only_if_uses_numpy
-@processing.fix
+@processing.fix(restart_on_replace=True)
 def replace_implicit_matmul(source: str) -> str:
-    root = parsing.parse(source)
+    find = """
+    for {{i}} in range(len({{left}})):
+        for {{j}} in range(len({{right}}[0])):
+            for {{k}} in range(len({{right}})):
+                {{result}}[{{i}}][{{j}}] += {{left}}[{{i}}][{{k}}] * {{right}}[{{k}}][{{j}}]
+    """
+    replace = "{{result}} = np.matmul({{left}}, {{right}})"
+    yield from processing.find_replace(source, find=find, replace=replace)
 
-    comp_template = ast.ListComp(
-        generators=[
-            ast.comprehension(ifs=[], target=ast.Name, iter=(ast.Name, ast.Attribute(attr="T")))
-    ])
+    find = """
+    for {{i}} in range(len({{left}})):
+        for {{j}} in range(len({{right}}[0])):
+            {{result}}[{{i}}][{{j}}] = np.dot({{left}}[{{i}}] * {{right}}.T[{{j}}])
+    """
+    replace = "{{result}} = np.matmul({{left}}, {{right}})"
+    yield from processing.find_replace(source, find=find, replace=replace)
 
-    template = ast.Call(args=[ast.ListComp(elt=ast.ListComp)], keywords=[])
-    for call in filter(_is_np_array_call, parsing.walk(root, template)):
-        comp_outer = call.args[0]
-        comp_inner = comp_outer.elt
-        if parsing.match_template(comp_outer, comp_template) and parsing.match_template(
-            comp_inner, comp_template
-        ):
-            if parsing.is_call(comp_inner.elt, ("numpy.dot", "np.dot")):
-                left_id = (
-                    comp_inner.generators[0].target.id
-                    if isinstance(comp_inner.generators[0].target, ast.Name)
-                    else comp_inner.generators[0].target.value.id
-                )
-                right_id = (
-                    comp_outer.generators[0].target.id
-                    if isinstance(comp_outer.generators[0].target, ast.Name)
-                    else comp_outer.generators[0].target.value.id
-                )
-                if (comp_inner.generators[0].target.id, comp_outer.generators[0].target.id) in (
-                    (left_id, right_id),
-                    (right_id, left_id),
-                ):
-                    yield call, wrap_transpose(
-                        _wrap_np_matmul(
-                            comp_inner.generators[0].iter,
-                            wrap_transpose(comp_outer.generators[0].iter),
-                    ))
+    find = """
+    {{result}} = [[
+        sum(
+            {{left}}[{{i}}][{{k}}] * {{right}}[{{k}}][{{j}}]
+            for {{k}} in range(len({{right}}))
+        )
+        for {{j}} in range(len({{right}}[0]))
+        ]
+        for {{i}} in range(len({{left}}))
+    ]
+    """
+    replace = "{{result}} = np.matmul({{left}}, {{right}})"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = """
+    {{result}} = [[
+        np.dot({{left}}[{{i}}] * {{right}}.T[{{j}}])
+        for {{j}} in range(len({{right}}[0]))
+        ]
+        for {{i}} in range(len({{left}}))
+    ]
+    """
+    replace = "{{result}} = np.matmul({{left}}, {{right}})"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "[[np.dot({{left_row}}, {{right_row}}) for {{left_row}} in {{left}}] for {{right_row}} in {{right}}.T]"
+    replace = "np.matmul({{left}}, {{right}}).T"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "[[np.dot({{left_row}}, {{right_row}}) for {{left_row}} in {{left}}.T] for {{right_row}} in {{right}}]"
+    replace = "np.matmul({{right}}, {{left}})"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "[[np.dot({{left_row}}, {{right_row}}) for {{left_row}} in {{left}}.T] for {{right_row}} in {{right}}.T]"
+    replace = "np.matmul({{left}}.T, {{right}}).T"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "[[np.dot({{left_row}}, {{right_row}}) for {{left_row}} in {{left}}] for {{right_row}} in {{right}}]"
+    replace = "np.matmul({{right}}.T, {{left}}.T)"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = """
+    np.array([[
+        np.dot({{b_mat}}[:, {{b_index}}], {{a_mat}}[{{a_index}}, :])
+        for {{b_index}} in range({{b_mat}}.shape[1])
+        ]
+        for {{a_index}} in range({{a_mat}}.shape[0])
+    ])"""
+    replace = "np.matmul({{a_mat}}, {{b_mat}})"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = """
+    np.array([[
+        np.dot({{c_mat}}[{{c_index}}, :], {{a_mat}}[{{a_index}}, :])
+        for {{c_index}} in range({{c_mat}}.shape[0])
+        ]
+        for {{a_index}} in range({{a_mat}}.shape[0])
+    ])"""
+    replace = "np.matmul({{c_mat}}, {{a_mat}}.T).T"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = """
+    np.array([[
+        np.dot({{b_mat}}[:, {{b_index}}], {{d_mat}}[:, {{d_index}}])
+        for {{b_index}} in range({{b_mat}}.shape[1])
+        ]
+        for {{d_index}} in range({{d_mat}}.shape[1])
+    ])"""
+    replace = "np.matmul({{b_mat}}.T, {{d_mat}}).T"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = """
+    np.array([[
+        np.dot({{a_mat}}[{{a_index}}, :], {{b_mat}}[:, {{b_index}}])
+        for {{a_index}} in range({{a_mat}}.shape[0])
+        ]
+        for {{b_index}} in range({{b_mat}}.shape[1])
+    ])"""
+    replace = "np.matmul({{a_mat}}, {{b_mat}}).T"
+    yield from processing.find_replace(source, find=find, replace=replace)
