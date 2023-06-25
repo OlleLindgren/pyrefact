@@ -1616,6 +1616,39 @@ def inline_math_comprehensions(source: str) -> str:
 
 @processing.fix(restart_on_replace=True)
 def simplify_transposes(source: str) -> str:
+
+    find = "zip(*zip(*{{value}}))"
+    replace = "{{value}}"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "zip(*{{value}}.T)"
+    replace = "{{value}}"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "zip(*{{value}}).T"
+    replace = "{{value}}"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "{{value}}.T.T"
+    replace = "{{value}}"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "np.array({{value}}.T).T"
+    replace = "{{value}}"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "np.array(np.matmul({{left}}, {{right}}))"
+    replace = "np.matmul({{left}}, {{right}})"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "np.array(np.matmul({{left}}, {{right}}).T)"
+    replace = "np.matmul({{left}}, {{right}}).T"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = "np.matmul({{left}}.T, {{right}}.T).T"
+    replace = "np.matmul({{right}}, {{left}})"
+    yield from processing.find_replace(source, find=find, replace=replace)
+
     root = parsing.parse(source)
 
     calls = parsing.walk(root, ast.Call)

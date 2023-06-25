@@ -36,7 +36,7 @@ a = np.random.random((i, j))
 b = np.random.random((j, k))
 
 u = np.matmul(a, b)
-v = np.matmul(b.T, a.T).T
+v = np.matmul(a, b)
 
 print(np.sum((u - np.matmul(a, b)).ravel()))
 print(np.sum((v - np.matmul(a, b)).ravel()))
@@ -73,7 +73,7 @@ b = np.random.random((j, k))
 c = np.random.random((k, j))
 d = np.random.random((j, i))
 
-u = np.matmul(b.T, a.T).T
+u = np.matmul(a, b)
 v = np.matmul(c, a.T).T
 w = np.matmul(b.T, d).T
 z = np.matmul(a, b).T
