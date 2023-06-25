@@ -12,7 +12,7 @@ def main() -> int:
     Returns:
         int: 1 if the function behaves incorrectly, otherwise 0
     """
-    whitelist = constants.BUILTIN_FUNCTIONS - {"print", "exit"}
+    whitelist = constants.SAFE_CALLABLES
     for source in (
         "{}",
         "()",

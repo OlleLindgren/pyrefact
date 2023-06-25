@@ -536,4 +536,13 @@ print(sum(x))
 print(sum([a for a in range(6, 10) if a % 2 == 0]))
         """,
     ),
+        (
+            """
+x = itertools.filterfalse(lambda y: y > 0, (1, 2, 3))
+print(sum(x))
+            """,
+            """
+print(sum((y for y in (1, 2, 3) if y <= 0)))
+            """,
+        ),
 )

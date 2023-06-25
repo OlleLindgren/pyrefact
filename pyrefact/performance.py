@@ -5,16 +5,6 @@ import ast
 from pyrefact import parsing, performance_numpy, processing
 
 
-def _is_contains_comparison(node) -> bool:
-    if not isinstance(node, ast.Compare):
-        return False
-    if len(node.ops) != 1:
-        return False
-    if not isinstance(node.ops[0], ast.In):
-        return False
-    return True
-
-
 def _can_be_evaluated_safe(node: ast.AST) -> bool:
     """Check if a node can be evaluated at "compile-time"
 
@@ -43,18 +33,37 @@ def optimize_contains_types(source: str) -> str:
         str: Modified python source code
     """
     root = parsing.parse(source)
+    find = (
+        "{{element}} in {{wrapper}}({{collection}})"
+    )
+    replace = "{{element}} in {{collection}}"
+    wrapper_names = ("sorted", "list", "tuple", "set", "iter", "reversed")
+    template = parsing.compile_template(find, wrapper=ast.Name(id=wrapper_names))
+
+    yield from processing.find_replace(source, root, find=template, replace=replace)
 
     sorted_list_tuple_call_template = ast.Call(
         func=ast.Name(id=("sorted", "list", "tuple"), ctx=ast.Load), args=[object], keywords=[]
     )
 
-    for node in filter(_is_contains_comparison, parsing.walk(root, ast.Compare)):
+    template = parsing.compile_template(
+        "{{element}} in {{collection}}",
+        collection=(
+            ast.ListComp,
+            ast.DictComp,
+            ast.SetComp,
+            ast.List,
+            ast.Tuple,
+        )
+    )
+
+    for node in parsing.walk(root, template):
         for comp in node.comparators:
-            if isinstance(comp, ast.ListComp):
+            if isinstance(comp, (ast.ListComp, ast.SetComp)):
                 yield comp, ast.GeneratorExp(elt=comp.elt, generators=comp.generators)
 
             elif isinstance(comp, ast.DictComp):
-                yield comp, ast.SetComp(elt=comp.key, generators=comp.generators)
+                yield comp, ast.GeneratorExp(elt=comp.key, generators=comp.generators)
 
             elif isinstance(comp, (ast.List, ast.Tuple)):
                 preferred_type = (
@@ -129,26 +138,22 @@ def remove_redundant_chained_calls(source: str) -> str:
 def replace_sorted_heapq(source: str) -> str:
     root = parsing.parse(source)
 
-    heapq_nlargest = ast.Attribute(
-        value=ast.Name(id="heapq", ctx=ast.Load()), attr="nlargest", ctx=ast.Load()
-    )
-    heapq_nsmallest = ast.Attribute(
-        value=ast.Name(id="heapq", ctx=ast.Load()), attr="nsmallest", ctx=ast.Load()
-    )
-    builtin_max = ast.Name(id="max", ctx=ast.Load())
-    builtin_min = ast.Name(id="min", ctx=ast.Load())
-    builtin_list = ast.Name(id="list", ctx=ast.Load())
-    builtin_reversed = ast.Name(id="reversed", ctx=ast.Load())
+    heapq_nlargest = parsing.compile_template("heapq.nlargest")
+    heapq_nsmallest = parsing.compile_template("heapq.nsmallest")
+    builtin_max = parsing.compile_template("max")
+    builtin_min = parsing.compile_template("min")
+    builtin_list = parsing.compile_template("list")
+    builtin_reversed = parsing.compile_template("reversed")
 
     template_sorted_subscript = ast.Subscript(
         value=ast.Call(func=ast.Name(id="sorted"), args=[object], keywords={ast.keyword(arg="key")})
     )
 
     # Slice templates
-    template_first_element = ast.Constant(value=0)
-    template_last_element = ast.UnaryOp(op=ast.USub, operand=ast.Constant(value=1))
-    template_first_n = ast.Slice(lower=None, upper=ast.AST)
-    template_last_n = ast.Slice(lower=ast.UnaryOp(op=ast.USub), upper=None)
+    template_first_element = parsing.compile_template("0")
+    template_last_element = parsing.compile_template("-1")
+    template_first_n = parsing.compile_template("sequence[:{{n}}]", n=ast.AST).slice
+    template_last_n = parsing.compile_template("sequence[-{{n}}:]", n=ast.AST).slice
 
     for node in parsing.walk(root, template_sorted_subscript):
         args = node.value.args

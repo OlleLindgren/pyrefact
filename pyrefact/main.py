@@ -16,6 +16,7 @@ from typing import Collection, Iterable, Sequence
 from pyrefact import abstractions, fixes
 from pyrefact import logs as logger
 from pyrefact import (
+    formatting,
     object_oriented,
     parsing,
     performance,
@@ -27,16 +28,6 @@ from pyrefact import (
 
 MAX_MODULE_PASSES = 5
 MAX_FILE_PASSES = 25
-
-
-def _inspect_indentsize(line: str) -> int:
-    """Return the indent size, in spaces, at the start of a line of text.
-
-    This function is the same as the undocumented inspect.indentsize() function in the stdlib.
-    For stability, we copy the code here rather than depending on the undocumented stdlib function.
-    """
-    expline = line.expandtabs()
-    return len(expline) - len(expline.lstrip())
 
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
@@ -139,6 +130,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = symbolic_math.simplify_boolean_expressions_symmath(source)
     source = fixes.inline_math_comprehensions(source)
     source = symbolic_math.simplify_math_iterators(source)
+    source = fixes.replace_negated_numeric_comparison(source)
     source = performance.optimize_contains_types(source)
     source = performance.remove_redundant_chained_calls(source)
     source = performance.remove_redundant_iter(source)
@@ -172,9 +164,7 @@ def format_code(
     if parsing.is_valid_python(source):
         minimum_indent = 0
     else:
-        minimum_indent = min(
-            _inspect_indentsize(line) for line in source.splitlines() if line.strip()
-        )
+        minimum_indent = formatting.indentation_level(source)
         source = textwrap.dedent(source)
 
     if not parsing.is_valid_python(source):

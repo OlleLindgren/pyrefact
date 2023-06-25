@@ -5,10 +5,11 @@ import collections
 import functools
 import heapq
 import re
+import textwrap
 from types import MappingProxyType
 from typing import Callable, Collection, Iterable, Literal, Mapping, NamedTuple, Sequence
 
-from pyrefact import logs as logger, parsing
+from pyrefact import formatting, logs as logger, parsing
 
 
 MSG_INFO_REPLACE = """{fix_function_name:<40}: Replacing code:
@@ -24,6 +25,13 @@ MSG_INFO_REMOVE = """{fix_function_name:<40}: Removing code:
 class Range(NamedTuple):
     start: int  # Character number
     end: int  # Character number
+
+    def overlaps(self, other: "Range") -> bool:
+        return self.start < other.end and other.start < self.end
+
+    # Use & operator for overlaps()
+    def __and__(self, other: "Range") -> bool:
+        return self.overlaps(other)
 
 
 class _Rewrite(NamedTuple):
@@ -444,3 +452,87 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
         return fix_decorator(maybe_func[0])
 
     raise ValueError(f"Exactly 1 or 0 arguments must be given as maybe_func, not {len(maybe_func)}")
+
+
+def find_replace(
+    source: str,
+    root: ast.AST = None,
+    *,
+    find: str | ast.AST,
+    replace: str,
+    expand_first: bool = None,
+    expand_last: bool = None,
+    yield_match: bool = False,
+    **callables_or_templates,
+) -> Iterable[Range, str]:
+    """Swap a find with a replacement.
+
+    Args:
+        source (str): Python source code.
+        root (ast.AST): Parsed AST to search. If not provided, source is parsed.
+        find (ast.AST | str | tuple[str]): Template, tuple of templates, or compiled template to find.
+        replace (ast.AST): Uncompiled template to replace found find with.
+        expand_first (bool, optional): If passed, forwarded to `parsing.walk_wildcard`.
+        expand_last (bool, optional): If passed, forwarded to `parsing.walk_wildcard`.
+        yield_match (bool, optional): If True, yields the matches as well as the replacements.
+
+    Yields:
+        Iterable[Range, str]: Range of the replacement and the replacement itself.
+    """
+    callables = {}
+    templates = {}
+    for name, value in callables_or_templates.items():
+        if callable(value) and not isinstance(value, type):
+            callables[name] = value
+        else:
+            templates[name] = value
+    if root is None:
+        root = ast.parse(source)
+    if isinstance(find, str):
+        find = (find,)
+    if isinstance(find, (tuple, set)) and isinstance(find[0], str):
+        find = type(find)(
+            parsing.compile_template(
+                f,
+                **{
+                    **{name.strip("{}"): object for name in re.findall(r"\{\{\w+\}\}", f)},
+                    **templates
+                }
+            )
+            for f in find
+        )
+    if isinstance(find, tuple) and len(find) == 1:
+        find = find[0]
+
+    if isinstance(find, list):
+        walk_sequence_kwargs = {"expand_first": expand_first, "expand_last": expand_last}
+        walk_sequence_kwargs = {k: v for k, v in walk_sequence_kwargs.items() if v is not None}
+        iterator = parsing.walk_sequence(root, *find, **walk_sequence_kwargs)
+    else:
+        iterator = [[m] for m in parsing.walk_wildcard(root, find)]
+
+    for matches in iterator:
+        if isinstance(find, list):
+            combined_match = parsing.merge_matches(root, matches)
+        else:
+            combined_match = matches[0]
+
+        if not combined_match:
+            continue
+
+        ranges = [parsing.get_charnos(m[0], source) for m in matches]
+        range_start = min(r[0] for r in ranges)
+        range_end = max(r[1] for r in ranges)
+        replacement_range = Range(range_start, range_end)
+
+        template_replacement = parsing.format_template(replace, combined_match, **callables)
+
+        indentation = formatting.indentation_level(source[range_start:range_end])
+
+        template_replacement = textwrap.dedent(template_replacement)
+        template_replacement = textwrap.indent(template_replacement, " " * indentation)
+
+        if yield_match:
+            yield replacement_range, template_replacement, combined_match
+        else:
+            yield replacement_range, template_replacement

@@ -9,7 +9,7 @@ import itertools
 import re
 import textwrap
 import traceback
-from typing import Collection, Iterable, Mapping, Sequence, Tuple
+from typing import Collection, Iterable, Mapping, NamedTuple, Sequence, Set, Tuple
 
 from pyrefact import constants, formatting, logs as logger
 
@@ -49,12 +49,16 @@ def unparse(node: ast.AST) -> str:
 
 
 @dataclasses.dataclass(eq=True, frozen=True)
-class Wildcard:
+class Wildcard(ast.AST):
     """A wildcard matches a specific template, and extracts its name."""
 
     name: str
-    template: object
+    template: object = object
     common: bool = True
+
+    @staticmethod
+    def __iter__() -> Iterable:
+        yield from ()
 
 
 def _all_fields_consistent(
@@ -77,7 +81,7 @@ def _make_match_type(fields: Tuple[str, ...]) -> type:
     return collections.namedtuple("Match", fields)
 
 
-def _merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
+def merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
     namedtuple_matches = []
     for match in matches:
         if not match:
@@ -173,7 +177,7 @@ def match_template(
             match_template(node_child, tuple(template), ignore=ignore) for node_child in node
         )
 
-        return _merge_matches(node, matches)
+        return merge_matches(node, matches)
     # A list indicates that the node must also be a list, and for every
     # element, it must match against the corresponding node in the template.
     # It must also be equal length.
@@ -184,7 +188,7 @@ def match_template(
                 for child, template_child in zip(node, template)
             )
 
-            return _merge_matches(node, matches)
+            return merge_matches(node, matches)
 
         return ()
 
@@ -216,7 +220,7 @@ def match_template(
     matches = (
         match_template(n_vars[key], t_vars[key], ignore=ignore) for key in t_vars.keys() - ignore
     )
-    return _merge_matches(node, matches)
+    return merge_matches(node, matches)
 
 
 @functools.lru_cache(maxsize=100)
@@ -721,7 +725,19 @@ def _get_line_start_charnos(source: str) -> Sequence[int]:
     return tuple(charnos)
 
 
-def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> Tuple[int, int]:
+class Range(NamedTuple):
+    start: int  # Character number
+    end: int  # Character number
+
+    def overlaps(self, other: "Range") -> bool:
+        return self.start < other.end and other.start < self.end
+
+    # Use & operator for overlaps()
+    def __and__(self, other: "Range") -> bool:
+        return self.overlaps(other)
+
+
+def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> Range:
     """Get start and end character numbers in source code from ast node.
 
     Args:
@@ -764,7 +780,7 @@ def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> 
         start_charno += 2
         end_charno += 2
 
-    return start_charno, end_charno
+    return Range(start_charno, end_charno)
 
 
 def get_code(node: ast.AST, source: str) -> str:
@@ -964,7 +980,7 @@ def safe_callable_names(root: ast.Module) -> Collection[str]:
     """
     defined_names = {node.id for node in walk(root, ast.Name(ctx=ast.Store))}
     function_defs = list(walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)))
-    safe_callables = set(constants.BUILTIN_FUNCTIONS) - {"print", "exit"}
+    safe_callables = set(constants.SAFE_CALLABLES)
     safe_callable_nodes = set()
     changes = True
     while changes:
@@ -1080,3 +1096,127 @@ def with_added_indent(node: ast.AST, indent: int):
             child.col_offset += indent
 
     return clone
+
+
+class NameWildcardTransformer(ast.NodeTransformer):
+    def __init__(self, name_wildcard_mapping: Mapping[str, Wildcard], expand: Collection[str]):
+        self.name_wildcard_mapping = name_wildcard_mapping
+        self.expand = expand
+
+    def visit(self, node):
+        # This is where the recursion happens, so without this we won't be
+        # visiting any nodes.
+        node = super().visit(node)
+        if not self.expand:
+            return node
+
+        changes = False
+        node_vars = dict(vars(node))
+        for key, value in node_vars.items():
+            if (
+                isinstance(value, list)
+                and value
+                and isinstance(value[0], Wildcard)
+                and value[0].name in self.expand
+            ):
+                assert len(value) == 1, "Cannot expand more than one wildcard"
+                node_vars[key] = {value[0]}
+                changes = True
+
+        if not changes:
+            return node
+
+        return type(node)(**node_vars)
+
+    def visit_arg(self, node):
+        return self.name_wildcard_mapping.get(node.arg, node)
+
+    def visit_Name(self, node):
+        return self.name_wildcard_mapping.get(node.id, node)
+
+    def visit_Attribute(self, node):
+        new_attr = self.name_wildcard_mapping.get(node.attr, node.attr)
+        new_node = ast.Attribute(value=self.visit(node.value), attr=new_attr, ctx=node.ctx)
+        return ast.copy_location(new_node, node)
+
+
+@functools.lru_cache(maxsize=10_000)
+def compile_template(
+    source: str | Set[str] | Tuple[str, ...],
+    ignore: Collection[str] = frozenset(
+        ("lineno", "col_offset", "end_lineno", "end_col_offset", "ctx")
+    ),
+    keep_expr: bool = False,
+    expand: Collection[str] = frozenset(),
+    **wildcards: ast.AST,
+) -> ast.AST:
+    if isinstance(source, tuple):
+        return tuple(compile_template(s, ignore, keep_expr, **wildcards) for s in source)
+    if isinstance(source, set):
+        return {compile_template(s, ignore, keep_expr, **wildcards) for s in source}
+    if isinstance(expand, str):
+        expand = frozenset((expand,))
+
+    name_wildcard_mapping = {}
+    wildcards = {
+        **{name.strip("{}"): object for name in re.findall(r"\{\{\w+\}\}", source)},
+        **wildcards,
+    }
+    for name, template in wildcards.items():
+        wildcard_placeholder_name = f"____wildcard__{name}____"
+        assert (
+            wildcard_placeholder_name not in source
+        ), f"Bad wildcard name: `{name}` found in source."
+
+        source = source.replace("{{" + name + "}}", wildcard_placeholder_name)
+        name_wildcard_mapping[wildcard_placeholder_name] = Wildcard(name, template)
+
+    if unfilled_wildcards := re.findall(r"\{\{\w+\}\}", source):
+        raise ValueError(f"Unfilled wildcards found in source: {unfilled_wildcards}")
+
+    source = textwrap.dedent(source)
+    template = ast.parse(source)
+
+    if not template.body:
+        raise ValueError("Template is empty.")
+
+    NameWildcardTransformer(name_wildcard_mapping, expand).visit(template)
+
+    for node in ast.walk(template):
+        for attr in ignore:
+            if hasattr(node, attr):
+                delattr(node, attr)
+
+    template = template.body
+
+    if len(template) > 1:
+        return template
+
+    template = template[0]
+
+    if isinstance(template, ast.Expr) and not keep_expr:
+        return template.value
+
+    return template
+
+
+def format_template(source: str, template_match: NamedTuple, **callables) -> str:
+    template_match_asdict = template_match._asdict() if hasattr(template_match, "_asdict") else {}
+    for name, value in template_match_asdict.items():
+        source = source.replace("{{" + name + "}}", unparse(value))
+
+    # It's ok that some of the template_match isn't used, just like str.format()
+    # may not use all of the arguments.
+
+    if unfilled_wildcards := re.findall(r"\{\{\w+\}\}", source):
+        raise ValueError(f"Unfilled wildcards found in source: {unfilled_wildcards}")
+
+    for callable_slot in re.finditer(r"\{\{\w+\((\w+,?)+\)\}\}", source):
+        callable_slot = callable_slot.group()
+        callable_name, *arg_names = re.findall(r"\w+", callable_slot)
+        callable_result = callables[callable_name](
+            *[template_match_asdict[name] for name in arg_names]
+        )
+        source = source.replace(callable_slot, callable_result)
+
+    return source

@@ -32,7 +32,7 @@ x = filter(lambda y, z: y > z, zip((1, 2, 3), [3, 2, 1]))
 x = itertools.filterfalse(lambda y: y > 0, (1, 2, 3))
             """,
             """
-x = (y for y in (1, 2, 3) if y <= 0)
+x = (y for y in (1, 2, 3) if not y > 0)
             """,
         ),
         (

@@ -1356,72 +1356,55 @@ def early_continue(source: str) -> str:
 
 @processing.fix
 def remove_redundant_comprehensions(source: str) -> str:
-    root = parsing.parse(source)
+    comprehension_wrapper_funcs = {
+        ast.DictComp: "dict",
+        ast.ListComp: "list",
+        ast.SetComp: "set",
+        ast.GeneratorExp: "iter",
+        ast.Dict: "dict",
+        ast.List: "list",
+        ast.Set: "set",
+        ast.Tuple: "tuple",
+    }
+    find = parsing.compile_template((
+        "[{{target}} for {{target}} in {{iterable}}]",
+        "{{{target}} for {{target}} in {{iterable}}}",
+        "({{target}} for {{target}} in {{iterable}})",
+        "{{{key}}: {{value}} for {{key}}, {{value}} in {{iterable}}}",
+    ))
+    replace = "{{funcname(root)}}({{iterable}})"
+    funcname = lambda template_match_tuple: comprehension_wrapper_funcs[type(template_match_tuple)]
 
-    for node in parsing.walk(root, (ast.DictComp, ast.ListComp, ast.SetComp, ast.GeneratorExp)):
-        wrapper = parsing.get_comp_wrapper_func_equivalent(node)
-
-        if isinstance(node, ast.DictComp):
-            elt = ast.Tuple(elts=[node.key, node.value], ctx=ast.Load())
-            elt_generator_equal = (
-                len(node.generators) == 1
-                and ast.dump(elt).replace("Load", "__ctx__")
-                == ast.dump(node.generators[0].target).replace("Store", "__ctx__")
-                and (not node.generators[0].ifs)
-            )
-        else:
-            elt_generator_equal = (
-                len(node.generators) == 1
-                and ast.dump(node.elt).replace("Load", "__ctx__")
-                == ast.dump(node.generators[0].target).replace("Store", "__ctx__")
-                and (not node.generators[0].ifs)
-            )
-
-        if elt_generator_equal:
-            yield node, ast.Call(
-                func=ast.Name(id=wrapper, ctx=ast.Load()),
-                args=[node.generators[0].iter],
-                keywords=[],
-            )
+    yield from processing.find_replace(source, find=find, replace=replace, funcname=funcname)
 
 
 @processing.fix
 def replace_functions_with_literals(source: str) -> str:
     root = parsing.parse(source)
 
-    func_literal_template = ast.Call(
-        func=ast.Name(id=parsing.Wildcard("func", ("list", "tuple", "dict"))), args=[], keywords=[]
-    )
-    for node, func in parsing.walk_wildcard(root, func_literal_template):
-        if func == "list":
-            yield node, ast.List(elts=[], ctx=ast.Load())
-        elif func == "tuple":
-            yield node, ast.Tuple(elts=[], ctx=ast.Load())
-        elif func == "dict":
-            yield node, ast.Dict(keys=[], values=[], ctx=ast.Load())
+    yield from processing.find_replace(source, find="list()", replace="[]")
+    yield from processing.find_replace(source, find="tuple()", replace="()")
+    yield from processing.find_replace(source, find="dict()", replace="{}")
 
-    func_comprehension_template = ast.Call(
-        func=ast.Name(id=parsing.Wildcard("func", ("list", "tuple", "set", "iter"))),
-        args=[
-            parsing.Wildcard(
-                "arg", (ast.List, ast.ListComp, ast.Tuple, ast.Set, ast.SetComp, ast.GeneratorExp)
-        )],
-        keywords=[],
+    template = parsing.compile_template(
+        "{{func}}({{arg}})",
+        func=ast.Name(id=("list", "tuple", "set", "iter")),
+        arg=(ast.List, ast.ListComp, ast.Tuple, ast.Set, ast.SetComp, ast.GeneratorExp),
     )
-    for node, arg, func in parsing.walk_wildcard(root, func_comprehension_template):
-        if func == "list":
+    for node, arg, func in parsing.walk_wildcard(root, template):
+        if func.id == "list":
             if isinstance(arg, (ast.List, ast.ListComp)):
                 yield node, arg
             elif isinstance(arg, ast.Tuple):
                 yield node, ast.List(elts=arg.elts, ctx=arg.ctx)
 
-        elif func == "tuple":
+        elif func.id == "tuple":
             if isinstance(arg, ast.Tuple):
                 yield node, arg
             elif isinstance(arg, ast.List):
                 yield node, ast.Tuple(elts=arg.elts, ctx=arg.ctx)
 
-        elif func == "set":
+        elif func.id == "set":
             if isinstance(arg, (ast.Set, ast.SetComp)):
                 yield node, arg
             elif isinstance(arg, (ast.Tuple, ast.List)):
@@ -1429,7 +1412,7 @@ def replace_functions_with_literals(source: str) -> str:
             elif isinstance(arg, ast.GeneratorExp):
                 yield node, ast.SetComp(elt=arg.elt, generators=arg.generators)
 
-        elif func == "iter":
+        elif func.id == "iter":
             if isinstance(arg, ast.GeneratorExp):
                 yield node, arg
 
@@ -1843,122 +1826,92 @@ def delete_commented_code(source: str) -> str:
 
 @processing.fix
 def replace_with_filter(source: str) -> str:
-    root = parsing.parse(source)
+    find_positive = """
+    for {{target}} in {{iter}}:
+        if {{target}}:
+            {{body}}
+    """
+    find_negative = """
+    for {{target}} in {{iter}}:
+        if not {{target}}:
+            continue
+        {{body}}
+    """
+    replace = """
+    for {{target}} in filter(None, {{iter}}):
+        {{body}}
+    """
+    template = parsing.compile_template((find_positive, find_negative), expand="body")
+    iterator1 = processing.find_replace(source, find=template, replace=replace, yield_match=True)
 
-    for node in parsing.walk(root, ast.For):
-        if parsing.is_call(node.iter, ("filter", "filterfalse", "itertools.filterfalse")):
+    find_positive = """
+    for {{target}} in {{iter}}:
+        if {{test}}({{target}}):
+            {{body}}
+    """
+    find_negative = """
+    for {{target}} in {{iter}}:
+        if not {{test}}({{target}}):
             continue
-        if parsing.match_template(node.body, [ast.If]):
-            test = node.body[0].test
-            negative = isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not)
-            if negative:
-                test = test.operand
-                if not parsing.match_template(node.body[0].body, {ast.Continue}):
-                    continue
-            else:
-                if not parsing.match_template(node.body[0].orelse, {ast.Continue}):
-                    continue
-            if isinstance(node.target, ast.Name) and parsing.match_template(
-                test, ast.Call(args=[ast.Name(id=node.target.id)], keywords=[])
-            ):
-                yield node.iter, ast.Call(
-                    func=ast.Name(id="filter"), args=[test.func, node.iter], keywords=[]
-                )
-                yield node.body[0].test, ast.Constant(value=not negative, kind=None)
-            elif isinstance(test, ast.Name) and parsing.match_template(
-                node.target, ast.Name(id=test.id)
-            ):
-                yield node.iter, ast.Call(
-                    func=ast.Name(id="filter"),
-                    args=[ast.Constant(value=None, kind=None), node.iter],
-                    keywords=[],
-                )
-                yield node.body[0].test, ast.Constant(value=not negative, kind=None)
-            continue
-        if len(node.body) < 2:
-            continue
-        first_node, second_node, *_ = node.body
-        if parsing.match_template(first_node, ast.If(orelse=[])) and isinstance(
-            first_node.body[0], ast.Continue
-        ):
-            test = first_node.test
+        {{body}}
+    """
+    replace = """
+    for {{target}} in filter({{test}}, {{iter}}):
+        {{body}}
+    """
+    template = parsing.compile_template((find_positive, find_negative), expand="body")
+    iterator2 = processing.find_replace(source, find=template, replace=replace, yield_match=True)
 
-            if (
-                isinstance(node.target, ast.Name)
-                and len(node.body) >= 2
-                and parsing.match_template(
-                    test,
-                    ast.UnaryOp(
-                        op=ast.Not,
-                        operand=ast.Call(keywords=[], args=[ast.Name(id=node.target.id)]),
-                ),)
-                and not parsing.match_template(
-                    second_node,
-                    ast.If(body=[ast.Continue], test=ast.UnaryOp(op=ast.Not, operand=ast.Call)),
-            )):
-                yield node.iter, ast.Call(
-                    func=ast.Name(id="filter"), args=[test.operand.func, node.iter], keywords=[]
-                )
-                yield first_node, None
+    filter_derivative_template = ast.Call(
+        func=parsing.compile_template(("filter", "filterfalse", "itertools.filterfalse"))
+    )
+
+    for range_, replacement, template_match in itertools.chain(iterator1, iterator2):
+        if not parsing.match_template(template_match.iter, filter_derivative_template):
+            yield range_, replacement
 
 
 def _get_contains_args(node: ast.Compare) -> Tuple[str, str, bool]:
-    negative = isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not)
-    if negative:
-        node = node.operand
-
-    template = ast.Compare(
-        left=ast.Name(id=parsing.Wildcard(name="key", template=str)),
-        ops=[(ast.In, ast.NotIn)],
-        comparators=[ast.Name(id=parsing.Wildcard(name="value", template=str))],
+    template = parsing.compile_template((
+        "{{key}} in {{value}}",
+        "{{key}} not in {{value}}",
+        "not {{key}} in {{value}}",
+        "not {{key}} not in {{value}}",
+        ),
+        key=ast.Name,
+        value=ast.Name,
     )
 
     if template_match := parsing.match_template(node, template):
+        if negative := isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            node = node.operand
+
         _, key, value = template_match
         if isinstance(node.ops[0], ast.In):
-            return key, value, negative
+            return key.id, value.id, negative
         if isinstance(node.ops[0], ast.NotIn):
-            return key, value, not negative
+            return key.id, value.id, not negative
 
     raise ValueError(f"Node is not a pure compare node: {node}")
 
 
 def _get_subscript_functions(node: ast.Expr) -> Tuple[str, str, str, str]:
-    slice_value = (
-        ast.Name(id=parsing.Wildcard("key", str))
-        if constants.PYTHON_VERSION >= (3, 9)
-        else ast.Index(value=ast.Name(id=parsing.Wildcard("key", str)))
+    template = parsing.compile_template(
+        "{{obj}}[{{key}}].{{call}}({{value}})", keep_expr=True, key=ast.Name, obj=ast.Name
     )
-    template = ast.Expr(
-        value=ast.Call(
-            func=ast.Attribute(
-                value=ast.Subscript(
-                    value=ast.Name(id=parsing.Wildcard("obj", str)), slice=slice_value
-                ),
-                attr=parsing.Wildcard("call", str),
-            ),
-            args=[parsing.Wildcard("value", object)],
-    ))
     if template_match := parsing.match_template(node, template):
         _, call, key, obj, value = template_match
-        return obj, call, key, value
+        return obj.id, call, key.id, value
 
     raise ValueError(f"Node {node} is not a subscript call")
 
 
 def _get_assign_functions(node: ast.Expr) -> Tuple[str, str]:
-    slice_value = (
-        ast.Name(id=parsing.Wildcard("key", str))
-        if constants.PYTHON_VERSION >= (3, 9)
-        else ast.Index(value=ast.Name(id=parsing.Wildcard("key", str)))
-    )
-    template = ast.Assign(
-        targets=[ast.Subscript(slice=slice_value, value=ast.Name(id=parsing.Wildcard("obj", str)))]
-    )
+    template = parsing.compile_template("{{obj}}[{{key}}] = {{value}}", key=ast.Name, obj=ast.Name)
     if template_match := parsing.match_template(node, template):
-        _, key, obj = template_match
+        _, key, obj, _ = template_match
         value = node.value
-        return obj, key, value
+        return obj.id, key.id, value
 
     raise ValueError(f"Node {node} is not a subscript assignment")
 
@@ -2080,82 +2033,64 @@ def implicit_defaultdict(source: str) -> str:
 
 
 @processing.fix
-def simplify_redundant_lambda(source: str) -> str:
-    root = parsing.parse(source)
+def _replace_lambda_with_literal(source: str) -> str:
+    for find, replace in (
+        ("lambda: []", "list"),
+        ("lambda: {}", "dict"),
+        ("lambda: ()", "tuple"),
+        ("lambda {{args}}: [*{{args}}]", "list"),
+        ("lambda {{args}}: {*{{args}}}", "set"),
+        ("lambda {{args}}: (*{{args}},)", "tuple"),
+        ("lambda {{args}}, /: [*{{args}}]", "list"),
+        ("lambda {{args}}, /: {*{{args}}}", "set"),
+        ("lambda {{args}}, /: (*{{args}},)", "tuple"),
+        ("lambda: {{func}}()", "{{func}}"),
+    ):
+        yield from processing.find_replace(source, find=find, replace=replace)
 
-    template = ast.Lambda(
-        args=ast.arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]),
-        body=(ast.List(elts=[]), ast.Tuple(elts=[]), ast.Dict(keys=[], values=[])),
-    )
 
-    for node in parsing.walk(root, template):
-        if isinstance(node.body, ast.List):
-            yield node, ast.Name(id="list")
-        elif isinstance(node.body, ast.Tuple):
-            yield node, ast.Name(id="tuple")
-        elif isinstance(node.body, ast.Dict):
-            yield node, ast.Name(id="dict")
-
-    template = ast.Lambda(
-        args=ast.arguments(
-            posonlyargs=([(ast.arg(arg=parsing.Wildcard("common_arg", str)))], []),
-            args=([(ast.arg(arg=parsing.Wildcard("common_arg", str)))], []),
-            kwonlyargs=[],
-            kw_defaults=[],
-            defaults=[],
-        ),
-        body=(
-            ast.List(elts=[ast.Starred(value=ast.Name(id=parsing.Wildcard("common_arg", str)))]),
-            ast.Tuple(elts=[ast.Starred(value=ast.Name(id=parsing.Wildcard("common_arg", str)))]),
-            ast.Set(elts=[ast.Starred(value=ast.Name(id=parsing.Wildcard("common_arg", str)))]),
+@processing.fix
+def _replace_lambda_with_function(source: str) -> str:
+    find = ast.Lambda(
+        args=parsing.Wildcard("sign_args", ast.arguments),
+        body=ast.Call(
+            func=parsing.Wildcard("func", ast.Name),
+            args=parsing.Wildcard("call_args"),
+            keywords=parsing.Wildcard("call_keywords"),
     ),)
-
-    for node, _ in parsing.walk_wildcard(root, template):
-        args = node.args.posonlyargs + node.args.args
-        if len(args) != 1:
-            continue
-        if isinstance(node.body, ast.List):
-            yield node, ast.Name(id="list")
-        elif isinstance(node.body, ast.Tuple):
-            yield node, ast.Name(id="tuple")
-        elif isinstance(node.body, ast.Set):
-            yield node, ast.Name(id="set")
-
-    keyword_unpack_template = ast.keyword(value=ast.Name(id=str), arg=None)
-    template = ast.Lambda(
-        args=ast.arguments(
-            posonlyargs=parsing.Wildcard("posonlyargs", {ast.arg}),
-            args=parsing.Wildcard("args", {ast.arg}),
-            vararg=parsing.Wildcard("vararg", (ast.arg, None)),
-            kwonlyargs=[],
-            kw_defaults=[],
-            kwarg=parsing.Wildcard("kwarg", (ast.arg(arg=str), None)),
-            defaults=[],
-        ),
-        body=(
-            ast.Call(
-                args=parsing.Wildcard("call_args", {ast.Name, ast.Starred(value=ast.Name)}),
-                keywords=parsing.Wildcard("keywords", ([keyword_unpack_template], [])),
-    )),)
-
-    for template_match in parsing.walk_wildcard(root, template):
-        lambda_positional_args = template_match.posonlyargs + template_match.args
-        if template_match.vararg:
-            lambda_positional_args.append(template_match.vararg)
-        if len(template_match.call_args) != len(lambda_positional_args):
-            continue
-        if not all(
-            (ca.id if isinstance(ca, ast.Name) else ca.value.id) == la.arg
-            for ca, la in zip(template_match.call_args, lambda_positional_args)
-        ):
+    for replacement_range, replacement, template_match in processing.find_replace(
+        source, find=find, replace="{{func}}", yield_match=True
+    ):
+        _, call_args, call_keywords, _, sign_args = template_match
+        if sign_args.kw_defaults:
             continue
 
-        # If no dict unpack (**kwargs), or dict unpack matches
-        if (template_match.kwarg is None and not template_match.keywords) or (
-            len(template_match.keywords) == 1
-            and template_match.kwarg.arg == template_match.keywords[0].value.id
-        ):
-            yield template_match.root, template_match.root.body.func
+        expected_call_args = [
+            ast.Name(id=arg.arg) for arg in sign_args.posonlyargs + sign_args.args
+        ]
+        if sign_args.vararg:
+            expected_call_args.append(ast.Starred(value=ast.Name(id=sign_args.vararg.arg)))
+
+        if not parsing.match_template(call_args, expected_call_args):
+            continue
+
+        expected_call_keywords = {
+            ast.keyword(arg=arg, value=ast.Name(id=arg)) for arg in sign_args.kwonlyargs
+        }
+        if sign_args.kwarg:
+            expected_call_keywords.add(ast.keyword(value=ast.Name(id=sign_args.kwarg.arg)))
+
+        if not parsing.match_template(call_keywords, expected_call_keywords):
+            continue
+
+        yield replacement_range, replacement
+
+
+def simplify_redundant_lambda(source: str) -> str:
+    source = _replace_lambda_with_literal(source)
+    source = _replace_lambda_with_function(source)
+
+    return source
 
 
 def _is_same_code(*nodes: ast.AST) -> bool:
@@ -2331,51 +2266,29 @@ def replace_filter_lambda_with_comp(source: str) -> str:
     Returns:
         str: Modified source code
     """
+    # Prevent replacement of map() calls where the map() call is the iterated value of a for loop
     root = parsing.parse(source)
+    for_ranges = {parsing.get_charnos(node.iter, source) for node in parsing.walk(root, ast.For())}
 
-    filter_template = ast.Name(id="filter")
-    filterfalse_template = (
-        ast.Name(id="filterfalse"),
-        ast.Attribute(value=ast.Name(id="itertools"), attr="filterfalse"),
-    )
-
-    template = ast.Call(
-        func=parsing.Wildcard("func", (filter_template, filterfalse_template)),
-        args=[
-            ast.Lambda(
-                args=ast.arguments(
-                    posonlyargs=[],
-                    args=[ast.arg(arg=parsing.Wildcard("arg", str))],
-                    kwonlyargs=[],
-                    kw_defaults=[],
-                    defaults=[],
-                ),
-                body=parsing.Wildcard("condition", object),
-            ),
-            parsing.Wildcard("iterable", object),
-        ],
-        keywords=[],
-    )
-
-    blacklist = {
-        iterator
-        for _, iterator in parsing.walk_wildcard(
-            root, ast.For(iter=parsing.Wildcard("iterator", object))
-    )}
-
-    for node, arg, condition, func, iterable in parsing.walk_wildcard(root, template):
-        if node in blacklist:
+    find = "filter(lambda {{arg}}: {{body}}, {{iterable}})"
+    replace = "({{arg}} for {{arg}} in {{iterable}} if {{body}})"
+    for replacement_range, replacement in processing.find_replace(
+        source, find=find, replace=replace
+    ):
+        if any(replacement_range & for_range for for_range in for_ranges):
             continue
-        if parsing.match_template(func, filterfalse_template):
-            condition = _negate_condition(condition)
-        replacement_node = ast.GeneratorExp(
-            elt=ast.Name(id=arg),
-            generators=[
-                ast.comprehension(
-                    target=ast.Name(id=arg), iter=iterable, ifs=[condition], is_async=0
-        )],)
 
-        yield node, replacement_node
+        yield replacement_range, replacement
+
+    find = "filterfalse(lambda {{arg}}: {{body}}, {{iterable}})"
+    replace = "({{arg}} for {{arg}} in {{iterable}} if not {{body}})"
+    for replacement_range, replacement in processing.find_replace(
+        source, find=(find, "itertools." + find), replace=replace
+    ):
+        if any(replacement_range & for_range for for_range in for_ranges):
+            continue
+
+        yield replacement_range, replacement
 
 
 @processing.fix
@@ -2388,42 +2301,49 @@ def replace_map_lambda_with_comp(source: str) -> str:
     Returns:
         str: Modified source code
     """
-    root = parsing.parse(source)
+    find = "map(lambda {{arg}}: {{body}}, {{iterable}})"
+    replace = "({{body}} for {{arg}} in {{iterable}})"
 
-    template = ast.Call(
-        func=ast.Name(id="map"),
-        args=[
-            ast.Lambda(
-                args=ast.arguments(
-                    posonlyargs=[],
-                    args=[ast.arg(arg=parsing.Wildcard("arg", str))],
-                    kwonlyargs=[],
-                    kw_defaults=[],
-                    defaults=[],
-                ),
-                body=parsing.Wildcard("body", object),
-            ),
-            parsing.Wildcard("iterable", object),
-        ],
-        keywords=[],
+    # Prevent replacement of map() calls where the map() call is the iterated value of a for loop
+    root = parsing.parse(source)
+    for_ranges = {parsing.get_charnos(node.iter, source) for node in parsing.walk(root, ast.For())}
+    for replacement_range, replacement in processing.find_replace(
+        source, find=find, replace=replace
+    ):
+        if any(replacement_range & for_range for for_range in for_ranges):
+            continue
+
+        yield replacement_range, replacement
+
+
+@processing.fix
+def replace_negated_numeric_comparison(source: str) -> str:
+    root = parsing.parse(source)
+    template = parsing.compile_template(
+        "not {{compare}}", compare=ast.Compare(comparators=[object])
     )
 
-    blacklist = {
-        iterator
-        for _, iterator in parsing.walk_wildcard(
-            root, ast.For(iter=parsing.Wildcard("iterator", object))
-    )}
-
-    for node, arg, body, iterable in parsing.walk_wildcard(root, template):
-        if node in blacklist:
-            continue
-        replacement_node = ast.GeneratorExp(
-            elt=body,
-            generators=[
-                ast.comprehension(target=ast.Name(id=arg), iter=iterable, ifs=[], is_async=0)
-        ],)
-
-        yield node, replacement_node
+    numeric_template = ast.Constant(value=(int, float))
+    numeric_template = (
+        numeric_template,
+        ast.UnaryOp(op=ast.USub, operand=numeric_template),
+        ast.BinOp(left=numeric_template),
+        ast.BinOp(right=numeric_template),
+    )
+    safe_reversible_set_operations = (ast.Eq, ast.NotEq, ast.Is, ast.IsNot, ast.In, ast.NotIn)
+    for template_match in parsing.walk_wildcard(root, template):
+        node, compare, *_ = template_match
+        if parsing.match_template(compare.ops[0], safe_reversible_set_operations) or (
+            parsing.match_template(compare.ops[0], tuple(constants.REVERSE_OPERATOR_MAPPING))
+            and (
+                parsing.match_template(compare.left, numeric_template)
+                or parsing.match_template(compare.comparators[0], numeric_template)
+        )):
+            yield node, ast.Compare(
+                left=compare.left,
+                ops=[constants.REVERSE_OPERATOR_MAPPING[type(compare.ops[0])]()],
+                comparators=compare.comparators,
+            )
 
 
 @processing.fix(restart_on_replace=True)
@@ -2932,10 +2852,11 @@ def _keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
     )
 
     for node, target, value in parsing.walk_wildcard(root, template):
-        if constants.PYTHON_VERSION >= (3, 9):
-            subscript_template = ast.Subscript(value=value, slice=target)
-        else:
-            subscript_template = ast.Subscript(value=value, slice=(target, ast.Index(value=target)))
+        subscript_template = parsing.compile_template(
+            "{{value}}[{{target}}]",
+            value=value,
+            target=target,
+        )
         value_target_subscripts = list(
             parsing.walk(
                 node,
@@ -3009,10 +2930,11 @@ def _for_keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
             keywords=[],
     ),)
     for node, target, value in parsing.walk_wildcard(root, template):
-        if constants.PYTHON_VERSION >= (3, 9):
-            subscript_template = ast.Subscript(value=value, slice=target)
-        else:
-            subscript_template = ast.Subscript(value=value, slice=(target, ast.Index(value=target)))
+        subscript_template = parsing.compile_template(
+            "{{value}}[{{target}}]",
+            value=value,
+            target=target,
+        )
         value_target_subscripts = list(
             parsing.walk(
                 node,
@@ -3158,8 +3080,13 @@ def unused_zip_args(source: str) -> str:
 
 @processing.fix
 def simplify_assign_immediate_return(source: str) -> str:
-    root = parsing.parse(source)
+    find = """
+    {{name}} = {{value}}
+    return {{name}}
+    """
+    replace = "return {{value}}"
 
+    root = parsing.parse(source)
     for scope in parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)):
         # For every variable, how many times is it assigned in this scope?
         name_assign_counts = collections.Counter(
@@ -3172,59 +3099,52 @@ def simplify_assign_immediate_return(source: str) -> str:
         names_assigned_only_once = tuple(
             name for name, count in name_assign_counts.items() if count == 1
         )
+        name_template = ast.Name(id=names_assigned_only_once)
 
-        assign_template = ast.Assign(
-            targets=[parsing.Wildcard("common_variable", ast.Name(id=names_assigned_only_once))]
+        yield from processing.find_replace(
+            source,
+            scope,
+            find=parsing.compile_template(find, value=object, name=name_template),
+            replace=replace,
         )
-        return_template = ast.Return(
-            value=parsing.Wildcard("common_variable", ast.Name(id=names_assigned_only_once))
-        )
-
-        for (asmt, variable), (ret, _) in parsing.walk_sequence(
-            scope, assign_template, return_template
-        ):
-            # If a variable name is assigned only once in this scope, and then immediately returned,
-            # it should be removed.
-
-            yield asmt, None
-            yield ret.value, asmt.value
 
 
 def missing_context_manager(source: str) -> str:
     root = parsing.parse(source)
 
     func_template = (
-        ast.Name(id="open"),
-        ast.Attribute(value=ast.Name(id="requests"), attr="Session"),
-        ast.Attribute(value=ast.Name(id="sqlite3"), attr="connect"),
-        ast.Attribute(value=ast.Name(id="tempfile"), attr="TemporaryFile"),
-        ast.Attribute(value=ast.Name(id="tempfile"), attr="NamedTemporaryFile"),
-        ast.Attribute(value=ast.Name(id="tempfile"), attr="TemporaryDirectory"),
-        ast.Attribute(value=ast.Name(id="zipfile"), attr="ZipFile"),
-        ast.Attribute(value=ast.Name(id="tarfile"), attr="TarFile"),
-        ast.Attribute(value=ast.Name(id="gzip"), attr="GzipFile"),
-        ast.Attribute(value=ast.Name(id="bz2"), attr="BZ2File"),
-        ast.Attribute(value=ast.Name(id="lzma"), attr="LZMAFile"),
-        ast.Attribute(value=ast.Name(id="socket"), attr="socket"),
-        ast.Attribute(value=ast.Name(id="threading"), attr="Lock"),
-        ast.Attribute(value=ast.Name(id="threading"), attr="RLock"),
-        ast.Attribute(value=ast.Name(id="multiprocessing"), attr="Pool"),
-        ast.Attribute(value=ast.Name(id="multiprocessing"), attr="Lock"),
-        ast.Attribute(value=ast.Name(id="multiprocessing"), attr="RLock"),
-        ast.Attribute(value=ast.Name(id="subprocess"), attr="Popen"),
-        ast.Attribute(value=ast.Name(id="ftplib"), attr="FTP"),
-        ast.Attribute(value=ast.Name(id="ftplib"), attr="FTP_TLS"),
-        ast.Attribute(value=ast.Name(id="smtplib"), attr="SMTP"),
-        ast.Attribute(value=ast.Name(id="smtplib"), attr="SMTP_SSL"),
-        ast.Attribute(value=ast.Name(id="imaplib"), attr="IMAP4"),
-        ast.Attribute(value=ast.Name(id="imaplib"), attr="IMAP4_SSL"),
-        ast.Attribute(value=ast.Name(id="poplib"), attr="POP3"),
-        ast.Attribute(value=ast.Name(id="poplib"), attr="POP3_SSL"),
-        ast.Attribute(value=ast.Name(id="ssl"), attr="wrap_socket"),
-        ast.Attribute(value=ast.Name(id="psycopg2"), attr="connect"),
-        ast.Attribute(value=ast.Name(id="pymysql"), attr="connect"),
-        ast.Attribute(value=ast.Name(id="pyodbc"), attr="connect"),
-        ast.Attribute(value=ast.Name(id=("connection", "con")), attr="cursor"),
+        parsing.compile_template("open"),
+        parsing.compile_template("requests.Session"),
+        parsing.compile_template("sqlite3.connect"),
+        parsing.compile_template("tempfile.TemporaryFile"),
+        parsing.compile_template("tempfile.NamedTemporaryFile"),
+        parsing.compile_template("tempfile.TemporaryDirectory"),
+        parsing.compile_template("zipfile.ZipFile"),
+        parsing.compile_template("tarfile.TarFile"),
+        parsing.compile_template("gzip.GzipFile"),
+        parsing.compile_template("bz2.BZ2File"),
+        parsing.compile_template("lzma.LZMAFile"),
+        parsing.compile_template("socket.socket"),
+        parsing.compile_template("threading.Lock"),
+        parsing.compile_template("threading.RLock"),
+        parsing.compile_template("multiprocessing.Pool"),
+        parsing.compile_template("multiprocessing.Lock"),
+        parsing.compile_template("multiprocessing.RLock"),
+        parsing.compile_template("subprocess.Popen"),
+        parsing.compile_template("ftplib.FTP"),
+        parsing.compile_template("ftplib.FTP_TLS"),
+        parsing.compile_template("smtplib.SMTP"),
+        parsing.compile_template("smtplib.SMTP_SSL"),
+        parsing.compile_template("imaplib.IMAP4"),
+        parsing.compile_template("imaplib.IMAP4_SSL"),
+        parsing.compile_template("poplib.POP3"),
+        parsing.compile_template("poplib.POP3_SSL"),
+        parsing.compile_template("ssl.wrap_socket"),
+        parsing.compile_template("psycopg2.connect"),
+        parsing.compile_template("pymysql.connect"),
+        parsing.compile_template("pyodbc.connect"),
+        parsing.compile_template("connection.cursor"),
+        parsing.compile_template("con.cursor"),
     )
 
     template = ast.Assign(

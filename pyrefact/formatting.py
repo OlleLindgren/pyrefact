@@ -31,3 +31,18 @@ def collapse_trailing_parentheses(source: str) -> str:
         str: _description_
     """
     return compactify.format_code(source)
+
+
+def inspect_indentsize(line: str) -> int:
+    """Return the indent size, in spaces, at the start of a line of text.
+
+    This function is the same as the undocumented inspect.indentsize() function in the stdlib.
+    For stability, we copy the code here rather than depending on the undocumented stdlib function.
+    """
+    expline = line.expandtabs()
+    return len(expline) - len(expline.lstrip())
+
+
+def indentation_level(source: str) -> int:
+    """Return the indentation level of source code."""
+    return min((inspect_indentsize(line) for line in source.splitlines() if line.strip()))

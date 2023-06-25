@@ -14,6 +14,17 @@ def main() -> int:
         (
             """
 for x in range(10):
+    if x:
+        print(3)
+            """,
+            """
+for x in filter(None, range(10)):
+    print(3)
+            """,
+        ),
+        (
+            """
+for x in range(10):
     if not f(x):
         continue
     print(x)
@@ -28,8 +39,6 @@ for x in filter(f, range(10)):
 for x in range(10):
     if f(x):
         print(3)
-    else:
-        continue
             """,
             """
 for x in filter(f, range(10)):
@@ -55,21 +64,9 @@ for x in range(10):
         (
             """
 for x in range(10):
-    if x:
-        print(3)
-            """,
-            """
-for x in filter(None, range(10)):
-    print(3)
-            """,
-        ),
-        (
-            """
-for x in range(10):
     if not x:
         continue
-    else:
-        print(3)
+    print(3)
             """,
             """
 for x in filter(None, range(10)):

@@ -1,31 +1,36 @@
 import ast
 
-from pyrefact import constants, parsing, processing
+from pyrefact import parsing, processing
 
 
-@processing.fix
+@processing.fix(restart_on_replace=True)
 def replace_loc_at_iloc_iat(source: str) -> str:
-    if constants.PYTHON_VERSION >= (3, 9):
-        pattern = ast.Subscript(
-            value=parsing.Wildcard("attribute", ast.Attribute(attr=("loc", "iloc"))),
-            slice=(ast.Tuple(elts=[ast.Constant, ast.Constant]), ast.Constant),
-        )
-    else:
-        pattern = ast.Subscript(
-            value=parsing.Wildcard("attribute", ast.Attribute(attr=("loc", "iloc"))),
-            slice=ast.Index(value=(ast.Tuple(elts=[ast.Constant, ast.Constant]), ast.Constant)),
-        )
-
-    root = parsing.parse(source)
-    for _, attribute in parsing.walk_wildcard(root, pattern):
-        if attribute.attr == "loc":
-            attr = "at"
-        elif attribute.attr == "iloc":
-            attr = "iat"
-        else:
-            continue
-
-        yield attribute, ast.Attribute(value=attribute.value, attr=attr)
+    yield from processing.find_replace(
+        source,
+        find="{{value}}.loc[{{i}}]",
+        replace="{{value}}.at[{{i}}]",
+        i=ast.Constant
+    )
+    yield from processing.find_replace(
+        source,
+        find="{{value}}.loc[{{i}}, {{j}}]",
+        replace="{{value}}.at[{{i}}, {{j}}]",
+        i=ast.Constant,
+        j=ast.Constant,
+    )
+    yield from processing.find_replace(
+        source,
+        find="{{value}}.iloc[{{i}}]",
+        replace="{{value}}.iat[{{i}}]",
+        i=ast.Constant
+    )
+    yield from processing.find_replace(
+        source,
+        find="{{value}}.iloc[{{i}}, {{j}}]",
+        replace="{{value}}.iat[{{i}}, {{j}}]",
+        i=ast.Constant,
+        j=ast.Constant,
+    )
 
 
 @processing.fix

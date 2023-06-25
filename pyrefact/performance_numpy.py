@@ -11,7 +11,8 @@ def uses_numpy(root: ast.Module) -> bool:
         return True
 
     # If np.something is referenced anywhere, assume it uses numpy as well.
-    return any(parsing.walk(root, ast.Attribute(value=ast.Name(id=("numpy", "np")))))
+    template = parsing.compile_template(("np.{{something}}", "numpy.{{something}}"))
+    return any(parsing.walk(root, template))
 
 
 def _only_if_uses_numpy(f: Callable) -> Callable:
@@ -34,15 +35,11 @@ def _is_np_array_call(call: ast.Call) -> bool:
 
 
 def _is_zip_product(comp: ast.ListComp | ast.GeneratorExp):
-    elt_template = ast.BinOp(op=ast.Mult, left=ast.Name, right=ast.Name)
-    generator_template = ast.comprehension(
-        ifs=[], target=ast.Tuple(elts=[ast.Name, ast.Name]), iter=ast.Call(func=ast.Name(id="zip"))
-    )
-    return (
-        parsing.match_template(comp.elt, elt_template)
-        and parsing.match_template(comp.generators, [generator_template])
-        and {x.id for x in comp.generators[0].target.elts} == {comp.elt.left.id, comp.elt.right.id}
-    )
+    template = parsing.compile_template((
+        "[{{left}} * {{right}} for {{left}}, {{right}} in zip({{left_iterable}}, {{right_iterable}})]",
+        "({{left}} * {{right}} for {{left}}, {{right}} in zip({{left_iterable}}, {{right_iterable}}))",
+    ))
+    return parsing.match_template(comp, template)
 
 
 def _wrap_np_dot(*args: ast.AST) -> ast.Call:
