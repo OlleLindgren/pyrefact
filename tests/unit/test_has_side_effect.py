@@ -3,11 +3,11 @@
 import ast
 import sys
 
-from pyrefact import constants, parsing
+from pyrefact import constants, core, parsing
 
 
 def main() -> int:
-    """Test parsing.has_side_effect
+    """Test core.has_side_effect
 
     Returns:
         int: 1 if the function behaves incorrectly, otherwise 0
@@ -60,8 +60,8 @@ def main() -> int:
         "{}" if constants.PYTHON_VERSION < (3, 9) else "f'{x=}'",
         "'foo = {}'.format(foo)",
     ):
-        node = parsing.parse(source).body[0]
-        if not parsing.has_side_effect(node, whitelist):
+        node = core.parse(source).body[0]
+        if not core.has_side_effect(node, whitelist):
             continue
 
         print("Ast has side effect, but should not:")
@@ -94,8 +94,8 @@ def main() -> int:
         "'foo() = {}'.format(foo())",
         "x.append(10)",
     ):
-        node = parsing.parse(source).body[0]
-        if parsing.has_side_effect(node, whitelist):
+        node = core.parse(source).body[0]
+        if core.has_side_effect(node, whitelist):
             continue
 
         print("Ast has no side effect, but should:")

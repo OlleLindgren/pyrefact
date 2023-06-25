@@ -3,22 +3,22 @@ from __future__ import annotations
 import ast
 from typing import Callable
 
-from pyrefact import parsing, processing
+from pyrefact import core, parsing, processing
 
 
-def uses_numpy(root: ast.Module) -> bool:
+def _uses_numpy(root: ast.Module) -> bool:
     if "numpy" in parsing.module_dependencies(root):
         return True
 
     # If np.something is referenced anywhere, assume it uses numpy as well.
-    template = parsing.compile_template(("np.{{something}}", "numpy.{{something}}"))
-    return any(parsing.walk(root, template))
+    template = core.compile_template(("np.{{something}}", "numpy.{{something}}"))
+    return any(core.walk(root, template))
 
 
 def _only_if_uses_numpy(f: Callable) -> Callable:
     def wrapper(source: str) -> str:
-        root = parsing.parse(source)
-        if not uses_numpy(root):
+        root = core.parse(source)
+        if not _uses_numpy(root):
             return source
 
         return f(source)
@@ -30,16 +30,12 @@ def _is_sum_call(call: ast.Call):
     return parsing.is_call(call, ("sum", "np.sum", "numpy.sum"))
 
 
-def _is_np_array_call(call: ast.Call) -> bool:
-    return parsing.is_call(call, ("np.array", "numpy.array"))
-
-
 def _is_zip_product(comp: ast.ListComp | ast.GeneratorExp):
-    template = parsing.compile_template((
+    template = core.compile_template((
         "[{{left}} * {{right}} for {{left}}, {{right}} in zip({{left_iterable}}, {{right_iterable}})]",
         "({{left}} * {{right}} for {{left}}, {{right}} in zip({{left_iterable}}, {{right_iterable}}))",
     ))
-    return parsing.match_template(comp, template)
+    return core.match_template(comp, template)
 
 
 def _wrap_np_dot(*args: ast.AST) -> ast.Call:
@@ -54,7 +50,7 @@ def _wrap_np_matmul(*args: ast.AST) -> ast.Call:
     )
 
 
-def wrap_transpose(node: ast.AST) -> ast.Attribute:
+def _wrap_transpose(node: ast.AST) -> ast.Attribute:
     return ast.Attribute(value=node, attr="T")
 
 
@@ -62,20 +58,20 @@ def wrap_transpose(node: ast.AST) -> ast.Attribute:
 def simplify_matmul_transposes(source: str) -> str:
     """Replace np.matmul(a.T, b.T).T with np.matmul(b, a), if found."""
 
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     target_template = ast.Call(
         func=ast.Attribute(value=ast.Name(id=("np", "numpy")), attr="matmul"), args=[object, object]
     )
-    for node in filter(parsing.is_transpose_operation, parsing.walk(root, ast.Attribute)):
+    for node in filter(parsing.is_transpose_operation, core.walk(root, ast.Attribute)):
         target = parsing.transpose_target(node)
         if (
-            parsing.match_template(target, target_template)
+            core.match_template(target, target_template)
             and not any(isinstance(arg, ast.Starred) for arg in target.args)
             and all(parsing.is_transpose_operation(arg) for arg in target.args)
         ):
             left, right = target.args
-            matmul = _wrap_np_matmul(wrap_transpose(right), wrap_transpose(left))
+            matmul = _wrap_np_matmul(_wrap_transpose(right), _wrap_transpose(left))
             matmul.func = target.func
             matmul.keywords = target.keywords
             yield node, matmul
@@ -84,10 +80,10 @@ def simplify_matmul_transposes(source: str) -> str:
 @_only_if_uses_numpy
 @processing.fix
 def replace_implicit_dot(source: str) -> str:
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     template = ast.Call(args=[(ast.ListComp, ast.GeneratorExp)], keywords=[])
-    for call in parsing.walk(root, template):
+    for call in core.walk(root, template):
         if _is_sum_call(call) and _is_zip_product(call.args[0]):
             zip_args = call.args[0].generators[0].iter.args
             yield call, _wrap_np_dot(*zip_args)

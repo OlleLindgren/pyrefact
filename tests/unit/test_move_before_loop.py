@@ -179,11 +179,11 @@ while x < 10:
         ),
         (  # the while loop's test depends on x
             """
-while parsing.match_template(w, templates):
+while core.match_template(w, templates):
     w = w.args[0].args[0]
             """,
             """
-while parsing.match_template(w, templates):
+while core.match_template(w, templates):
     w = w.args[0].args[0]
             """,
         ),
@@ -200,7 +200,7 @@ for a in b:
         variable = False
 
     if_orelse_template = ast.If(body=[object], orelse=[object])
-    for condition in parsing.walk(ast.Module(body=n2.body), if_orelse_template):
+    for condition in core.walk(ast.Module(body=n2.body), if_orelse_template):
         if condition in loop_replacements:
             continue
 
@@ -234,7 +234,7 @@ for a in b:
         variable = False
 
     if_orelse_template = ast.If(body=[object], orelse=[object])
-    for condition in parsing.walk(ast.Module(body=n2.body), if_orelse_template):
+    for condition in core.walk(ast.Module(body=n2.body), if_orelse_template):
         if condition in loop_replacements:
             continue
 

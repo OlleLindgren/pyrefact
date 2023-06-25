@@ -16,6 +16,7 @@ from typing import Collection, Iterable, Sequence
 from pyrefact import abstractions, fixes
 from pyrefact import logs as logger
 from pyrefact import (
+    core,
     formatting,
     object_oriented,
     parsing,
@@ -161,26 +162,26 @@ def format_code(
     if not source.strip():
         return source
 
-    if parsing.is_valid_python(source):
+    if core.is_valid_python(source):
         minimum_indent = 0
     else:
         minimum_indent = formatting.indentation_level(source)
         source = textwrap.dedent(source)
 
-    if not parsing.is_valid_python(source):
+    if not core.is_valid_python(source):
         logger.debug("Result is not valid python.")
         return source
 
     if safe:
         # Code may not be deleted from module level
-        module = parsing.parse(source)
+        module = core.parse(source)
         def_types = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
         fdef_types = (ast.FunctionDef, ast.AsyncFunctionDef)
-        defs = {node.name for node in parsing.filter_nodes(module.body, def_types)}
+        defs = {node.name for node in core.filter_nodes(module.body, def_types)}
         class_funcs = {  # Function definitions directly under a class definition in module scope
             f"{node.name}.{funcdef.name}"
-            for node in parsing.filter_nodes(module.body, ast.ClassDef)
-            for funcdef in parsing.filter_nodes(node.body, fdef_types)
+            for node in core.filter_nodes(module.body, ast.ClassDef)
+            for funcdef in core.filter_nodes(node.body, fdef_types)
         }
         assignments = {node.id for node in parsing.iter_assignments(module)}
         preserve = set(preserve) | defs | class_funcs | assignments
@@ -255,7 +256,7 @@ def format_file(
     source = format_code(initial_content, preserve=preserve, safe=safe, keep_imports=keep_imports)
 
     if source != initial_content and (
-        parsing.is_valid_python(source) or not parsing.is_valid_python(initial_content)
+        core.is_valid_python(source) or not core.is_valid_python(initial_content)
     ):
         with open(filename, "w", encoding="utf-8") as stream:
             stream.write(source)
@@ -301,9 +302,9 @@ def main(args: Sequence[str] | None = None) -> int:
     for filename in _iter_python_files(args.preserve):
         with open(filename, "r", encoding="utf-8") as stream:
             source = stream.read()
-        ast_root = parsing.parse(source)
+        ast_root = core.parse(source)
         imported_names = tracing.get_imported_names(ast_root)
-        for node in parsing.walk(ast_root, (ast.Name, ast.Attribute)):
+        for node in core.walk(ast_root, (ast.Name, ast.Attribute)):
             if isinstance(node, ast.Name) and node.id in imported_names:
                 used_names[_namespace_name(filename)].add(node.id)
             elif (

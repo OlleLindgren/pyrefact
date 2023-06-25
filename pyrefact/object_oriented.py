@@ -4,7 +4,7 @@ import copy
 import re
 from typing import Collection, Iterable
 
-from pyrefact import parsing, processing
+from pyrefact import core, parsing, processing
 
 
 @processing.fix
@@ -17,7 +17,7 @@ def remove_unused_self_cls(source: str) -> str:
     Returns:
         str: Python source code without any unused self or cls arguments.
     """
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     for classdef in parsing.iter_classdefs(root):
         class_non_instance_methods = {
@@ -99,7 +99,7 @@ def _decorators_of_type(node: ast.FunctionDef, name: str) -> Iterable[ast.AST]:
 
 
 def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> str:
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     attributes_to_preserve = set()
     for name in preserve:
@@ -113,9 +113,9 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
         for funcdef in parsing.iter_funcdefs(classdef):
             class_function_names.add((classdef.name, funcdef.name))
 
-    for node in parsing.walk(root, ast.Attribute):
+    for node in core.walk(root, ast.Attribute):
         if (
-            parsing.match_template(node.value, ast.Call(func=ast.Name))
+            core.match_template(node.value, ast.Call(func=ast.Name))
             and (node.value.func.id, node.attr) in class_function_names
         ):
             class_attribute_accesses.add(node)
@@ -166,7 +166,7 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
                 attr=tuple(moved_function_names),
             )
 
-            if parsing.match_template(node, template):
+            if core.match_template(node, template):
                 replacements[node] = ast.Name(
                     id=moved_function_names[node.attr], ctx=node.ctx, lineno=node.lineno
                 )
@@ -179,7 +179,7 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
 
     if replacements:
         source = processing.replace_nodes(source, replacements)
-        root = parsing.parse(source)
+        root = core.parse(source)
 
     for classdef in sorted(parsing.iter_classdefs(root), key=lambda cd: cd.lineno, reverse=True):
         delete = []

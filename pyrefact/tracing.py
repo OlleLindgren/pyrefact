@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Collection, Iterable, NamedTuple, Sequence, Tuple
 
-from pyrefact import constants, parsing, processing
+from pyrefact import constants, core, parsing, processing
 
 
 def _get_imports(ast_tree: ast.Module) -> Iterable[ast.Import | ast.ImportFrom]:
@@ -20,9 +20,9 @@ def _get_imports(ast_tree: ast.Module) -> Iterable[ast.Import | ast.ImportFrom]:
     Yields:
         str: An import node
     """
-    for node in parsing.walk(ast_tree, ast.Import):
+    for node in core.walk(ast_tree, ast.Import):
         yield node
-    for node in parsing.walk(ast_tree, ast.ImportFrom):
+    for node in core.walk(ast_tree, ast.ImportFrom):
         if node.module != "__future__":
             yield node
 
@@ -71,7 +71,7 @@ def code_dependencies_outputs(
                 [node.test] if isinstance(node, (ast.If, ast.While)) else [node.target, node.iter]
             )
             children = [node.body, node.orelse]
-            if any(parsing.is_blocking(child) for child in ast.walk(node)):
+            if any(core.is_blocking(child) for child in ast.walk(node)):
                 created_names = maybe_created_names
 
         elif isinstance(node, ast.With):
@@ -79,15 +79,15 @@ def code_dependencies_outputs(
             children = [node.body]
 
         elif isinstance(node, (ast.Try, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            required_names.update(name.id for name in parsing.walk(node, ast.Name))
+            required_names.update(name.id for name in core.walk(node, ast.Name))
             required_names.update(
                 func.name
-                for func in parsing.walk(
+                for func in core.walk(
                     node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
             ))
             if isinstance(node, ast.Try):
                 maybe_created_names.update(
-                    name.id for name in parsing.walk(node, ast.Name(ctx=ast.Store))
+                    name.id for name in core.walk(node, ast.Name(ctx=ast.Store))
                 )
             continue
 
@@ -101,12 +101,12 @@ def code_dependencies_outputs(
             node_created = set()
             node_needed = set()
             generator_internal_names = set()
-            for child in parsing.walk(
+            for child in core.walk(
                 node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
             ):
                 comp_created = set()
                 for comp in child.generators:
-                    comp_created.update(parsing.walk(comp.target, ast.Name(ctx=ast.Store)))
+                    comp_created.update(core.walk(comp.target, ast.Name(ctx=ast.Store)))
                 for grandchild in ast.walk(child):
                     if isinstance(grandchild, ast.Name) and grandchild.id in comp_created:
                         generator_internal_names.add(grandchild)
@@ -114,12 +114,12 @@ def code_dependencies_outputs(
             if isinstance(node, ast.AugAssign):
                 node_needed.update(n.id for n in parsing.assignment_targets(node))
 
-            for child in parsing.walk(node, ast.Attribute(ctx=ast.Load)):
-                for n in parsing.walk(child, ast.Name):
+            for child in core.walk(node, ast.Attribute(ctx=ast.Load)):
+                for n in core.walk(child, ast.Name):
                     if n not in generator_internal_names:
                         node_needed.add(n.id)
 
-            for child in parsing.walk(node, ast.Name):
+            for child in core.walk(node, ast.Name):
                 if child.id not in node_needed and child not in generator_internal_names:
                     if isinstance(child.ctx, ast.Load):
                         node_needed.add(child.id)
@@ -162,7 +162,7 @@ def code_dependencies_outputs(
     return created_names_original, maybe_created_names, required_names
 
 
-class TraceResult(NamedTuple):
+class _TraceResult(NamedTuple):
     """Result of tracing."""
 
     source: str
@@ -170,7 +170,7 @@ class TraceResult(NamedTuple):
     ast: ast.AST
 
 
-def trace_module_source_file(module: str) -> str | None:
+def _trace_module_source_file(module: str) -> str | None:
     try:
         sys.path.append(str(Path.cwd()))
 
@@ -189,7 +189,7 @@ def trace_module_source_file(module: str) -> str | None:
 
 
 @functools.lru_cache(maxsize=100_000)
-def trace_origin(name: str, source: str, *, __all__: bool = False) -> TraceResult:
+def trace_origin(name: str, source: str, *, __all__: bool = False) -> _TraceResult:
     """Trace the origin of a name in python source code.
 
     Args:
@@ -201,9 +201,9 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> TraceResul
     Returns:
         (source, ast, lineno) of the origin of name in source.
     """
-    root = parsing.parse(source)
+    root = core.parse(source)
     nodes = set(
-        parsing.walk(
+        core.walk(
             root,
             (
                 ast.Import,
@@ -235,16 +235,16 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> TraceResul
             func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str]
         )
         all_filter = set()
-        all_nodes = tuple(parsing.filter_nodes(root.body, all_template))
+        all_nodes = tuple(core.filter_nodes(root.body, all_template))
 
         if all_nodes:
             for node in all_nodes:
                 all_filter.update(constant.value for constant in node.value.elts)
 
-            for node in parsing.walk(root, all_extend_template):
+            for node in core.walk(root, all_extend_template):
                 all_filter.update(constant.value for constant in node.args[0].elts)
 
-            for node in parsing.walk(root, all_append_template):
+            for node in core.walk(root, all_append_template):
                 all_filter.add(node.args[0])
 
             if name not in all_filter:
@@ -254,9 +254,9 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> TraceResul
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             for alias in node.names:
                 if alias.asname == name:
-                    return TraceResult(parsing.get_code(node, source), node.lineno, node)
+                    return _TraceResult(core.get_code(node, source), node.lineno, node)
                 if alias.asname is None and alias.name == name:
-                    return TraceResult(parsing.get_code(node, source), node.lineno, node)
+                    return _TraceResult(core.get_code(node, source), node.lineno, node)
 
                 if alias.name != "*":
                     continue
@@ -268,12 +268,12 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> TraceResul
                         module, "__all__", [x for x in dir(module) if not x.startswith("_")]
                     )
                     if name in exports:
-                        return TraceResult(parsing.get_code(node, source), node.lineno, node)
+                        return _TraceResult(core.get_code(node, source), node.lineno, node)
 
                 if node.module is None:
                     continue
 
-                origin = trace_module_source_file(node.module)
+                origin = _trace_module_source_file(node.module)
 
                 # This is likely the best way to truly check the __all__ of a module,
                 # but if a user has forgotten the `if __name__ == "__main__":` guard,
@@ -285,7 +285,7 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> TraceResul
                         module, "__all__", [x for x in dir(module) if not x.startswith("_")]
                     )
                     if name in exports:
-                        return TraceResult(parsing.get_code(node, source), node.lineno, node)
+                        return _TraceResult(core.get_code(node, source), node.lineno, node)
 
                     continue
 
@@ -303,36 +303,36 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> TraceResul
                     module_source = stream.read()
 
                 if trace_origin(name, module_source, __all__=True):
-                    return TraceResult(parsing.get_code(node, source), node.lineno, node)
+                    return _TraceResult(core.get_code(node, source), node.lineno, node)
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             if node.name == name:
-                return TraceResult(parsing.get_code(node, source), node.lineno, node)
+                return _TraceResult(core.get_code(node, source), node.lineno, node)
 
         if isinstance(node, (ast.Assign, ast.AnnAssign)) and any(
             target.id == name for target in parsing.assignment_targets(node)
         ):
-            return TraceResult(parsing.get_code(node, source), node.lineno, node)
+            return _TraceResult(core.get_code(node, source), node.lineno, node)
 
-        if isinstance(node, ast.NamedExpr) and parsing.match_template(
+        if isinstance(node, ast.NamedExpr) and core.match_template(
             node.target, ast.Name(id=name)
         ):
-            return TraceResult(parsing.get_code(node, source), node.lineno, node)
+            return _TraceResult(core.get_code(node, source), node.lineno, node)
 
     return None
 
 
 def get_undefined_variables(source: str) -> Collection[str]:
-    root = parsing.parse(source)
+    root = core.parse(source)
     imported_names = get_imported_names(root)
     defined_names = set()
     referenced_names = set()
-    for node in parsing.walk(root, ast.Name):
+    for node in core.walk(root, ast.Name):
         if isinstance(node.ctx, ast.Load):
             referenced_names.add(node.id)
         elif isinstance(node.ctx, ast.Store):
             defined_names.add(node.id)
-    for node in parsing.walk(root, ast.arg):
+    for node in core.walk(root, ast.arg):
         defined_names.add(node.arg)
 
     return (
@@ -353,13 +353,13 @@ def fix_starred_imports(source: str) -> str:
     # test. If a fix is found (a fix should be found), this could be simplified to better
     # use set/dict keys() - keys() operations etc.
 
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     template = ast.ImportFrom(names=[ast.alias(name="*")])
 
     starred_import_name_mapping = collections.defaultdict(set)
 
-    template = tuple(parsing.filter_nodes(root.body, template))
+    template = tuple(core.filter_nodes(root.body, template))
 
     if not template:
         return source
@@ -369,7 +369,7 @@ def fix_starred_imports(source: str) -> str:
         if trace_result := trace_origin(name, source):
             *_, node = trace_result
 
-            if parsing.match_template(node, template):
+            if core.match_template(node, template):
                 starred_import_name_mapping[node].add(name)
 
     for node, names in starred_import_name_mapping.items():
@@ -381,15 +381,15 @@ def fix_starred_imports(source: str) -> str:
             )
 
     # Remove remaining starred imports
-    for node in parsing.filter_nodes(root.body, template):
-        if not parsing.match_template(node, tuple(starred_import_name_mapping)):
+    for node in core.filter_nodes(root.body, template):
+        if not core.match_template(node, tuple(starred_import_name_mapping)):
             yield node, None
 
 
 def fix_reimported_names(source: str) -> str:
     """Remove reimported names from imports."""
 
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     all_template = ast.Assign(
         targets=[ast.Name(id="__all__")], value=ast.List(elts={ast.Constant(value=str)})
@@ -400,19 +400,19 @@ def fix_reimported_names(source: str) -> str:
     replacements = {}
 
     import_insert_lineno = min(
-        (node.lineno for node in parsing.walk(root, (ast.ImportFrom, ast.Import))), default=-1
+        (node.lineno for node in core.walk(root, (ast.ImportFrom, ast.Import))), default=-1
     )
     if import_insert_lineno == -1:
         return source  # No imports, nothing to do
 
-    for node in parsing.walk(root, ast.ImportFrom):
+    for node in core.walk(root, ast.ImportFrom):
         if node.module in constants.PYTHON_311_STDLIB:
             continue
 
         if node.module is None:
             continue
 
-        origin = trace_module_source_file(node.module)
+        origin = _trace_module_source_file(node.module)
         if origin in {"frozen", "built-in", None}:
             continue
 
@@ -426,8 +426,8 @@ def fix_reimported_names(source: str) -> str:
         with origin.open("r", encoding="utf-8") as stream:
             module_source = stream.read()
 
-        module_root = parsing.parse(module_source)
-        if any(parsing.filter_nodes(module_root.body, all_template)):
+        module_root = core.parse(module_source)
+        if any(core.filter_nodes(module_root.body, all_template)):
             continue
 
         node_names = []

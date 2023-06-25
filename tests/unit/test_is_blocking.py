@@ -3,11 +3,11 @@
 import ast
 import sys
 
-from pyrefact import parsing
+from pyrefact import core, parsing
 
 
 def main() -> int:
-    """Test parsing.is_blocking
+    """Test core.is_blocking
 
     Returns:
         int: 1 if the function behaves incorrectly, otherwise 0
@@ -81,8 +81,8 @@ for i in something:
     raise ValueError()
 """,
     ):
-        node = parsing.parse(source).body[0]
-        if not parsing.is_blocking(node):
+        node = core.parse(source).body[0]
+        if not core.is_blocking(node):
             continue
 
         print("Ast is blocking, but should not be:")
@@ -156,8 +156,8 @@ else:
     return 0
 """,
     ):
-        node = parsing.parse(source).body[0]
-        if parsing.is_blocking(node):
+        node = core.parse(source).body[0]
+        if core.is_blocking(node):
             continue
 
         print("Ast is not blocking, but should be:")

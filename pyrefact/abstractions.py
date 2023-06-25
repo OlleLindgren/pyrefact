@@ -4,7 +4,7 @@ import itertools
 import re
 from typing import Collection, Iterable, Sequence, Tuple
 
-from pyrefact import constants, parsing, processing, style, tracing
+from pyrefact import constants, core, parsing, processing, style, tracing
 
 
 class _EverythingContainer:
@@ -81,16 +81,16 @@ def _possible_external_effects(node: ast.AST, safe_callables: Collection[str]) -
     Yields:
         ast.AST: Node that could potentially be encountered, and that may have some effect.
     """
-    comprehension_local_vars = {comp.target for comp in parsing.walk(node, ast.comprehension)}
-    for child in parsing.walk(
+    comprehension_local_vars = {comp.target for comp in core.walk(node, ast.comprehension)}
+    for child in core.walk(
         node, (ast.Name(ctx=ast.Store), ast.Subscript(ctx=ast.Store, value=ast.Name))
     ):
         if child not in comprehension_local_vars:
             yield child
     halting_types = (ast.Yield, ast.YieldFrom, ast.Continue, ast.Break, ast.Return)
-    for child in parsing.walk(node, halting_types):
+    for child in core.walk(node, halting_types):
         yield child
-    for child in parsing.walk(node, ast.Call):
+    for child in core.walk(node, ast.Call):
         if not (isinstance(child.func, ast.Name) and child.func.id in safe_callables):
             yield child
 
@@ -120,7 +120,7 @@ def _definite_external_effects(
             hash_node(n, safe_callables): n
             for n in _definite_external_effects(child, safe_callables)
         })
-        if parsing.is_blocking(node):
+        if core.is_blocking(node):
             break
     orelse_effects = {}
     for child in node.body:
@@ -128,7 +128,7 @@ def _definite_external_effects(
             hash_node(n, safe_callables): n
             for n in _definite_external_effects(child, safe_callables)
         })
-        if parsing.is_blocking(node):
+        if core.is_blocking(node):
             break
     for key in body_effects.keys() & orelse_effects:
         yield body_effects[key]
@@ -136,9 +136,9 @@ def _definite_external_effects(
 
 def _definite_stored_names(node: ast.AST) -> Iterable[str]:
     for child in _definite_external_effects(node, _EverythingContainer()):
-        if parsing.match_template(child, ast.Name(ctx=ast.Store)):
+        if core.match_template(child, ast.Name(ctx=ast.Store)):
             yield child.id
-        elif parsing.match_template(child, ast.Subscript(ctx=ast.Store, value=ast.Name)):
+        elif core.match_template(child, ast.Subscript(ctx=ast.Store, value=ast.Name)):
             yield child.value.id
 
 
@@ -312,7 +312,7 @@ def _get_constant_insertion_lineno(scope: ast.AST) -> int:
 
 
 def create_abstractions(source: str) -> str:
-    root = parsing.parse(source)
+    root = core.parse(source)
     global_names = (
         _scoped_dependencies(root) | tracing.get_imported_names(root) | constants.BUILTIN_FUNCTIONS
     )
@@ -328,10 +328,10 @@ def create_abstractions(source: str) -> str:
     function_def_linenos = []
     import_linenos = []
 
-    for node in parsing.walk(root, (ast.AsyncFunctionDef, ast.FunctionDef)):
+    for node in core.walk(root, (ast.AsyncFunctionDef, ast.FunctionDef)):
         candidates = [node.lineno] + [x.lineno for x in node.decorator_list]
         function_def_linenos.append(min(candidates))
-    for node in parsing.walk(root, (ast.Import, ast.ImportFrom)):
+    for node in core.walk(root, (ast.Import, ast.ImportFrom)):
         import_linenos.append(node.lineno)
 
     for node in itertools.chain([root], parsing.iter_bodies_recursive(root)):
@@ -339,7 +339,7 @@ def create_abstractions(source: str) -> str:
             if len(nodes) > len(node.body) - 2:
                 continue
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and all(
-                parsing.match_template(child, (ast.Return, ast.Expr(value=ast.Constant)))
+                core.match_template(child, (ast.Return, ast.Expr(value=ast.Constant)))
                 or child in nodes
                 for child in node.body
             ):
@@ -349,7 +349,7 @@ def create_abstractions(source: str) -> str:
             assert len(purposes) == 1
             purpose = purposes.pop()
 
-            if parsing.match_template(nodes, [(ast.Assign, ast.AnnAssign)]):
+            if core.match_template(nodes, [(ast.Assign, ast.AnnAssign)]):
                 continue
 
             children_with_purpose = sum(
@@ -422,7 +422,7 @@ def create_abstractions(source: str) -> str:
                 function_call = ast.Assign(
                     targets=assign_targets, value=call, lineno=nodes[0].lineno
                 )
-                ifs = [c for n in nodes for c in parsing.walk(n, ast.If)]
+                ifs = [c for n in nodes for c in core.walk(n, ast.If)]
 
                 pure_nested_if = len(nodes) == 1 and all(
                     len(n.body) == len(n.orelse) == 1 for n in ifs
@@ -430,7 +430,7 @@ def create_abstractions(source: str) -> str:
                 function_body = _build_function_body(nodes, purpose[0] if pure_nested_if else None)
                 if not pure_nested_if:
                     if not isinstance(nodes[0], (ast.Assign, ast.AnnAssign)) and not all(
-                        len(n.body) == len(n.orelse) == 1 for n in parsing.walk(nodes[0], ast.If)
+                        len(n.body) == len(n.orelse) == 1 for n in core.walk(nodes[0], ast.If)
                     ):
                         continue
                     function_body.append(ast.Return(value=return_targets))
@@ -473,7 +473,7 @@ def create_abstractions(source: str) -> str:
             is_singular_return_reassignment = (
                 isinstance(function_call, ast.Assign)
                 and len(return_args) == 1
-                and parsing.match_template(
+                and core.match_template(
                     nodes_after_abstraction,
                     [(
                         ast.Return(value=ast.Name),
@@ -527,7 +527,7 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
     Returns:
         str: Modified source code
     """
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     template = (
         ast.Constant,
@@ -537,33 +537,33 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
         ast.List(elts={ast.Constant}),
     )
 
-    candidates = set(parsing.walk(root, template))
+    candidates = set(core.walk(root, template))
 
-    for fstring in parsing.walk(root, ast.JoinedStr):
-        for node in parsing.walk(fstring, ast.AST):
+    for fstring in core.walk(root, ast.JoinedStr):
+        for node in core.walk(fstring, ast.AST):
             candidates.discard(node)
 
     # For every node, all scopes it can be found in
     scope_node_definitions = collections.defaultdict(set)
     for scope in itertools.chain(
-        [root], parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef))
+        [root], core.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef))
     ):
-        for node in parsing.walk(scope, ast.AST):
+        for node in core.walk(scope, ast.AST):
             scope_node_definitions[node].add(scope)
 
-    for scope in itertools.chain([root], parsing.walk(root, ast.AST(body=list))):
-        if scope.body and parsing.match_template(scope.body[0], ast.Expr(value=ast.Constant)):
+    for scope in itertools.chain([root], core.walk(root, ast.AST(body=list))):
+        if scope.body and core.match_template(scope.body[0], ast.Expr(value=ast.Constant)):
             candidates.discard(scope.body[0].value)
 
     code_node_mapping = collections.defaultdict(set)
     for node in candidates:
-        code_node_mapping[parsing.unparse(node)].add(node)
+        code_node_mapping[core.unparse(node)].add(node)
 
     replacements = {}
     additions = set()
 
     i = 0
-    names = {name.id.lower() for name in parsing.walk(root, ast.Name)}
+    names = {name.id.lower() for name in core.walk(root, ast.Name)}
     while f"pyrefact_overused_constant_{i}" in names and i < 10:
         i += 1
 
@@ -588,7 +588,7 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
         )
 
         name = ast.Name(id=variable_name)
-        assign = parsing.parse(f"{variable_name} = {code}").body[0]
+        assign = core.parse(f"{variable_name} = {code}").body[0]
         assign.lineno = _get_constant_insertion_lineno(best_common_scope)
         assign.col_offset = best_common_scope.body[0].col_offset
         additions.add(assign)
@@ -598,29 +598,29 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
 
 
 def simplify_if_control_flow(source: str) -> str:
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     # This should run after the first run of breakout_common_code_in_ifs(), so that code that
     # can be broken out without this having run first can be broken out first. That way, this
     # doesn't trigger unless it enables breakout_common_code_in_ifs() to do work it wouldn't
     # otherwise have done.
 
-    for node in parsing.walk(root, ast.If):
+    for node in core.walk(root, ast.If):
         if not node.orelse:
             continue
 
         # Assignments make things more complicated. For example, the variables fed into the
         # if body/orelse blocks may be mutated and then used later on, or they may be changed
         # inside the node, etc. I won't deal with these cases for now.
-        if any(parsing.walk(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr))):
+        if any(core.walk(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr))):
             continue
 
         node_body_names = sorted(
-            (name for n in node.body for name in parsing.walk(n, ast.Name)),
+            (name for n in node.body for name in core.walk(n, ast.Name)),
             key=lambda n: (n.lineno, n.col_offset),
         )
         node_orelse_names = sorted(
-            (name for n in node.orelse for name in parsing.walk(n, ast.Name)),
+            (name for n in node.orelse for name in core.walk(n, ast.Name)),
             key=lambda n: (n.lineno, n.col_offset),
         )
         if len(node_body_names) != len(node_orelse_names):
@@ -644,7 +644,7 @@ def simplify_if_control_flow(source: str) -> str:
         bodies = [node.body, node.orelse]
 
         body_equivalent_function_srcs = [[
-            parsing.unparse(
+            core.unparse(
                 ast.FunctionDef(
                     name="func",
                     args=ast.arguments(
@@ -691,7 +691,7 @@ def simplify_if_control_flow(source: str) -> str:
         if len(unique_srcs) != 1:
             continue
 
-        added_code_chars = sum(len(parsing.unparse(addition)) for addition in additions)
+        added_code_chars = sum(len(core.unparse(addition)) for addition in additions)
         removed_code_chars = len(unique_srcs.pop())
 
         if added_code_chars > removed_code_chars / 2:

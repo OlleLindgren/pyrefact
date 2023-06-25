@@ -182,13 +182,13 @@ def uses_numpy(root: ast.Module) -> bool:
     # If np.something is referenced anywhere, assume it uses numpy as well.
     return any(
         isinstance(node.value, ast.Name) and node.value.id in {"numpy", "np"}
-        for node in parsing.walk(root, ast.Attribute)
+        for node in core.walk(root, ast.Attribute)
     )
 
 
 def _only_if_uses_numpy(f: Callable) -> Callable:
     def wrapper(source: str) -> str:
-        root = parsing.parse(source)
+        root = core.parse(source)
         if not uses_numpy(root):
             return source
 
@@ -281,10 +281,10 @@ def wrap_transpose(node: ast.AST) -> ast.Attribute:
 def simplify_matmul_transposes(source: str) -> str:
     '''Replace np.matmul(a.T, b.T).T with np.matmul(b, a), if found.'''
 
-    root = parsing.parse(source)
+    root = core.parse(source)
     replacements = {}
 
-    for node in parsing.walk(root, ast.Attribute):
+    for node in core.walk(root, ast.Attribute):
         if parsing.is_transpose_operation(node):
             target = parsing.transpose_target(node)
             if isinstance(target, ast.Call) and _is_np_matmul_call(target):
@@ -306,11 +306,11 @@ def simplify_matmul_transposes(source: str) -> str:
 
 # @_only_if_uses_numpy
 # def replace_implicit_dot(source: str) -> str:
-#     root = parsing.parse(source)
+#     root = core.parse(source)
 
 #     replacements = {}
 
-#     for call in filter(_is_sum_call, parsing.walk(root, ast.Call)):
+#     for call in filter(_is_sum_call, core.walk(root, ast.Call)):
 #         if (
 #             len(call.args) == 1
 #             and not call.keywords
@@ -327,11 +327,11 @@ def simplify_matmul_transposes(source: str) -> str:
 
 @_only_if_uses_numpy
 def replace_implicit_matmul(source: str) -> str:
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     replacements = {}
 
-    for call in filter(_is_np_array_call, parsing.walk(root, ast.Call)):
+    for call in filter(_is_np_array_call, core.walk(root, ast.Call)):
         if len(call.args) == 1 and not call.keywords:
             comp_outer = call.args[0]
             if (
@@ -403,13 +403,13 @@ def uses_numpy(root: ast.Module) -> bool:
     # If np.something is referenced anywhere, assume it uses numpy as well.
     return any(
         isinstance(node.value, ast.Name) and node.value.id in {"numpy", "np"}
-        for node in parsing.walk(root, ast.Attribute)
+        for node in core.walk(root, ast.Attribute)
     )
 
 
 def _only_if_uses_numpy(f: Callable) -> Callable:
     def wrapper(source: str) -> str:
-        root = parsing.parse(source)
+        root = core.parse(source)
         if not uses_numpy(root):
             return source
 
@@ -464,10 +464,10 @@ def wrap_transpose(node: ast.AST) -> ast.Attribute:
 def simplify_matmul_transposes(source: str) -> str:
     '''Replace np.matmul(a.T, b.T).T with np.matmul(b, a), if found.'''
 
-    root = parsing.parse(source)
+    root = core.parse(source)
     replacements = {}
 
-    for node in parsing.walk(root, ast.Attribute):
+    for node in core.walk(root, ast.Attribute):
         if parsing.is_transpose_operation(node):
             target = parsing.transpose_target(node)
             if isinstance(target, ast.Call) and _is_np_matmul_call(target):
@@ -489,11 +489,11 @@ def simplify_matmul_transposes(source: str) -> str:
 
 @_only_if_uses_numpy
 def replace_implicit_matmul(source: str) -> str:
-    root = parsing.parse(source)
+    root = core.parse(source)
 
     replacements = {}
 
-    for call in filter(_is_np_array_call, parsing.walk(root, ast.Call)):
+    for call in filter(_is_np_array_call, core.walk(root, ast.Call)):
         if len(call.args) == 1 and not call.keywords:
             comp_outer = call.args[0]
             if (
