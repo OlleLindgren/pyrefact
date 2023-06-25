@@ -24,8 +24,8 @@ import numpy
 import numpy
 list(a)
 list(a)
-[a_ for a_ in a]
-[a_ for a_ in a.T]
+list(a)
+list(a.T)
         """,
         ),
         (
@@ -40,8 +40,8 @@ import numpy
 import numpy
 iter(a)
 iter(a)
-(a_ for a_ in a)
-(a_ for a_ in a.T)
+iter(a)
+iter(a.T)
         """,
         ),
         (
@@ -59,10 +59,10 @@ import numpy as np
 import numpy as np
 [
     [
-        np.dot(b_, a_)
-        for b_ in b.T
+        np.dot(b_i, a_j)
+        for b_i in zip(*b)
     ]
-    for a_ in a
+    for a_j in a
 ]
         """,
         ),

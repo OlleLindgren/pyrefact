@@ -195,137 +195,115 @@ def _wrap_transpose(node: ast.AST) -> ast.Call:
     return ast.Call(func=ast.Name(id="zip"), args=[ast.Starred(value=node)], keywords=[])
 
 
-def replace_subscript_looping(source: str) -> str:
+@processing.fix(restart_on_replace=True)
+def _replace_subscript_looping_simple_cases(source: str) -> str:
+    yield from processing.find_replace(
+        source,
+        find="[{{sequence}}[{{index}}] for {{index}} in range(len({{sequence}}))]",
+        replace="list({{sequence}})",
+    )
+    yield from processing.find_replace(
+        source,
+        find="[{{sequence}}[{{index}}, :] for {{index}} in range(len({{sequence}}))]",
+        replace="list({{sequence}})",
+    )
+    yield from processing.find_replace(
+        source,
+        find="[{{sequence}}[{{index}}] for {{index}} in range({{sequence}}.shape[0])]",
+        replace="list({{sequence}})",
+    )
+    yield from processing.find_replace(
+        source,
+        find="[{{sequence}}[{{index}}, :] for {{index}} in range({{sequence}}.shape[0])]",
+        replace="list({{sequence}})",
+    )
+    yield from processing.find_replace(
+        source,
+        find="[{{sequence}}[:, {{index}}] for {{index}} in range({{sequence}}.shape[1])]",
+        replace="list({{sequence}}.T)",
+    )
+    yield from processing.find_replace(
+        source,
+        find="({{sequence}}[{{index}}] for {{index}} in range(len({{sequence}})))",
+        replace="iter({{sequence}})",
+    )
+    yield from processing.find_replace(
+        source,
+        find="({{sequence}}[{{index}}, :] for {{index}} in range(len({{sequence}})))",
+        replace="iter({{sequence}})",
+    )
+    yield from processing.find_replace(
+        source,
+        find="({{sequence}}[{{index}}] for {{index}} in range({{sequence}}.shape[0]))",
+        replace="iter({{sequence}})",
+    )
+    yield from processing.find_replace(
+        source,
+        find="({{sequence}}[{{index}}, :] for {{index}} in range({{sequence}}.shape[0]))",
+        replace="iter({{sequence}})",
+    )
+    yield from processing.find_replace(
+        source,
+        find="({{sequence}}[:, {{index}}] for {{index}} in range({{sequence}}.shape[1]))",
+        replace="iter({{sequence}}.T)",
+    )
+
+
+@processing.fix
+def _replace_subscript_looping_complex_cases(source: str) -> str:
+    target_template = parsing.Wildcard("target", ast.Name, common=True)
+    index_template = parsing.Wildcard("index", ast.Name, common=True)
+    target_length_template = parsing.compile_template((
+        "len({{target}})", "{{target}}.shape[0]"
+        ),
+        target=target_template,
+    )
+    target_length_template_transpose = parsing.compile_template((
+        "len({{target}}.T)", "{{target}}.shape[1]"
+        ),
+        target=target_template,
+    )
+    target_indexed_template = parsing.compile_template(
+        "{{target}}[{{index}}]", target=target_template, index=index_template
+    )
+    comprehension_template = ast.comprehension(
+        target=index_template,
+        iter=ast.Call(func=ast.Name(id="range"), args=[(target_length_template, target_length_template_transpose)]),
+        ifs=[],
+    )
+    comp_template = (
+        ast.ListComp(generators=[comprehension_template]),
+        ast.GeneratorExp(generators=[comprehension_template]),
+        ast.SetComp(generators=[comprehension_template]),
+        ast.DictComp(generators=[comprehension_template]),
+    )
     root = parsing.parse(source)
+    for template_match in parsing.walk_wildcard(root, comp_template):
+        comprehension = template_match.root.generators[0]
+        target_indexed_template = parsing.compile_template(
+            ("{{target}}[{{index}}]", "{{target}}[{{index}}, :]", "{{target}}[:, {{index}}]"),
+            target=template_match.target,
+            index=template_match.index,
+        )
+        target_indexed_nodes = set(parsing.walk(template_match.root, target_indexed_template))
+        target_used_nodes = set(parsing.walk(template_match.root, template_match.target)) - {comprehension.target}
 
-    replacements = {}
+        if len(target_indexed_nodes) == len(target_used_nodes):
+            new_index_name = f"{template_match.target.id}_{template_match.index.id}"
 
-    generator_comp_template = ast.comprehension(
-        target=ast.Name, iter=ast.Call(func=ast.Name(id="range"))
-    )
+            yield comprehension.target, ast.Name(id=new_index_name)
 
-    generator_template = (
-        ast.ListComp(generators=[generator_comp_template]),
-        ast.SetComp(generators=[generator_comp_template]),
-        ast.GeneratorExp(generators=[generator_comp_template]),
-    )
-
-    for comp in parsing.walk(root, generator_template):
-        wrapper_function = parsing.get_comp_wrapper_func_equivalent(comp)
-
-        elt_subscripts = {
-            node
-            for node in parsing.walk(comp.elt, ast.Subscript)
-            if isinstance(node.value, (ast.Attribute, ast.Name))
-            and any(
-                {name.id for name in parsing.walk(node, ast.Name)}
-                & {name.id for name in parsing.walk(comp.generators[0], ast.Name)}
-        )}
-        if not all(
-            parsing.match_template(
-                subscript, ast.Subscript(value=(ast.Name, ast.Attribute(value=ast.Name)))
-            )
-            for subscript in elt_subscripts
-        ):
-            continue
-
-        subscript_name = comp.generators[0].target.id
-        subscripted_names = {
-            subscript.value.id
-            if isinstance(subscript.value, ast.Name)
-            else subscript.value.value.id
-            for subscript in elt_subscripts
-        }
-        if len(subscripted_names) != 1:
-            continue
-        subscripted_name = subscripted_names.pop()
-
-        if not all(
-            parsing.match_template(subscript, ast.Subscript(value=ast.Name(id=subscripted_name)))
-            and (
-                parsing.match_template(
-                    parsing.slice_of(subscript),
-                    (
-                        ast.Name(id=subscript_name),
-                        ast.Tuple(
-                            elts=[(
-                                ast.Slice,
-                                ast.Name(id=subscript_name),
-                                ast.Index(value=ast.Name(id=subscript_name)),
-                            )]
-                            * 2
-            ),),))
-            for subscript in elt_subscripts
-        ):
-            # All subscripts are not a[i, :], a[:, i] or a[i]
-            continue
-
-        uses_of_subscript_name = set(parsing.walk(comp.elt, ast.Name(id=subscript_name)))
-        for subscript in parsing.walk(comp.elt, ast.Subscript):
-            for value in parsing.walk(parsing.slice_of(subscript), ast.Name):
-                uses_of_subscript_name.discard(value)
-
-        if uses_of_subscript_name:
-            # i is used for something other than subscripting a
-            continue
-
-        iterated_node = comp.generators[0].iter
-
-        if parsing.match_template(
-            iterated_node.args,
-            [ast.Call(func=ast.Name(id="len"), args=[ast.Name(id=subscripted_name)])],
-        ) and parsing.match_template(
-            comp.elt,
-            ast.Subscript(
-                value=ast.Name(id=subscripted_name),
-                slice=(
-                    ast.Index(value=ast.Name(id=subscript_name)),
-                    ast.Tuple(
-                        elts=[  # python >= 3.9
-                            ast.Index(value=ast.Name(id=subscript_name)),
-                            ast.Slice(),
-                    ]),
-                    ast.ExtSlice(
-                        dims=[  # python <= 3.8
-                            ast.Index(value=ast.Name(id=subscript_name)),
-                            ast.Slice(),
-        ]),),),):
-            replacements[comp] = ast.Call(
-                func=ast.Name(id=wrapper_function),
-                args=[ast.Name(id=subscripted_name)],
-                keywords=[],
-            )
-            break
-
-        if not parsing.match_template(
-            iterated_node.args,
-            [ast.Subscript(value=ast.Attribute(value=ast.Name(id=subscripted_name), attr="shape"))],
-        ):
-            continue
-
-        if parsing.match_template(parsing.slice_of(iterated_node.args[0]), ast.Constant(value=1)):
-            if performance_numpy.uses_numpy(root):
-                transposed_name = performance_numpy.wrap_transpose(ast.Name(id=subscripted_name))
+            if parsing.match_template(comprehension.iter.args[0], target_length_template):
+                yield comprehension.iter, template_match.target
             else:
-                transposed_name = _wrap_transpose(ast.Name(id=subscripted_name))
-            replacements[comp.generators[0].iter] = transposed_name
-            target_name = ast.Name(id=f"{subscripted_name}_")
-            replacements[comp.generators[0].target] = target_name
-            for subscript in elt_subscripts:
-                replacements[subscript] = target_name
-            break
+                yield comprehension.iter, _wrap_transpose(template_match.target)
 
-        if parsing.match_template(parsing.slice_of(iterated_node.args[0]), ast.Constant(value=0)):
-            replacements[comp.generators[0].iter] = ast.Name(id=subscripted_name)
-            target_name = ast.Name(id=f"{subscripted_name}_")
-            replacements[comp.generators[0].target] = target_name
-            for subscript in elt_subscripts:
-                replacements[subscript] = target_name
-            break
+            for node in target_indexed_nodes:
+                yield node, ast.Name(id=new_index_name)
 
-    source = processing.replace_nodes(source, replacements)
 
-    if replacements:
-        return replace_subscript_looping(source)
+def replace_subscript_looping(source: str) -> str:
+    source = _replace_subscript_looping_simple_cases(source)
+    source = _replace_subscript_looping_complex_cases(source)
 
     return source
