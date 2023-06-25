@@ -2670,25 +2670,31 @@ def remove_duplicate_set_elts(source: str) -> str:
 def replace_collection_add_update_with_collection_literal(source: str) -> str:
     root = parsing.parse(source)
 
-    target_template = parsing.Wildcard("common_target", ast.Name(id=str))
-    assign_template = ast.Assign(
-        targets=[target_template], value=(ast.Set, ast.List, ast.SetComp, ast.ListComp)
-    )
+    target_template = parsing.Wildcard("common_target", ast.Name(id=str), common=True)
+    assign_template = parsing.compile_template("{{common_target}} = {{other}}", other=(ast.List, ast.Set, ast.ListComp, ast.SetComp), common_target=target_template)
     modify_template = ast.Expr(
         value=ast.Call(
             func=ast.Attribute(
                 value=target_template,
-                attr=parsing.Wildcard("func", ("add", "update", "append", "extend"), common=False),
+                attr=("add", "update", "append", "extend"),
             ),
-            args=[parsing.Wildcard("arg", object, common=False)],
             keywords=[],
     ))
     template = [assign_template, modify_template]
     for node, *matches in parsing.walk_sequence(root, *template, expand_last=True):
         assigned_value = node.root.value
-        other_elts = [
-            m.arg if m.func in {"add", "append"} else ast.Starred(value=m.arg) for m in matches
-        ]
+        other_elts = []
+        for m in matches:
+            if m[0].value.func.attr in ("append", "add"):
+                other_elts.append(m[0].value.args[0])
+            elif m[0].value.func.attr in ("extend", "update"):
+                for arg in m[0].value.args:
+                    if isinstance(arg, (ast.List, ast.Tuple)):
+                        other_elts.extend(arg.elts)
+                    else:
+                        other_elts.append(ast.Starred(value=arg))
+            else:
+                raise RuntimeError(f"Unexpected match type found: {type(m[0].value.func.attr)}")
         if isinstance(assigned_value, (ast.List, ast.Set)):
             elts = assigned_value.elts + other_elts
 
@@ -3105,40 +3111,40 @@ def simplify_assign_immediate_return(source: str) -> str:
 def missing_context_manager(source: str) -> str:
     root = parsing.parse(source)
 
-    func_template = (
-        parsing.compile_template("open"),
-        parsing.compile_template("requests.Session"),
-        parsing.compile_template("sqlite3.connect"),
-        parsing.compile_template("tempfile.TemporaryFile"),
-        parsing.compile_template("tempfile.NamedTemporaryFile"),
-        parsing.compile_template("tempfile.TemporaryDirectory"),
-        parsing.compile_template("zipfile.ZipFile"),
-        parsing.compile_template("tarfile.TarFile"),
-        parsing.compile_template("gzip.GzipFile"),
-        parsing.compile_template("bz2.BZ2File"),
-        parsing.compile_template("lzma.LZMAFile"),
-        parsing.compile_template("socket.socket"),
-        parsing.compile_template("threading.Lock"),
-        parsing.compile_template("threading.RLock"),
-        parsing.compile_template("multiprocessing.Pool"),
-        parsing.compile_template("multiprocessing.Lock"),
-        parsing.compile_template("multiprocessing.RLock"),
-        parsing.compile_template("subprocess.Popen"),
-        parsing.compile_template("ftplib.FTP"),
-        parsing.compile_template("ftplib.FTP_TLS"),
-        parsing.compile_template("smtplib.SMTP"),
-        parsing.compile_template("smtplib.SMTP_SSL"),
-        parsing.compile_template("imaplib.IMAP4"),
-        parsing.compile_template("imaplib.IMAP4_SSL"),
-        parsing.compile_template("poplib.POP3"),
-        parsing.compile_template("poplib.POP3_SSL"),
-        parsing.compile_template("ssl.wrap_socket"),
-        parsing.compile_template("psycopg2.connect"),
-        parsing.compile_template("pymysql.connect"),
-        parsing.compile_template("pyodbc.connect"),
-        parsing.compile_template("connection.cursor"),
-        parsing.compile_template("con.cursor"),
-    )
+    func_template = parsing.compile_template((
+        "open",
+        "requests.Session",
+        "sqlite3.connect",
+        "tempfile.TemporaryFile",
+        "tempfile.NamedTemporaryFile",
+        "tempfile.TemporaryDirectory",
+        "zipfile.ZipFile",
+        "tarfile.TarFile",
+        "gzip.GzipFile",
+        "bz2.BZ2File",
+        "lzma.LZMAFile",
+        "socket.socket",
+        "threading.Lock",
+        "threading.RLock",
+        "multiprocessing.Pool",
+        "multiprocessing.Lock",
+        "multiprocessing.RLock",
+        "subprocess.Popen",
+        "ftplib.FTP",
+        "ftplib.FTP_TLS",
+        "smtplib.SMTP",
+        "smtplib.SMTP_SSL",
+        "imaplib.IMAP4",
+        "imaplib.IMAP4_SSL",
+        "poplib.POP3",
+        "poplib.POP3_SSL",
+        "ssl.wrap_socket",
+        "psycopg2.connect",
+        "pymysql.connect",
+        "pyodbc.connect",
+        "connection.cursor",
+        "con.cursor",
+    ))
 
     template = ast.Assign(
         targets=[parsing.Wildcard("target", ast.Name(id=str))],
