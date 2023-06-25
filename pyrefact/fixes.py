@@ -773,7 +773,31 @@ def delete_pointless_statements(source: str) -> str:
     return source
 
 
-def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> Iterable[ast.AST]:
+def _iter_unreachable_nodes(body: Iterable[ast.AST]) -> Iterable[ast.AST]:
+    after_block = False
+    for node in body:
+        if after_block:
+            yield node
+            continue
+        if parsing.is_blocking(node):
+            after_block = True
+
+
+@processing.fix
+def delete_unused_functions_and_classes(
+    source: str, preserve: Collection[str] = frozenset()
+) -> str:
+    """Delete unused functions and classes from code.
+
+    Args:
+        source (str): Python source code
+        preserve (Collection[str], optional): Names to preserve
+
+    Returns:
+        str: Python source code, where unused functions and classes have been deleted.
+    """
+    root = parsing.parse(source)
+
     funcdefs = []
     classdefs = []
     name_usages = collections.defaultdict(set)
@@ -783,6 +807,7 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
         for node in parsing.walk(root, ast.ClassDef)
         for funcdef in parsing.filter_nodes(node.body, (ast.FunctionDef, ast.AsyncFunctionDef))
         if f"{node.name}.{funcdef.name}" in preserve
+        or node.bases
     }
 
     for node in parsing.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -818,7 +843,7 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
             constructor_usages = set()
         recursive_usages = set(parsing.walk(def_node, ast.Name(id=def_node.name)))
         if not (usages | constructor_usages) - recursive_usages:
-            yield def_node
+            yield def_node, None
 
     for def_node in classdefs:
         usages = name_usages[def_node.name]
@@ -826,37 +851,7 @@ def _get_unused_functions_classes(root: ast.AST, preserve: Collection[str]) -> I
             parsing.walk(def_node, ast.Name(ctx=ast.Load, id=(def_node.name, "self", "cls")))
         )
         if not usages - internal_usages:
-            yield def_node
-
-
-def _iter_unreachable_nodes(body: Iterable[ast.AST]) -> Iterable[ast.AST]:
-    after_block = False
-    for node in body:
-        if after_block:
-            yield node
-            continue
-        if parsing.is_blocking(node):
-            after_block = True
-
-
-@processing.fix
-def delete_unused_functions_and_classes(
-    source: str, preserve: Collection[str] = frozenset()
-) -> str:
-    """Delete unused functions and classes from code.
-
-    Args:
-        source (str): Python source code
-        preserve (Collection[str], optional): Names to preserve
-
-    Returns:
-        str: Python source code, where unused functions and classes have been deleted.
-    """
-    root = parsing.parse(source)
-
-    delete = set(_get_unused_functions_classes(root, preserve))
-    for node in delete:
-        yield node, None
+            yield def_node, None
 
 
 def delete_unreachable_code(source: str) -> str:
