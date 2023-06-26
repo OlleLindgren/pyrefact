@@ -55,6 +55,41 @@ import os as sys
 import pandas as pd
             """,
         ),
+        (
+            """
+if foo():
+    from spam import eggs
+else:
+    from spam import spam
+            """,
+            """
+if foo():
+    from spam import eggs
+else:
+    from spam import spam
+            """,
+        ),
+        (
+            """
+from spam import eggs
+print(10)
+from spam import spam
+            """,
+            """
+from spam import eggs
+print(10)
+from spam import spam
+            """,
+        ),
+        (
+            """
+from spam import eggs
+from spam import spam
+            """,
+            """
+from spam import eggs, spam
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:

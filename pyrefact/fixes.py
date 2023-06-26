@@ -3233,36 +3233,55 @@ def missing_context_manager(source: str) -> str:
     return source
 
 
+def _group_statements_of_type(root: ast.AST, template: ast.AST) -> Sequence[Sequence[ast.AST]]:
+    """Get unique groups of imports, such that they're as long as possible, and don't overlap."""
+    groups = [
+        [m[0] for m in matches]
+        for matches in core.walk_sequence(
+            root, template, expand_first=True, expand_last=True
+    )]
+    node_groups = collections.defaultdict(list)
+    for group in groups:
+        for node in group:
+            node_groups[node].append(group)
+    node_groups = {node: max(node_groups, key=len) for node, node_groups in node_groups.items()}
+    groups = {id(group): group for group in node_groups.values()}.values()
+    groups = sorted(groups, key=lambda group: min(n.lineno for n in group))
+
+    return groups
+
+
 def _fix_duplicate_from_imports(source: str) -> str:
     """Remove duplicate from-style imports from the same module."""
     root = core.parse(source)
 
-    module_import_aliases = collections.defaultdict(set)
-    module_import_nodes = collections.defaultdict(list)
-
-    for node in core.walk(root, ast.ImportFrom):
-        module_import_aliases[node.module].update(
-            (alias.name, alias.asname if alias.asname != alias.name else None)
-            for alias in node.names
-        )
-        module_import_nodes[node.module].append(node)
-
     replacements = {}
     removals = set()
-    for module, import_nodes in module_import_nodes.items():
-        if len(import_nodes) > 1:
-            replacements[import_nodes[0]] = ast.ImportFrom(
-                module=module,
-                names=[
-                    ast.alias(name=name, asname=asname)
-                    for name, asname in sorted(
-                        module_import_aliases[module], key=lambda t: (t[0], t[1] is not None, t[1])
-                )],
-                level=import_nodes[0].level,
-            )
-            removals.update(import_nodes[1:])
+    for group in _group_statements_of_type(root, ast.ImportFrom):
+        module_import_aliases = collections.defaultdict(set)
+        module_import_nodes = collections.defaultdict(list)
 
-    if replacements:
+        for node in group:
+            module_import_aliases[node.module].update(
+                (alias.name, alias.asname if alias.asname != alias.name else None)
+                for alias in node.names
+            )
+            module_import_nodes[node.module].append(node)
+
+        for module, import_nodes in module_import_nodes.items():
+            if len(import_nodes) > 1:
+                replacements[import_nodes[0]] = ast.ImportFrom(
+                    module=module,
+                    names=[
+                        ast.alias(name=name, asname=asname)
+                        for name, asname in sorted(
+                            module_import_aliases[module], key=lambda t: (t[0], t[1] is not None, t[1])
+                    )],
+                    level=import_nodes[0].level,
+                )
+                removals.update(import_nodes[1:])
+
+    if replacements or removals:
         source = processing.alter_code(source, root, replacements=replacements, removals=removals)
         return _fix_duplicate_regular_imports(source)
 
@@ -3416,24 +3435,8 @@ def _import_group_key(node: ast.Import | ast.ImportFrom) -> Tuple[int, int]:
 
 def _sort_import_statements(source: str) -> str:
     root = core.parse(source)
-
-    # Get unique groups of imports, such that they're as long as possible, and don't overlap.
-    groups = [
-        [m[0] for m in matches]
-        for matches in core.walk_sequence(
-            root, (ast.Import, ast.ImportFrom), expand_first=True, expand_last=True
-    )]
-    node_groups = collections.defaultdict(list)
-    for group in groups:
-        for node in group:
-            node_groups[node].append(group)
-    node_groups = {node: max(node_groups, key=len) for node, node_groups in node_groups.items()}
-    groups = {id(group): group for group in node_groups.values()}.values()
-    groups = sorted(groups, key=lambda group: min(n.lineno for n in group))
-
-    # Sort each group.
     replacements = {}
-    for nodes in groups:
+    for nodes in _group_statements_of_type(root, (ast.Import, ast.ImportFrom)):
         if len(nodes) < 2 or set(nodes) & replacements.keys():
             continue
 
