@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import ast
 import collections
+import difflib
 import functools
 import heapq
 import re
 import textwrap
 from types import MappingProxyType
-from typing import Callable, Collection, Iterable, Literal, Mapping, NamedTuple, Sequence
+from typing import Callable, Collection, Iterable, Literal, Mapping, NamedTuple, Sequence, Tuple
 
 from pyrefact import core, formatting, logs as logger
 
@@ -17,9 +18,28 @@ MSG_INFO_REPLACE = """{fix_function_name:<40}: Replacing code:
 * -> *****************
 {new_code}
 **********************"""
+MSG_ERROR_REPLACE = """{fix_function_name:<40}: Failed to replace code:
+{old_code}
+* -> *****************
+{new_code}
+**********************"""
 MSG_INFO_REMOVE = """{fix_function_name:<40}: Removing code:
 {old_code}
 **********************"""
+MSG_ERROR_REMOVE = """{fix_function_name:<40}: Failed to remove code:
+{old_code}
+**********************"""
+
+
+def log_replacement(old: str, new: str | None, fix_function_name: str, valid: bool) -> None:
+    if new and valid:
+        logger.info(MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=old, new_code=new)
+    elif new and not valid:
+        logger.error(MSG_ERROR_REPLACE, fix_function_name=fix_function_name, old_code=old, new_code=new)
+    elif not new and valid:
+        logger.info(MSG_INFO_REMOVE, fix_function_name=fix_function_name, old_code=old)
+    elif not new and not valid:
+        logger.error(MSG_ERROR_REMOVE, fix_function_name=fix_function_name, old_code=old)
 
 
 class _Rewrite(NamedTuple):
@@ -195,6 +215,49 @@ def _sources_equivalent(source1: str, source2: ast.AST) -> bool:
     return _asts_equal(core.parse(source1), core.parse(source2))
 
 
+def minimize_whitespace_line_differences(source: str, new_source: str) -> Tuple[str, str, str]:
+    old_lines = source.splitlines(keepends=True)
+    new_lines = new_source.splitlines(keepends=True)
+
+    differ = difflib.Differ()
+    diffs = list(differ.compare(old_lines, new_lines))
+
+    segments = []
+    # Iterate through the differences
+    for identifier, _, *line in diffs:
+        line = "".join(line)
+        if not segments:
+            segments.append((identifier, [line]))
+        elif segments[-1][0] == identifier:
+            segments[-1][1].append(line)
+        else:
+            segments.append((identifier, [line]))
+
+    new_lines = []
+    for identifier, lines in segments:
+        if identifier == " ":  # Present in both
+            new_lines.extend(lines)
+        elif identifier == "+" and "".join(lines).strip():  # Present in new, not only whitespace
+            new_lines.extend(lines)
+        elif identifier == "-" and not "".join(lines).strip():  # Present in old, only whitespace
+            new_lines.extend(lines)
+
+    new_source = "".join(new_lines)
+
+    while old_lines and new_lines and old_lines[0] == new_lines[0]:
+        old_lines.pop(0)
+        new_lines.pop(0)
+
+    while old_lines and new_lines and old_lines[-1] == new_lines[-1]:
+        old_lines.pop()
+        new_lines.pop()
+
+    found = "".join(old_lines)
+    replaced = "".join(new_lines)
+
+    return new_source, found, replaced
+
+
 def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") -> str:
     old, new = rewrite
     start, end = _get_charnos(rewrite, source)
@@ -203,6 +266,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         new_code = new
         if new_code == code:
             return source
+
     elif isinstance(new, ast.AST):
         new_code = core.unparse(new)
     else:
@@ -217,18 +281,22 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
 
         candidate = source[: old.start] + new_code + source[old.end :]
         if new_code or core.is_valid_python(candidate):
-            new_code = candidate
+            choice = candidate
         else:
             pass_candidate = source[: old.start] + "pass" + source[old.end :]
             if core.is_valid_python(pass_candidate):
-                new_code = pass_candidate
+                choice = pass_candidate
             else:
-                new_code = candidate
+                choice = candidate
 
-        logger.debug(
-            MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=code, new_code=new_code
-        )
-        return new_code
+        new_source, old, new = minimize_whitespace_line_differences(source, choice)
+        valid = core.is_valid_python(new_source)
+        log_replacement(old, new, fix_function_name, valid)
+
+        if not core.is_valid_python(new_source):
+            return source
+
+        return new_source
 
     lines = new_code.splitlines(keepends=True)
     indent = getattr(old, "col_offset", getattr(new, "col_offset", 0))
@@ -252,12 +320,6 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         f"{' ' * indents[i]}{code}".rstrip() + ("\n" if code.endswith("\n") else "")
         for i, code in enumerate(lines)
     )
-    if new_code:
-        logger.debug(
-            MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=code, new_code=new_code
-        )
-    else:
-        logger.debug(MSG_INFO_REMOVE, fix_function_name=fix_function_name, old_code=code)
 
     candidate = source[:start] + new_code + source[end:]
 
@@ -271,7 +333,14 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         if core.is_valid_python(pass_candidate):
             candidate = pass_candidate
 
-    return candidate
+    new_source, old, new = minimize_whitespace_line_differences(source, candidate)
+    valid = core.is_valid_python(new_source)
+    log_replacement(old, new, fix_function_name, valid)
+
+    if not core.is_valid_python(new_source):
+        return source
+
+    return new_source
 
 
 def replace_nodes(source: str, replacements: Mapping[ast.AST, ast.AST | str]) -> str:
