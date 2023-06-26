@@ -267,7 +267,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
             candidate = candidate_parenthesized
 
     elif not new_code.strip() and not core.is_valid_python(candidate):
-        candidate = source[:start] + "pass" + source[end:]
+        pass_candidate = source[:start] + "pass" + source[end:]
         if core.is_valid_python(pass_candidate):
             candidate = pass_candidate
 
