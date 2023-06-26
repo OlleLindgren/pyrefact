@@ -96,10 +96,4 @@ The extension is published through the [VS Code Marketplace](https://marketplace
 
 ## Prerequisites
 
-### CPython
-
-Pyrefact requires `python>=3.8`, and is tested on CPython 3.8, 3.9, 3.10, 3.11 and 3.12. Pyrefact works best on `python>=3.9`.
-
-### Pypy
-
-Pyrefact is tested on Pypy3.10.
+Pyrefact is tested on CPython 3.8, 3.9, 3.10, 3.11 and 3.12, and on Windows, MacOS and Linux. Pyrefact is also tested on Pypy3.10.
