@@ -59,6 +59,14 @@ Unlike emerging AI tools, pyrefact is entirely rule based and does not share you
 * Add missing imports by guessing what you probably wanted.
   * For example, if `Sequence` is used but never defined, it will insert `from typing import Sequence` at the top of the file.
 
+## Installation
+
+Pyrefact can be installed with pip, and works on Python 3.8 or newer:
+
+```bash
+pip install pyrefact
+```
+
 ## Usage
 
 The `--preserve` flag lets you define places where code is used. When this is set, pyrefact will try to keep these usages intact.
