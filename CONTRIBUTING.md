@@ -10,9 +10,10 @@ If you're looking to contribute but aren't sure where to start, check out the op
 
 There are many ways you can directly contribute to Pyrefact:
 
-Fix bugs: Look through the GitHub issues for bugs. Anything tagged with "bug" is open to be fixed.
-Implement enhancements: Look through the GitHub issues for enhancements. This is a list of features that the community has requested.
-Improve documentation: Pyrefact could always use more documentation. Whether it's more comments in the code, more explanation in the readme, or better usage guides, helpful documentation is always a great contribution!
+* Open issues about problems: If you find a problem with Pyrefact, open an issue for it! User feedback is super valuable, so any and all suggestions for how to continue Pyrefact's development are welcome.
+* Fix bugs: Look through the GitHub issues for bugs. Anything tagged with "bug" is open to be fixed.
+* Implement enhancements: Look through the GitHub issues for enhancements. This is a list of features that the community has requested.
+* Improve documentation: Pyrefact could always use more documentation. Whether it's more comments in the code, more explanation in the readme, or better usage guides, helpful documentation is always a great contribution!
 
 ## Code Contributions
 
