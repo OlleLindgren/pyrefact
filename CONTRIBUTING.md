@@ -15,6 +15,26 @@ There are many ways you can directly contribute to Pyrefact:
 * Implement enhancements: Look through the GitHub issues for enhancements. This is a list of features that the community has requested.
 * Improve documentation: Pyrefact could always use more documentation. Whether it's more comments in the code, more explanation in the readme, or better usage guides, helpful documentation is always a great contribution!
 
+## Setting up a development environment
+
+Setting up a development environment is relatively straightforward; all you really need is to clone the repo, pip install it as editable source, and start making changes. There are no extra requirements or such, all you need is pyrefact itself:
+
+```bash
+git clone https://github.com/OlleLindgren/pyrefact.git
+cd pyrefact
+pip install -e .
+```
+
+To run the tests that go into the automated CI, just run:
+
+```bash
+cd pyrefact
+./tests/main.py
+./tests/numpy.sh
+```
+
+It does happen that tests pass on some python versions but not on others. If this happens, you'll need to install pyrefact on whatever python version it was that failed in the automated CI, and debug locally. In general, if `./tests/main.py` passes on both python3.8 and python3.12, all tests will pass in the automated CI. Differences in behaviour are less common with recent pyrefact versions than they used to be though, so testing on one python version is normally enough.
+
 ## Code Contributions
 
 Pyrefact is structured to apply a number of "fixes" in sequence after eacother, over and over until convergence or a maximum
