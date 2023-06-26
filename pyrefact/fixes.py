@@ -5,6 +5,8 @@ import collections
 import copy
 import itertools
 import re
+import textwrap
+from pathlib import Path
 from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 
 import rmspace
@@ -476,15 +478,19 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
         subscopes.append(getattr(scope, "finalbody", []))
 
     for node in itertools.chain.from_iterable(subscopes):
-        max_node_line_length = max(
-            child.end_col_offset for child in core.walk(node, ast.AST(end_col_offset=int))
-        )
-        if node in formatted_nodes or max_node_line_length <= max_line_length:
+        if node in formatted_nodes:
             continue
 
-        start, end = core.get_charnos(node, source, keep_first_indent=True)
+        source_range = core.get_charnos(node, source, keep_first_indent=True)
+        if any(source_range & r for r in formatted_ranges):
+            continue
 
-        current_code = source[start:end]
+        current_code = source[source_range.start:source_range.end]
+
+        indent = formatting.indentation_level(current_code)
+        if indent > 0:
+            current_code = textwrap.dedent(current_code)
+
         elif_pattern = r"(\A[\s\n]*)(el)(if)"
         if_pattern = r"(\A[\s\n]*)(if)"
         elif_matches = list(re.finditer(elif_pattern, current_code))
@@ -492,22 +498,22 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
             # Convert elif to if
             current_code = re.sub(elif_pattern, r"\g<1>\g<3>", current_code, 1)
             new_code = formatting.format_with_black(
-                current_code, line_length=max(60, max_line_length)
+                current_code, line_length=max(60, max_line_length - indent)
             )
             # Convert if to elif
             new_code = re.sub(if_pattern, r"\g<1>el\g<2>", new_code, 1)
         else:
             new_code = formatting.format_with_black(
-                current_code, line_length=max(60, max_line_length)
+                current_code, line_length=max(60, max_line_length - indent)
             )
 
+        if indent > 0:
+            new_code = textwrap.indent(new_code, " " * indent)
+
         new_code = formatting.collapse_trailing_parentheses(new_code)
-        formatted_range = core.Range(start, end)
-        if new_code != formatting.collapse_trailing_parentheses(current_code) and (
-            not any(rng & formatted_range for rng in formatted_ranges)
-        ):
-            yield formatted_range, new_code
-            formatted_ranges.add(formatted_range)
+        if new_code != formatting.collapse_trailing_parentheses(current_code):
+            yield source_range, new_code
+            formatted_ranges.add(source_range)
 
 
 def align_variable_names_with_convention(
@@ -1824,6 +1830,16 @@ def delete_commented_code(source: str) -> str:
 
                 if not (uncommented_block.strip() and core.is_valid_python(uncommented_block)):
                     continue
+                any_line_is_a_path = False
+                for line in filter(None, map(str.strip, uncommented_block.splitlines())):
+                    try:
+                        any_line_is_a_path |= Path(line).exists()
+                    except OSError:
+                        # Raised if a ling was too long. Which also means it's not a path.
+                        pass
+
+                if any_line_is_a_path:
+                    continue
 
                 parsed_content = core.parse(uncommented_block)
                 if (
@@ -1838,9 +1854,14 @@ def delete_commented_code(source: str) -> str:
 
                 # Magic comments should not be removed
                 if any(
-                    core.filter_nodes(parsed_content.body, ast.Expr(value=ast.Name(id="noqa")))
+                    core.filter_nodes(parsed_content.body, ast.Expr(value=ast.Name))
                 ):
                     continue
+                if any(
+                    core.filter_nodes(parsed_content.body, ast.NamedExpr(target=ast.Name))
+                ):
+                    continue
+
                 if any(
                     name.id in {"pylint", "mypy", "flake8", "noqa", "type"}
                     for annassign in core.walk(parsed_content, ast.AnnAssign)
@@ -2283,7 +2304,7 @@ def invalid_escape_sequence(source: str) -> str:
             yield node, "r" + code
 
 
-@processing.fix
+@processing.fix(restart_on_replace=True)
 def replace_filter_lambda_with_comp(source: str) -> str:
     """Replace filter(lambda ..., iterable) with equivalent list comprehension
 
@@ -2318,7 +2339,7 @@ def replace_filter_lambda_with_comp(source: str) -> str:
         yield replacement_range, replacement
 
 
-@processing.fix
+@processing.fix(restart_on_replace=True)
 def replace_map_lambda_with_comp(source: str) -> str:
     """Replace map(lambda ..., iterable) with equivalent list comprehension
 

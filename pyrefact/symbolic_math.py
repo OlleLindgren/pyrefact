@@ -244,7 +244,7 @@ def simplify_math_iterators(source: str) -> str:
             yield node, _sum_constants(arg.elts)
 
         elif core.match_template(arg, basic_comprehension_template):
-            if any(core.walk(arg, ast.Attribute)):
+            if any(core.walk(arg, (ast.Attribute, ast.Subscript))):
                 continue
             if not all(
                 core.match_template(node.func, ast.Name(id="range"))

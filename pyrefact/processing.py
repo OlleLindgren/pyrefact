@@ -215,7 +215,16 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         if new_code_lines == code_lines:
             return source
 
-        new_code = source[: old.start] + new_code + source[old.end :]
+        candidate = source[: old.start] + new_code + source[old.end :]
+        if new_code or core.is_valid_python(candidate):
+            new_code = candidate
+        else:
+            pass_candidate = source[: old.start] + "pass" + source[old.end :]
+            if core.is_valid_python(pass_candidate):
+                new_code = pass_candidate
+            else:
+                new_code = candidate
+
         logger.debug(
             MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=code, new_code=new_code
         )
@@ -255,7 +264,12 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
     if new_code.strip() and isinstance(old, ast.GeneratorExp):
         candidate_parenthesized = source[:start] + "(" + new_code + ")" + source[end:]
         if not _sources_equivalent(candidate, candidate_parenthesized):
-            return candidate_parenthesized
+            candidate = candidate_parenthesized
+
+    elif not new_code.strip() and not core.is_valid_python(candidate):
+        candidate = source[:start] + "pass" + source[end:]
+        if core.is_valid_python(pass_candidate):
+            candidate = pass_candidate
 
     return candidate
 

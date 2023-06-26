@@ -1,4 +1,6 @@
 """Code related to formatting"""
+import textwrap
+
 import black
 import compactify
 
@@ -14,11 +16,21 @@ def format_with_black(source: str, *, line_length: int = 100) -> str:
     Returns:
         str: Formatted source code.
     """
+    original_source = source
+    indent = indentation_level(source)
+    if indent > 0:
+        source = textwrap.dedent(source)
+
     try:
-        return black.format_str(source, mode=black.Mode(line_length=line_length))
+        source = black.format_str(source, mode=black.Mode(line_length=max(60, line_length - indent)))
     except (SyntaxError, black.parsing.InvalidInput):
         logger.error("Black raised InvalidInput on code:\n{}", source)
-        return source
+        return original_source
+
+    if indent > 0:
+        source = textwrap.indent(source, " " * indent)
+
+    return source
 
 
 def collapse_trailing_parentheses(source: str) -> str:
@@ -45,4 +57,4 @@ def _inspect_indentsize(line: str) -> int:
 
 def indentation_level(source: str) -> int:
     """Return the indentation level of source code."""
-    return min((_inspect_indentsize(line) for line in source.splitlines() if line.strip()))
+    return min((_inspect_indentsize(line) for line in source.splitlines() if line.strip()), default=0)
