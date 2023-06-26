@@ -432,8 +432,8 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
         def wrapper(source, *args, **kwargs):
             # Track rewrite history as an infinite loop guard
             history = set()
-            if restart_on_replace:
-                for _ in range(1000):  # Max 1000 iterations
+            for _ in range(1000):  # Max 1000 iterations
+                if restart_on_replace:
                     try:
                         old, new = next(
                             r for r in func(source, *args, **kwargs) if r not in history
@@ -444,14 +444,24 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
                     except StopIteration:
                         return source
 
-            rewrites = (_Rewrite(old, new or "") for old, new in func(source, *args, **kwargs))
-            if sort_order:
-                rewrites = sorted(
-                    set(rewrites), key=functools.partial(_get_charnos, source=source), reverse=True
-                )
+                else:
+                    rewrites = (_Rewrite(old, new or "") for old, new in func(source, *args, **kwargs))
+                    if sort_order:
+                        rewrites = sorted(
+                            ((_get_charnos(rewrite, source), rewrite) for rewrite in rewrites),
+                            key=lambda tup: tup[0],
+                            reverse=True,
+                        )
 
-            for rewrite in rewrites:
-                source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
+                    rewritten_ranges = []
+                    for rewrite_range, rewrite in rewrites:
+                        if any(rewrite_range & other for other in rewritten_ranges):
+                            logger.debug("Found rewrite that overlaps with previous rewrite. Restarting @fix loop.")
+                            break
+
+                        source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
+                    else:
+                        return source
 
             return source
 
