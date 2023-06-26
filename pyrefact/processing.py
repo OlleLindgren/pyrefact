@@ -31,11 +31,15 @@ MSG_ERROR_REMOVE = """{fix_function_name:<40}: Failed to remove code:
 **********************"""
 
 
-def log_replacement(old: str, new: str | None, fix_function_name: str, valid: bool) -> None:
+def _log_replacement(old: str, new: str | None, fix_function_name: str, valid: bool) -> None:
     if new and valid:
-        logger.info(MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=old, new_code=new)
+        logger.info(
+            MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=old, new_code=new
+        )
     elif new and not valid:
-        logger.error(MSG_ERROR_REPLACE, fix_function_name=fix_function_name, old_code=old, new_code=new)
+        logger.error(
+            MSG_ERROR_REPLACE, fix_function_name=fix_function_name, old_code=old, new_code=new
+        )
     elif not new and valid:
         logger.info(MSG_INFO_REMOVE, fix_function_name=fix_function_name, old_code=old)
     elif not new and not valid:
@@ -215,7 +219,7 @@ def _sources_equivalent(source1: str, source2: ast.AST) -> bool:
     return _asts_equal(core.parse(source1), core.parse(source2))
 
 
-def minimize_whitespace_line_differences(source: str, new_source: str) -> Tuple[str, str, str]:
+def _minimize_whitespace_line_differences(source: str, new_source: str) -> Tuple[str, str, str]:
     old_lines = source.splitlines(keepends=True)
     new_lines = new_source.splitlines(keepends=True)
 
@@ -289,9 +293,9 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
             else:
                 choice = candidate
 
-        new_source, old, new = minimize_whitespace_line_differences(source, choice)
+        new_source, old, new = _minimize_whitespace_line_differences(source, choice)
         valid = core.is_valid_python(new_source)
-        log_replacement(old, new, fix_function_name, valid)
+        _log_replacement(old, new, fix_function_name, valid)
 
         if not core.is_valid_python(new_source):
             return source
@@ -333,9 +337,9 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         if core.is_valid_python(pass_candidate):
             candidate = pass_candidate
 
-    new_source, old, new = minimize_whitespace_line_differences(source, candidate)
+    new_source, old, new = _minimize_whitespace_line_differences(source, candidate)
     valid = core.is_valid_python(new_source)
-    log_replacement(old, new, fix_function_name, valid)
+    _log_replacement(old, new, fix_function_name, valid)
 
     if not core.is_valid_python(new_source):
         return source
@@ -513,24 +517,27 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
                     except StopIteration:
                         return source
 
-                else:
-                    rewrites = (_Rewrite(old, new or "") for old, new in func(source, *args, **kwargs))
-                    if sort_order:
-                        rewrites = sorted(
-                            ((_get_charnos(rewrite, source), rewrite) for rewrite in rewrites),
-                            key=lambda tup: tup[0],
-                            reverse=True,
+                    continue
+
+                rewrites = (_Rewrite(old, new or "") for old, new in func(source, *args, **kwargs))
+                if sort_order:
+                    rewrites = sorted(
+                        ((_get_charnos(rewrite, source), rewrite) for rewrite in rewrites),
+                        key=lambda tup: tup[0],
+                        reverse=True,
+                    )
+
+                rewritten_ranges = []
+                for rewrite_range, rewrite in rewrites:
+                    if any(rewrite_range & other for other in rewritten_ranges):
+                        logger.debug(
+                            "Found rewrite that overlaps with previous rewrite. Restarting @fix loop."
                         )
+                        break
 
-                    rewritten_ranges = []
-                    for rewrite_range, rewrite in rewrites:
-                        if any(rewrite_range & other for other in rewritten_ranges):
-                            logger.debug("Found rewrite that overlaps with previous rewrite. Restarting @fix loop.")
-                            break
-
-                        source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
-                    else:
-                        return source
+                    source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
+                else:
+                    return source
 
             return source
 
@@ -587,9 +594,8 @@ def find_replace(
                 f,
                 **{
                     **{name.strip("{}"): object for name in re.findall(r"\{\{\w+\}\}", f)},
-                    **templates
-                }
-            )
+                    **templates,
+            },)
             for f in find
         )
     if isinstance(find, tuple) and len(find) == 1:

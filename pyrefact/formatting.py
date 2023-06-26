@@ -22,7 +22,9 @@ def format_with_black(source: str, *, line_length: int = 100) -> str:
         source = textwrap.dedent(source)
 
     try:
-        source = black.format_str(source, mode=black.Mode(line_length=max(60, line_length - indent)))
+        source = black.format_str(
+            source, mode=black.Mode(line_length=max(60, line_length - indent))
+        )
     except (SyntaxError, black.parsing.InvalidInput):
         logger.error("Black raised InvalidInput on code:\n{}", source)
         return original_source
@@ -57,4 +59,6 @@ def _inspect_indentsize(line: str) -> int:
 
 def indentation_level(source: str) -> int:
     """Return the indentation level of source code."""
-    return min((_inspect_indentsize(line) for line in source.splitlines() if line.strip()), default=0)
+    return min(
+        (_inspect_indentsize(line) for line in source.splitlines() if line.strip()), default=0
+    )

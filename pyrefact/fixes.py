@@ -485,7 +485,7 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
         if any(source_range & r for r in formatted_ranges):
             continue
 
-        current_code = source[source_range.start:source_range.end]
+        current_code = source[source_range.start : source_range.end]
 
         indent = formatting.indentation_level(current_code)
         if indent > 0:
@@ -813,8 +813,7 @@ def delete_unused_functions_and_classes(
         funcdef
         for node in core.walk(root, ast.ClassDef)
         for funcdef in core.filter_nodes(node.body, (ast.FunctionDef, ast.AsyncFunctionDef))
-        if f"{node.name}.{funcdef.name}" in preserve
-        or node.bases
+        if f"{node.name}.{funcdef.name}" in preserve or node.bases
     }
 
     for node in core.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -1473,8 +1472,7 @@ def replace_for_loops_with_dict_comp(source: str) -> str:
 @processing.fix
 def replace_for_loops_with_set_list_comp(source: str) -> str:
     assign_template = ast.Assign(
-        value=core.Wildcard("value", object),
-        targets=[ast.Name(id=core.Wildcard("target", str))],
+        value=core.Wildcard("value", object), targets=[ast.Name(id=core.Wildcard("target", str))]
     )
     for_template = ast.For(body=[object])
     if_template = ast.If(body=[object], orelse=[])
@@ -1515,13 +1513,9 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
         augass_template = ast.AugAssign(op=(ast.Add, ast.Sub), target=ast.Name(id=target))
 
         if template_match := core.match_template(body_node, target_alter_template):
-            if core.match_template(value, list_init_template) and (
-                template_match.attr == "append"
-            ):
+            if core.match_template(value, list_init_template) and (template_match.attr == "append"):
                 comp_type = ast.ListComp
-            elif core.match_template(value, set_init_template) and (
-                template_match.attr == "add"
-            ):
+            elif core.match_template(value, set_init_template) and (template_match.attr == "add"):
                 comp_type = ast.SetComp
             else:
                 continue
@@ -1713,9 +1707,7 @@ def remove_dead_ifs(source: str) -> str:
             pre_else = source[:node_start]
             start_offset = len(pre_else) - len(pre_else.rstrip())
 
-            yield core.Range(
-                node_start - start_offset, node_end
-            ), "\n\n" + modified_body + "\n\n"
+            yield core.Range(node_start - start_offset, node_end), "\n\n" + modified_body + "\n\n"
 
     for node in core.walk(root, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
         generators = []
@@ -1853,13 +1845,9 @@ def delete_commented_code(source: str) -> str:
                     continue
 
                 # Magic comments should not be removed
-                if any(
-                    core.filter_nodes(parsed_content.body, ast.Expr(value=ast.Name))
-                ):
+                if any(core.filter_nodes(parsed_content.body, ast.Expr(value=ast.Name))):
                     continue
-                if any(
-                    core.filter_nodes(parsed_content.body, ast.NamedExpr(target=ast.Name))
-                ):
+                if any(core.filter_nodes(parsed_content.body, ast.NamedExpr(target=ast.Name))):
                     continue
 
                 if any(
@@ -2001,9 +1989,7 @@ def implicit_defaultdict(source: str) -> str:
                 continue
 
             subscript_calls.add(t_call)
-            if core.match_template(f_value, ast.List(elts=[])) and (
-                t_call in {"append", "extend"}
-            ):
+            if core.match_template(f_value, ast.List(elts=[])) and (t_call in {"append", "extend"}):
                 loop_removals.add(condition)
                 continue
             if core.match_template(f_value, ast.Call(func=ast.Name(id="set"), args=[])) and (
@@ -2040,9 +2026,7 @@ def implicit_defaultdict(source: str) -> str:
             subscript_calls.add(t_call)
             if (
                 t_call in {"add", "append"}
-                and core.match_template(
-                    f_value, (ast.List(elts=[object]), ast.Set(elts=[object]))
-                )
+                and core.match_template(f_value, (ast.List(elts=[object]), ast.Set(elts=[object])))
                 and (core.unparse(t_value) == core.unparse(f_value.elts[0]))
             ):
                 if isinstance(f_value, ast.List) == (t_call == "append"):
@@ -2052,9 +2036,10 @@ def implicit_defaultdict(source: str) -> str:
                 break
             t_value_preferred = _preferred_comprehension_type(t_value)
             f_value_preferred = _preferred_comprehension_type(f_value)
-            if core.unparse(t_value_preferred) == core.unparse(
-                f_value_preferred
-            ) and t_call in {"update", "extend"}:
+            if core.unparse(t_value_preferred) == core.unparse(f_value_preferred) and t_call in {
+                "update",
+                "extend",
+            }:
                 loop_replacements[condition] = on_true
                 continue
 
@@ -2367,9 +2352,7 @@ def replace_map_lambda_with_comp(source: str) -> str:
 @processing.fix
 def replace_negated_numeric_comparison(source: str) -> str:
     root = core.parse(source)
-    template = core.compile_template(
-        "not {{compare}}", compare=ast.Compare(comparators=[object])
-    )
+    template = core.compile_template("not {{compare}}", compare=ast.Compare(comparators=[object]))
 
     numeric_template = ast.Constant(value=(int, float))
     numeric_template = (
@@ -2666,12 +2649,12 @@ def simplify_collection_unpacks(source: str) -> str:
             )):
                 elts.extend(elt.value.elts)
                 replacements = True
-            elif (  # Can't have a dict in a set, but you can have a dict's keys
-                core.match_template(elt, ast.Starred(value=(ast.Dict)))
-                and (
-                    (isinstance(node, ast.Set) and None not in elt.value.keys)
-                    or len(elt.value.values) <= 1
-            )):
+            elif core.match_template(  # Can't have a dict in a set, but you can have a dict's keys
+                elt, ast.Starred(value=(ast.Dict))
+            ) and (
+                (isinstance(node, ast.Set) and None not in elt.value.keys)
+                or len(elt.value.values) <= 1
+            ):
                 elts.extend(elt.value.keys)
                 replacements = True
             else:
@@ -2733,10 +2716,7 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
     )
     modify_template = ast.Expr(
         value=ast.Call(
-            func=ast.Attribute(
-                value=target_template,
-                attr=("add", "update", "append", "extend"),
-            ),
+            func=ast.Attribute(value=target_template, attr=("add", "update", "append", "extend")),
             keywords=[],
     ))
     template = [assign_template, modify_template]
@@ -2864,9 +2844,7 @@ def deinterpolate_logging_args(source: str) -> str:
     })
     fmtstring_template = ast.Call(func=ast.Attribute(value=ast.Constant(value=str), attr="format"))
     for node, function_name in core.walk_wildcard(root, template):
-        if function_name == "log" and core.match_template(
-            node.args, [object, fmtstring_template]
-        ):
+        if function_name == "log" and core.match_template(node.args, [object, fmtstring_template]):
             yield node, ast.Call(
                 func=node.func,
                 args=[node.args[0], node.args[1].func.value] + node.args[1].args,
@@ -2911,9 +2889,7 @@ def _keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
 
     for node, target, value in core.walk_wildcard(root, template):
         subscript_template = core.compile_template(
-            "{{value}}[{{target}}]",
-            value=value,
-            target=target,
+            "{{value}}[{{target}}]", value=value, target=target
         )
         value_target_subscripts = list(
             core.walk(
@@ -2989,9 +2965,7 @@ def _for_keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
     ),)
     for node, target, value in core.walk_wildcard(root, template):
         subscript_template = core.compile_template(
-            "{{value}}[{{target}}]",
-            value=value,
-            target=target,
+            "{{value}}[{{target}}]", value=value, target=target
         )
         value_target_subscripts = list(
             core.walk(

@@ -545,9 +545,7 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
 
     # For every node, all scopes it can be found in
     scope_node_definitions = collections.defaultdict(set)
-    for scope in itertools.chain(
-        [root], core.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef))
-    ):
+    for scope in itertools.chain([root], core.walk(root, (ast.FunctionDef, ast.AsyncFunctionDef))):
         for node in core.walk(scope, ast.AST):
             scope_node_definitions[node].add(scope)
 

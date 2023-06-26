@@ -9,7 +9,7 @@ def replace_loc_at_iloc_iat(source: str) -> str:
         source,
         find="{{value}}.loc[{{i}}]",
         replace="{{value}}.at[{{i}}]",
-        i=ast.Constant
+        i=ast.Constant,
     )
     yield from processing.find_replace(
         source,
@@ -22,7 +22,7 @@ def replace_loc_at_iloc_iat(source: str) -> str:
         source,
         find="{{value}}.iloc[{{i}}]",
         replace="{{value}}.iat[{{i}}]",
-        i=ast.Constant
+        i=ast.Constant,
     )
     yield from processing.find_replace(
         source,

@@ -183,8 +183,7 @@ def _integrate_over(expr: ast.AST, generators: Sequence[ast.comprehension]) -> a
 
         elif isinstance(comprehension.iter, (ast.Tuple, ast.List, ast.Set)):
             values = [
-                _parse_sympy_expr(core.unparse(value).strip())
-                for value in comprehension.iter.elts
+                _parse_sympy_expr(core.unparse(value).strip()) for value in comprehension.iter.elts
             ]
             if isinstance(comprehension.iter, ast.Set):
                 values = set(values)
@@ -619,9 +618,7 @@ def simplify_boolean_expressions(source: str) -> str:
             left = core.literal_value(node.left)
             right = core.literal_value(comparator)
         except ValueError:
-            if isinstance(operator, ast.Eq) and core.unparse(node.left) == core.unparse(
-                comparator
-            ):
+            if isinstance(operator, ast.Eq) and core.unparse(node.left) == core.unparse(comparator):
                 yield node, ast.Constant(value=True, kind=None)
 
             continue

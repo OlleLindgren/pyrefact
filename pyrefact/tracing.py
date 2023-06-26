@@ -82,9 +82,8 @@ def code_dependencies_outputs(
             required_names.update(name.id for name in core.walk(node, ast.Name))
             required_names.update(
                 func.name
-                for func in core.walk(
-                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-            ))
+                for func in core.walk(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            )
             if isinstance(node, ast.Try):
                 maybe_created_names.update(
                     name.id for name in core.walk(node, ast.Name(ctx=ast.Store))
@@ -314,9 +313,7 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> _TraceResu
         ):
             return _TraceResult(core.get_code(node, source), node.lineno, node)
 
-        if isinstance(node, ast.NamedExpr) and core.match_template(
-            node.target, ast.Name(id=name)
-        ):
+        if isinstance(node, ast.NamedExpr) and core.match_template(node.target, ast.Name(id=name)):
             return _TraceResult(core.get_code(node, source), node.lineno, node)
 
     return None

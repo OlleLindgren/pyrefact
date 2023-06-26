@@ -33,9 +33,7 @@ def optimize_contains_types(source: str) -> str:
         str: Modified python source code
     """
     root = core.parse(source)
-    find = (
-        "{{element}} in {{wrapper}}({{collection}})"
-    )
+    find = "{{element}} in {{wrapper}}({{collection}})"
     replace = "{{element}} in {{collection}}"
     wrapper_names = ("sorted", "list", "tuple", "set", "iter", "reversed")
     template = core.compile_template(find, wrapper=ast.Name(id=wrapper_names))
@@ -48,13 +46,7 @@ def optimize_contains_types(source: str) -> str:
 
     template = core.compile_template(
         "{{element}} in {{collection}}",
-        collection=(
-            ast.ListComp,
-            ast.DictComp,
-            ast.SetComp,
-            ast.List,
-            ast.Tuple,
-        )
+        collection=(ast.ListComp, ast.DictComp, ast.SetComp, ast.List, ast.Tuple),
     )
 
     for node in core.walk(root, template):
@@ -265,12 +257,10 @@ def _replace_subscript_looping_complex_cases(source: str) -> str:
     target_template = core.Wildcard("target", ast.Name, common=True)
     index_template = core.Wildcard("index", ast.Name, common=True)
     target_length_template = core.compile_template(
-        ("len({{target}})", "{{target}}.shape[0]"),
-        target=target_template,
+        ("len({{target}})", "{{target}}.shape[0]"), target=target_template
     )
     target_length_template_transpose = core.compile_template(
-        ("len({{target}}.T)", "{{target}}.shape[1]"),
-        target=target_template,
+        ("len({{target}}.T)", "{{target}}.shape[1]"), target=target_template
     )
     target_indexed_template = core.compile_template(
         "{{target}}[{{index}}]", target=target_template, index=index_template
