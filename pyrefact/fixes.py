@@ -3515,3 +3515,47 @@ def sort_imports(source: str) -> str:
     source = fix_import_spacing(source)
 
     return source
+
+
+@processing.fix
+def fix_if_return(source: str) -> str:
+    find = """
+    if {{condition}}:
+        return True
+    return False
+    """
+    replace = "return {{condition}}"
+
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = """
+    if {{condition}}:
+        return False
+    return True
+    """
+    replace = "return not {{condition}}"
+
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+
+@processing.fix
+def fix_if_assign(source: str) -> str:
+    find = """
+    if {{condition}}:
+        {{variable}} = True
+    else:
+        {{variable}} = False
+    """
+    replace = "{{variable}} = {{condition}}"
+
+    yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = """
+    if {{condition}}:
+        {{variable}} = False
+    else:
+        {{variable}} = True
+    """
+    replace = "{{variable}} = not {{condition}}"
+
+    yield from processing.find_replace(source, find=find, replace=replace)

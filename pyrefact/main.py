@@ -100,6 +100,8 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.remove_redundant_comprehension_casts(source)
     source = fixes.remove_redundant_chain_casts(source)
     source = fixes.remove_redundant_else(source)
+    source = fixes.fix_if_return(source)
+    source = fixes.fix_if_assign(source)
     source = fixes.replace_functions_with_literals(source)
     source = fixes.replace_collection_add_update_with_collection_literal(source)
     source = fixes.simplify_collection_unpacks(source)
