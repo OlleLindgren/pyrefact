@@ -29,10 +29,11 @@ def _create_diff_view(processed_content: str, expected_content: str) -> str:
 
 
 def check_fixes_equal(
-    processed_content: str, expected_abstraction: str, clear_paranthesises=False
+    processed_content: str, expected_abstraction: str, clear_paranthesises=False, clear_whitespace=True
 ) -> int:
-    processed_content = _remove_multi_whitespace(processed_content)
-    expected_abstraction = _remove_multi_whitespace(expected_abstraction)
+    if clear_whitespace:
+        processed_content = _remove_multi_whitespace(processed_content)
+        expected_abstraction = _remove_multi_whitespace(expected_abstraction)
 
     if tuple(sys.version_info) < (3, 9):
         processed_content = formatting.format_with_black(processed_content)

@@ -3419,6 +3419,13 @@ def _is_stdlib(node: ast.Import | ast.ImportFrom) -> bool:
     raise ValueError(f"Expected Import or ImportFrom, got {type(node)}")
 
 
+def _is_future(node: ast.Import | ast.ImportFrom) -> bool:
+    if isinstance(node, ast.ImportFrom):
+        return node.module == "__future__"
+
+    return False
+
+
 def _import_group_key(node: ast.Import | ast.ImportFrom) -> Tuple[int, int]:
     return (
         not (isinstance(node, ast.ImportFrom) and node.module == "__future__"),
@@ -3451,10 +3458,60 @@ def _sort_import_statements(source: str) -> str:
     return source
 
 
+def fix_import_spacing(source: str) -> str:
+    root = core.parse(source)
+
+    template = (ast.Import, ast.ImportFrom)
+    replacements = {}
+    for (i1, *_), (i2, *_) in core.walk_sequence(root, ast.AST, ast.AST):
+        i1_start, i1_end = core.get_charnos(i1, source)
+        i2_start, i2_end = core.get_charnos(i2, source)
+        whitespace_between = source[i1_end:i2_start]
+
+        if set(whitespace_between) - set("\n "):
+            continue
+
+        if isinstance(i1, template) and isinstance(i2, template):
+            if _is_stdlib(i1) == _is_stdlib(i2) and _is_future(i1) == _is_future(i2):
+                correct_newline_count = 1
+            else:
+                correct_newline_count = 2
+
+        elif isinstance(i1, template) or isinstance(i2, template):
+            if isinstance(i2, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+                correct_newline_count = 3
+            else:
+                correct_newline_count = 2
+
+        else:
+            continue
+
+        indentation_level = formatting.indentation_level(whitespace_between + source[i2_start:i2_end])
+        spacing = "\n" * correct_newline_count + " " * indentation_level
+        spacing = re.sub(r"\n +\n", "\n\n", spacing)
+        replacement_range = core.Range(i1_end, i2_start)
+
+        current_newline_count = whitespace_between.count("\n")
+        if correct_newline_count == 1 and current_newline_count > 1:
+            replacements[replacement_range] = spacing
+        elif correct_newline_count != current_newline_count > 0:
+            replacements[replacement_range] = spacing
+
+    new_source = source
+    for replacement_range in sorted(replacements, reverse=True):
+        new_source = new_source[: replacement_range.start] + replacements[replacement_range] + new_source[replacement_range.end :]
+
+    if core.is_valid_python(new_source):
+        return new_source
+
+    return source
+
+
 def sort_imports(source: str) -> str:
     """Sort imports in alphabetic order. Respect existing import groups."""
 
     source = _sort_import_statements(source)
     source = _fix_imported_as_self_or_unsorted(source)
+    source = fix_import_spacing(source)
 
     return source
