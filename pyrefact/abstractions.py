@@ -568,7 +568,7 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
     if f"pyrefact_overused_constant_{i}" in names:
         return source
 
-    for code, nodes in code_node_mapping.items():
+    for code, nodes in sorted(code_node_mapping.items(), key=lambda t: t[0]):
         if len(nodes) < 5:
             continue
         if len(re.sub(r"\s", "", code)) < 20:
