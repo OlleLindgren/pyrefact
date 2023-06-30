@@ -167,6 +167,40 @@ def koo():
     print(PYREFACT_OVERUSED_CONSTANT_0.get("spam"))
             """,
         ),
+        (  # Best common scope is not module scope
+            """
+PYREFACT_OVERUSED_CONSTANT_0 = "foo"
+_pyrefact_overused_constant_1 = "bar"
+one("asdfasdfasdfasdfasdfasdfasdf")
+two("asdfasdfasdfasdfasdfasdfasdf")
+three("asdfasdfasdfasdfasdfasdfasdf")
+four("asdfasdfasdfasdfasdfasdfasdf")
+five("asdfasdfasdfasdfasdfasdfasdf")
+six("asdfasdfasdfasdfasdfasdfasdf")
+one("fdsafdsafdsafdsafdsafdsafdsa")
+two("fdsafdsafdsafdsafdsafdsafdsa")
+three("fdsafdsafdsafdsafdsafdsafdsa")
+four("fdsafdsafdsafdsafdsafdsafdsa")
+five("fdsafdsafdsafdsafdsafdsafdsa")
+            """,
+            """
+PYREFACT_OVERUSED_CONSTANT_2 = "asdfasdfasdfasdfasdfasdfasdf"
+PYREFACT_OVERUSED_CONSTANT_3 = "fdsafdsafdsafdsafdsafdsafdsa"
+PYREFACT_OVERUSED_CONSTANT_0 = "foo"
+_pyrefact_overused_constant_1 = "bar"
+one(PYREFACT_OVERUSED_CONSTANT_2)
+two(PYREFACT_OVERUSED_CONSTANT_2)
+three(PYREFACT_OVERUSED_CONSTANT_2)
+four(PYREFACT_OVERUSED_CONSTANT_2)
+five(PYREFACT_OVERUSED_CONSTANT_2)
+six(PYREFACT_OVERUSED_CONSTANT_2)
+one(PYREFACT_OVERUSED_CONSTANT_3)
+two(PYREFACT_OVERUSED_CONSTANT_3)
+three(PYREFACT_OVERUSED_CONSTANT_3)
+four(PYREFACT_OVERUSED_CONSTANT_3)
+five(PYREFACT_OVERUSED_CONSTANT_3)
+            """,
+        ),
     )
 
     for source, expected_abstraction in test_cases:
