@@ -1,4 +1,5 @@
 """Logging"""
+
 import functools
 import logging
 

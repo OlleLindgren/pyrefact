@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 
 import rmspace
-
 from pyrefact import (
     abstractions,
     constants,
@@ -1381,9 +1380,9 @@ def remove_redundant_comprehensions(source: str) -> str:
 def replace_functions_with_literals(source: str) -> str:
     root = core.parse(source)
 
-    yield from processing.find_replace(source, 'list()', '[]')
-    yield from processing.find_replace(source, 'tuple()', '()')
-    yield from processing.find_replace(source, 'dict()', '{}')
+    yield from processing.find_replace(source, "list()", "[]")
+    yield from processing.find_replace(source, "tuple()", "()")
+    yield from processing.find_replace(source, "dict()", "{}")
 
     template = core.compile_template(
         "{{func}}({{arg}})",
@@ -1617,7 +1616,6 @@ def inline_math_comprehensions(source: str) -> str:
 
 @processing.fix(restart_on_replace=True)
 def simplify_transposes(source: str) -> str:
-
     find = "zip(*zip(*{{value}}))"
     replace = "{{value}}"
     yield from processing.find_replace(source, find, replace)
@@ -2314,7 +2312,9 @@ def replace_filter_lambda_with_comp(source: str) -> str:
 
     find = "filterfalse(lambda {{arg}}: {{body}}, {{iterable}})"
     replace = "({{arg}} for {{arg}} in {{iterable}} if not {{body}})"
-    for replacement_range, replacement in processing.find_replace(source, (find, 'itertools.' + find), replace):
+    for replacement_range, replacement in processing.find_replace(
+        source, (find, "itertools." + find), replace
+    ):
         if any(replacement_range & for_range for for_range in for_ranges):
             continue
 
@@ -3132,7 +3132,7 @@ def simplify_assign_immediate_return(source: str) -> str:
             source,
             core.compile_template(find, value=object, name=name_template),
             replace=replace,
-            root=scope
+            root=scope,
         )
 
 
@@ -3232,9 +3232,8 @@ def _group_statements_of_type(root: ast.AST, template: ast.AST) -> Sequence[Sequ
     """Get unique groups of imports, such that they're as long as possible, and don't overlap."""
     groups = [
         [m[0] for m in matches]
-        for matches in core.walk_sequence(
-            root, template, expand_first=True, expand_last=True
-    )]
+        for matches in core.walk_sequence(root, template, expand_first=True, expand_last=True)
+    ]
     node_groups = collections.defaultdict(list)
     for group in groups:
         for node in group:
@@ -3270,7 +3269,8 @@ def _fix_duplicate_from_imports(source: str) -> str:
                     names=[
                         ast.alias(name=name, asname=asname)
                         for name, asname in sorted(
-                            module_import_aliases[module], key=lambda t: (t[0], t[1] is not None, t[1])
+                            module_import_aliases[module],
+                            key=lambda t: (t[0], t[1] is not None, t[1]),
                     )],
                     level=import_nodes[0].level,
                 )
@@ -3459,7 +3459,7 @@ def fix_import_spacing(source: str) -> str:
     template = (ast.Import, ast.ImportFrom)
     replacements = {}
     for (i1, *_), (i2, *_) in core.walk_sequence(root, ast.AST, ast.AST):
-        i1_start, i1_end = core.get_charnos(i1, source)
+        _, i1_end = core.get_charnos(i1, source)
         i2_start, i2_end = core.get_charnos(i2, source)
         whitespace_between = source[i1_end:i2_start]
 
@@ -3481,7 +3481,9 @@ def fix_import_spacing(source: str) -> str:
         else:
             continue
 
-        indentation_level = formatting.indentation_level(whitespace_between + source[i2_start:i2_end])
+        indentation_level = formatting.indentation_level(
+            whitespace_between + source[i2_start:i2_end]
+        )
         spacing = "\n" * correct_newline_count + " " * indentation_level
         spacing = re.sub(r"\n +\n", "\n\n", spacing)
         replacement_range = core.Range(i1_end, i2_start)
@@ -3494,7 +3496,11 @@ def fix_import_spacing(source: str) -> str:
 
     new_source = source
     for replacement_range in sorted(replacements, reverse=True):
-        new_source = new_source[: replacement_range.start] + replacements[replacement_range] + new_source[replacement_range.end :]
+        new_source = (
+            new_source[: replacement_range.start]
+            + replacements[replacement_range]
+            + new_source[replacement_range.end :]
+        )
 
     if core.is_valid_python(new_source):
         return new_source

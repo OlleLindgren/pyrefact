@@ -1,4 +1,5 @@
 """Fixes related to improving classes and object-oriented code."""
+
 import ast
 import copy
 import re

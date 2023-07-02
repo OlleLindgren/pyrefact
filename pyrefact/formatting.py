@@ -1,9 +1,9 @@
 """Code related to formatting"""
+
 import textwrap
 
 import black
 import compactify
-
 from pyrefact import logs as logger
 
 

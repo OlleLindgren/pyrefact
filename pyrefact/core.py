@@ -543,13 +543,11 @@ def has_side_effect(node: ast.AST, safe_callable_whitelist: Collection[str] = fr
         return any(has_side_effect(item, safe_callable_whitelist) for item in node.generators)
 
     if isinstance(node, ast.comprehension):
-        if (
+        return not (
             isinstance(node.target, ast.Name)
-            and not has_side_effect(node.iter, safe_callable_whitelist)
-            and not any(has_side_effect(value, safe_callable_whitelist) for value in node.ifs)
-        ):
-            return False
-        return True
+            and (not has_side_effect(node.iter, safe_callable_whitelist))
+            and (not any((has_side_effect(value, safe_callable_whitelist) for value in node.ifs)))
+        )
 
     if isinstance(node, ast.Call):
         return (

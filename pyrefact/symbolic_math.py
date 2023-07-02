@@ -1,6 +1,6 @@
 """Features related to symbolic mathematics."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 import ast
 import collections
@@ -10,7 +10,6 @@ from typing import Callable, Mapping, Sequence, Tuple
 
 import sympy
 import sympy.parsing
-
 from pyrefact import constants, core, processing
 
 

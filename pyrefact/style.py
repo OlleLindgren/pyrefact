@@ -1,4 +1,5 @@
 """Code relating to coding style"""
+
 import re
 from typing import Sequence
 

@@ -12,7 +12,6 @@ from typing import Callable, Collection, Iterable, Literal, Mapping, NamedTuple,
 
 from pyrefact import core, formatting, logs as logger
 
-
 MSG_INFO_REPLACE = """{fix_function_name:<40}: Replacing code:
 {old_code}
 * -> *****************
