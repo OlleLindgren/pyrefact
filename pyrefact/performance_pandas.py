@@ -7,27 +7,27 @@ from pyrefact import core, processing
 def replace_loc_at_iloc_iat(source: str) -> str:
     yield from processing.find_replace(
         source,
-        find="{{value}}.loc[{{i}}]",
-        replace="{{value}}.at[{{i}}]",
+        "{{value}}.loc[{{i}}]",
+        "{{value}}.at[{{i}}]",
         i=ast.Constant,
     )
     yield from processing.find_replace(
         source,
-        find="{{value}}.loc[{{i}}, {{j}}]",
-        replace="{{value}}.at[{{i}}, {{j}}]",
+        "{{value}}.loc[{{i}}, {{j}}]",
+        "{{value}}.at[{{i}}, {{j}}]",
         i=ast.Constant,
         j=ast.Constant,
     )
     yield from processing.find_replace(
         source,
-        find="{{value}}.iloc[{{i}}]",
-        replace="{{value}}.iat[{{i}}]",
+        "{{value}}.iloc[{{i}}]",
+        "{{value}}.iat[{{i}}]",
         i=ast.Constant,
     )
     yield from processing.find_replace(
         source,
-        find="{{value}}.iloc[{{i}}, {{j}}]",
-        replace="{{value}}.iat[{{i}}, {{j}}]",
+        "{{value}}.iloc[{{i}}, {{j}}]",
+        "{{value}}.iat[{{i}}, {{j}}]",
         i=ast.Constant,
         j=ast.Constant,
     )

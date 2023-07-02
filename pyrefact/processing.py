@@ -555,10 +555,10 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
 
 def find_replace(
     source: str,
-    root: ast.AST = None,
-    *,
     find: str | ast.AST,
     replace: str,
+    *,
+    root: ast.AST = None,
     expand_first: bool = None,
     expand_last: bool = None,
     yield_match: bool = False,

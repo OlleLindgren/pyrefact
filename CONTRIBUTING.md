@@ -52,7 +52,7 @@ from pyrefact import processing
 def remove_redundant_import_aliases(source: str) -> str:
     find = "import {{something}} as {{something}}"
     replace = "import {{something}}"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 ```
 
 Here, a few things are going on. `find` is a pattern that find_replace() will search for, and `replace` is what will be put instead

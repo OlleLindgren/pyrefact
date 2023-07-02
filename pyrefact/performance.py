@@ -38,7 +38,7 @@ def optimize_contains_types(source: str) -> str:
     wrapper_names = ("sorted", "list", "tuple", "set", "iter", "reversed")
     template = core.compile_template(find, wrapper=ast.Name(id=wrapper_names))
 
-    yield from processing.find_replace(source, root, find=template, replace=replace)
+    yield from processing.find_replace(source, template, replace)
 
     sorted_list_tuple_call_template = ast.Call(
         func=ast.Name(id=("sorted", "list", "tuple"), ctx=ast.Load), args=[object], keywords=[]
@@ -202,53 +202,53 @@ def _wrap_transpose(node: ast.AST) -> ast.Call:
 def _replace_subscript_looping_simple_cases(source: str) -> str:
     yield from processing.find_replace(
         source,
-        find="[{{sequence}}[{{index}}] for {{index}} in range(len({{sequence}}))]",
-        replace="list({{sequence}})",
+        "[{{sequence}}[{{index}}] for {{index}} in range(len({{sequence}}))]",
+        "list({{sequence}})",
     )
     yield from processing.find_replace(
         source,
-        find="[{{sequence}}[{{index}}, :] for {{index}} in range(len({{sequence}}))]",
-        replace="list({{sequence}})",
+        "[{{sequence}}[{{index}}, :] for {{index}} in range(len({{sequence}}))]",
+        "list({{sequence}})",
     )
     yield from processing.find_replace(
         source,
-        find="[{{sequence}}[{{index}}] for {{index}} in range({{sequence}}.shape[0])]",
-        replace="list({{sequence}})",
+        "[{{sequence}}[{{index}}] for {{index}} in range({{sequence}}.shape[0])]",
+        "list({{sequence}})",
     )
     yield from processing.find_replace(
         source,
-        find="[{{sequence}}[{{index}}, :] for {{index}} in range({{sequence}}.shape[0])]",
-        replace="list({{sequence}})",
+        "[{{sequence}}[{{index}}, :] for {{index}} in range({{sequence}}.shape[0])]",
+        "list({{sequence}})",
     )
     yield from processing.find_replace(
         source,
-        find="[{{sequence}}[:, {{index}}] for {{index}} in range({{sequence}}.shape[1])]",
-        replace="list({{sequence}}.T)",
+        "[{{sequence}}[:, {{index}}] for {{index}} in range({{sequence}}.shape[1])]",
+        "list({{sequence}}.T)",
     )
     yield from processing.find_replace(
         source,
-        find="({{sequence}}[{{index}}] for {{index}} in range(len({{sequence}})))",
-        replace="iter({{sequence}})",
+        "({{sequence}}[{{index}}] for {{index}} in range(len({{sequence}})))",
+        "iter({{sequence}})",
     )
     yield from processing.find_replace(
         source,
-        find="({{sequence}}[{{index}}, :] for {{index}} in range(len({{sequence}})))",
-        replace="iter({{sequence}})",
+        "({{sequence}}[{{index}}, :] for {{index}} in range(len({{sequence}})))",
+        "iter({{sequence}})",
     )
     yield from processing.find_replace(
         source,
-        find="({{sequence}}[{{index}}] for {{index}} in range({{sequence}}.shape[0]))",
-        replace="iter({{sequence}})",
+        "({{sequence}}[{{index}}] for {{index}} in range({{sequence}}.shape[0]))",
+        "iter({{sequence}})",
     )
     yield from processing.find_replace(
         source,
-        find="({{sequence}}[{{index}}, :] for {{index}} in range({{sequence}}.shape[0]))",
-        replace="iter({{sequence}})",
+        "({{sequence}}[{{index}}, :] for {{index}} in range({{sequence}}.shape[0]))",
+        "iter({{sequence}})",
     )
     yield from processing.find_replace(
         source,
-        find="({{sequence}}[:, {{index}}] for {{index}} in range({{sequence}}.shape[1]))",
-        replace="iter({{sequence}}.T)",
+        "({{sequence}}[:, {{index}}] for {{index}} in range({{sequence}}.shape[1]))",
+        "iter({{sequence}}.T)",
     )
 
 

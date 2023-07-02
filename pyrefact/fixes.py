@@ -1374,16 +1374,16 @@ def remove_redundant_comprehensions(source: str) -> str:
     replace = "{{funcname(root)}}({{iterable}})"
     funcname = lambda template_match_tuple: comprehension_wrapper_funcs[type(template_match_tuple)]
 
-    yield from processing.find_replace(source, find=find, replace=replace, funcname=funcname)
+    yield from processing.find_replace(source, find, replace, funcname=funcname)
 
 
 @processing.fix
 def replace_functions_with_literals(source: str) -> str:
     root = core.parse(source)
 
-    yield from processing.find_replace(source, find="list()", replace="[]")
-    yield from processing.find_replace(source, find="tuple()", replace="()")
-    yield from processing.find_replace(source, find="dict()", replace="{}")
+    yield from processing.find_replace(source, 'list()', '[]')
+    yield from processing.find_replace(source, 'tuple()', '()')
+    yield from processing.find_replace(source, 'dict()', '{}')
 
     template = core.compile_template(
         "{{func}}({{arg}})",
@@ -1620,35 +1620,35 @@ def simplify_transposes(source: str) -> str:
 
     find = "zip(*zip(*{{value}}))"
     replace = "{{value}}"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "zip(*{{value}}.T)"
     replace = "{{value}}"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "zip(*{{value}}).T"
     replace = "{{value}}"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "{{value}}.T.T"
     replace = "{{value}}"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "np.array({{value}}.T).T"
     replace = "{{value}}"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "np.array(np.matmul({{left}}, {{right}}))"
     replace = "np.matmul({{left}}, {{right}})"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "np.array(np.matmul({{left}}, {{right}}).T)"
     replace = "np.matmul({{left}}, {{right}}).T"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "np.matmul({{left}}.T, {{right}}.T).T"
     replace = "np.matmul({{right}}, {{left}})"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     root = core.parse(source)
 
@@ -1878,7 +1878,7 @@ def replace_with_filter(source: str) -> str:
         {{body}}
     """
     template = core.compile_template((find_positive, find_negative), expand="body")
-    iterator1 = processing.find_replace(source, find=template, replace=replace, yield_match=True)
+    iterator1 = processing.find_replace(source, template, replace, yield_match=True)
 
     find_positive = """
     for {{target}} in {{iter}}:
@@ -1896,7 +1896,7 @@ def replace_with_filter(source: str) -> str:
         {{body}}
     """
     template = core.compile_template((find_positive, find_negative), expand="body")
-    iterator2 = processing.find_replace(source, find=template, replace=replace, yield_match=True)
+    iterator2 = processing.find_replace(source, template, replace, yield_match=True)
 
     filter_derivative_template = ast.Call(
         func=core.compile_template(("filter", "filterfalse", "itertools.filterfalse"))
@@ -2079,7 +2079,7 @@ def _replace_lambda_with_literal(source: str) -> str:
         ("lambda {{args}}, /: (*{{args}},)", "tuple"),
         ("lambda: {{func}}()", "{{func}}"),
     ):
-        yield from processing.find_replace(source, find=find, replace=replace)
+        yield from processing.find_replace(source, find, replace)
 
 
 @processing.fix
@@ -2091,8 +2091,9 @@ def _replace_lambda_with_function(source: str) -> str:
             args=core.Wildcard("call_args"),
             keywords=core.Wildcard("call_keywords"),
     ),)
+    replace = "{{func}}"
     for replacement_range, replacement, template_match in processing.find_replace(
-        source, find=find, replace="{{func}}", yield_match=True
+        source, find, replace, yield_match=True
     ):
         _, call_args, call_keywords, _, sign_args = template_match
         if sign_args.kw_defaults:
@@ -2305,9 +2306,7 @@ def replace_filter_lambda_with_comp(source: str) -> str:
 
     find = "filter(lambda {{arg}}: {{body}}, {{iterable}})"
     replace = "({{arg}} for {{arg}} in {{iterable}} if {{body}})"
-    for replacement_range, replacement in processing.find_replace(
-        source, find=find, replace=replace
-    ):
+    for replacement_range, replacement in processing.find_replace(source, find, replace):
         if any(replacement_range & for_range for for_range in for_ranges):
             continue
 
@@ -2315,9 +2314,7 @@ def replace_filter_lambda_with_comp(source: str) -> str:
 
     find = "filterfalse(lambda {{arg}}: {{body}}, {{iterable}})"
     replace = "({{arg}} for {{arg}} in {{iterable}} if not {{body}})"
-    for replacement_range, replacement in processing.find_replace(
-        source, find=(find, "itertools." + find), replace=replace
-    ):
+    for replacement_range, replacement in processing.find_replace(source, (find, 'itertools.' + find), replace):
         if any(replacement_range & for_range for for_range in for_ranges):
             continue
 
@@ -2340,9 +2337,7 @@ def replace_map_lambda_with_comp(source: str) -> str:
     # Prevent replacement of map() calls where the map() call is the iterated value of a for loop
     root = core.parse(source)
     for_ranges = {core.get_charnos(node.iter, source) for node in core.walk(root, ast.For())}
-    for replacement_range, replacement in processing.find_replace(
-        source, find=find, replace=replace
-    ):
+    for replacement_range, replacement in processing.find_replace(source, find, replace):
         if any(replacement_range & for_range for for_range in for_ranges):
             continue
 
@@ -3135,9 +3130,9 @@ def simplify_assign_immediate_return(source: str) -> str:
 
         yield from processing.find_replace(
             source,
-            scope,
-            find=core.compile_template(find, value=object, name=name_template),
+            core.compile_template(find, value=object, name=name_template),
             replace=replace,
+            root=scope
         )
 
 
@@ -3526,7 +3521,7 @@ def fix_if_return(source: str) -> str:
     """
     replace = "return {{condition}}"
 
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = """
     if {{condition}}:
@@ -3535,7 +3530,7 @@ def fix_if_return(source: str) -> str:
     """
     replace = "return not ({{condition}})"
 
-    yield from processing.find_replace(source, find=find, replace=replace, condition=ast.BoolOp)
+    yield from processing.find_replace(source, find, replace, condition=ast.BoolOp)
 
     find = """
     if {{condition}}:
@@ -3544,7 +3539,7 @@ def fix_if_return(source: str) -> str:
     """
     replace = "return not {{condition}}"
 
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
 
 @processing.fix
@@ -3557,7 +3552,7 @@ def fix_if_assign(source: str) -> str:
     """
     replace = "{{variable}} = {{condition}}"
 
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = """
     if {{condition}}:
@@ -3567,7 +3562,7 @@ def fix_if_assign(source: str) -> str:
     """
     replace = "{{variable}} = not ({{condition}})"
 
-    yield from processing.find_replace(source, find=find, replace=replace, condition=ast.BoolOp)
+    yield from processing.find_replace(source, find, replace, condition=ast.BoolOp)
 
     find = """
     if {{condition}}:
@@ -3577,4 +3572,4 @@ def fix_if_assign(source: str) -> str:
     """
     replace = "{{variable}} = not {{condition}}"
 
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)

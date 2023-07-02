@@ -98,7 +98,7 @@ def replace_implicit_matmul(source: str) -> str:
                 {{result}}[{{i}}][{{j}}] += {{left}}[{{i}}][{{k}}] * {{right}}[{{k}}][{{j}}]
     """
     replace = "{{result}} = np.matmul({{left}}, {{right}})"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = """
     for {{i}} in range(len({{left}})):
@@ -106,7 +106,7 @@ def replace_implicit_matmul(source: str) -> str:
             {{result}}[{{i}}][{{j}}] = np.dot({{left}}[{{i}}] * {{right}}.T[{{j}}])
     """
     replace = "{{result}} = np.matmul({{left}}, {{right}})"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = """
     {{result}} = [[
@@ -120,7 +120,7 @@ def replace_implicit_matmul(source: str) -> str:
     ]
     """
     replace = "{{result}} = np.matmul({{left}}, {{right}})"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = """
     {{result}} = [[
@@ -131,23 +131,23 @@ def replace_implicit_matmul(source: str) -> str:
     ]
     """
     replace = "{{result}} = np.matmul({{left}}, {{right}})"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "[[np.dot({{left_row}}, {{right_row}}) for {{left_row}} in {{left}}] for {{right_row}} in {{right}}.T]"
     replace = "np.matmul({{left}}, {{right}}).T"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "[[np.dot({{left_row}}, {{right_row}}) for {{left_row}} in {{left}}.T] for {{right_row}} in {{right}}]"
     replace = "np.matmul({{right}}, {{left}})"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "[[np.dot({{left_row}}, {{right_row}}) for {{left_row}} in {{left}}.T] for {{right_row}} in {{right}}.T]"
     replace = "np.matmul({{left}}.T, {{right}}).T"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = "[[np.dot({{left_row}}, {{right_row}}) for {{left_row}} in {{left}}] for {{right_row}} in {{right}}]"
     replace = "np.matmul({{right}}.T, {{left}}.T)"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = """
     np.array([[
@@ -157,7 +157,7 @@ def replace_implicit_matmul(source: str) -> str:
         for {{a_index}} in range({{a_mat}}.shape[0])
     ])"""
     replace = "np.matmul({{a_mat}}, {{b_mat}})"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = """
     np.array([[
@@ -167,7 +167,7 @@ def replace_implicit_matmul(source: str) -> str:
         for {{a_index}} in range({{a_mat}}.shape[0])
     ])"""
     replace = "np.matmul({{c_mat}}, {{a_mat}}.T).T"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = """
     np.array([[
@@ -177,7 +177,7 @@ def replace_implicit_matmul(source: str) -> str:
         for {{d_index}} in range({{d_mat}}.shape[1])
     ])"""
     replace = "np.matmul({{b_mat}}.T, {{d_mat}}).T"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
 
     find = """
     np.array([[
@@ -187,4 +187,4 @@ def replace_implicit_matmul(source: str) -> str:
         for {{b_index}} in range({{b_mat}}.shape[1])
     ])"""
     replace = "np.matmul({{a_mat}}, {{b_mat}}).T"
-    yield from processing.find_replace(source, find=find, replace=replace)
+    yield from processing.find_replace(source, find, replace)
