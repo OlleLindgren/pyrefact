@@ -536,6 +536,7 @@ def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) 
                         break
 
                     source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
+                    rewritten_ranges.append(rewrite_range)
                 else:
                     return source
 
