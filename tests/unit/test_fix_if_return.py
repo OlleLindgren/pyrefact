@@ -26,14 +26,14 @@ def f(x: int) -> int:
         (
             """
 def f(x: int) -> int:
-    if x == 100:
+    if 2 ** x >= -1 and y ** 3 == 100 and not foo(False):
         return False
 
     return True
             """,
             """
 def f(x: int) -> int:
-    return not x == 100
+    return not (2 ** x >= -1 and y ** 3 == 100 and (not foo(False)))
             """,
         ),
         (

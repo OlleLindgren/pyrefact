@@ -24,13 +24,13 @@ y = not x == 100
         ),
         (
             """
-if x == 100:
+if x == 100 and z >= foo():
     k = False
 else:
     k = True
             """,
             """
-k = not x == 100
+k = not (x == 100 and z >= foo())
             """,
         ),
         (

@@ -3533,6 +3533,15 @@ def fix_if_return(source: str) -> str:
         return False
     return True
     """
+    replace = "return not ({{condition}})"
+
+    yield from processing.find_replace(source, find=find, replace=replace, condition=ast.BoolOp)
+
+    find = """
+    if {{condition}}:
+        return False
+    return True
+    """
     replace = "return not {{condition}}"
 
     yield from processing.find_replace(source, find=find, replace=replace)
@@ -3549,6 +3558,16 @@ def fix_if_assign(source: str) -> str:
     replace = "{{variable}} = {{condition}}"
 
     yield from processing.find_replace(source, find=find, replace=replace)
+
+    find = """
+    if {{condition}}:
+        {{variable}} = False
+    else:
+        {{variable}} = True
+    """
+    replace = "{{variable}} = not ({{condition}})"
+
+    yield from processing.find_replace(source, find=find, replace=replace, condition=ast.BoolOp)
 
     find = """
     if {{condition}}:
