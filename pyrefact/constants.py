@@ -284,6 +284,8 @@ PYTHON_311_STDLIB = frozenset((
     "telnetlib",
     "uu",
     "xdrlib",
+    "pstats",
+    "cProfile",
 ))
 
 BUILTIN_FUNCTIONS = frozenset(name for name in dir(builtins) if name != "_")

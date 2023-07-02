@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Maing script for running all tests."""
-import io
+
+import cProfile
+import pstats
+import subprocess
 import sys
-import timeit
+import tempfile
+from pathlib import Path
+
+import pyrefact
 
 
 def main() -> int:
@@ -11,16 +17,21 @@ def main() -> int:
     Returns:
         int: Always returns 0.
     """
-    stdout = io.StringIO()
-    original_sys_stdout = sys.stdout
-    try:
-        sys.stdout = stdout
-        dt = timeit.timeit("main.main()", "import main", number=10)
-    finally:
-        sys.stdout = original_sys_stdout
-    print(f"Completed in {dt:.3f} seconds")
+    out_filename = Path.cwd() / "pyrefact_profiling.pstats"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        subprocess.check_call(
+            ["git", "clone", "--depth=1", "https://github.com/numpy/numpy.git", tmpdir]
+        )
 
-    return 0
+        with cProfile.Profile() as profile:
+            try:
+                pyrefact.main.main([tmpdir])
+            finally:
+                with open(out_filename, "w") as stream:
+                    stats = pstats.Stats(profile, stream=stream).sort_stats(pstats.SortKey.CUMULATIVE)
+                    stats.dump_stats(out_filename)
+                    print(f"Saved profiling to {out_filename}")
+                    return 0
 
 
 if __name__ == "__main__":
