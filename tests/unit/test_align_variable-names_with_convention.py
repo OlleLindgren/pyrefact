@@ -55,6 +55,11 @@ def _unit():
     assert style.rename_variable("__var_Name__", private=True, static=False) == "__var_Name__"
     assert style.rename_variable("__var_Name__", private=True, static=True) == "__var_Name__"
 
+    assert style.rename_variable("t2", private=False, static=False) == "t2"
+    assert style.rename_variable("T2", private=False, static=False) == "t2"
+    assert style.rename_variable("t2", private=False, static=True) == "T2"
+    assert style.rename_variable("T2", private=False, static=True) == "T2"
+
 
 def _integration() -> int:
     test_cases = (
