@@ -3152,11 +3152,7 @@ def missing_context_manager(source: str) -> str:
         "bz2.BZ2File",
         "lzma.LZMAFile",
         "socket.socket",
-        "threading.Lock",
-        "threading.RLock",
         "multiprocessing.Pool",
-        "multiprocessing.Lock",
-        "multiprocessing.RLock",
         "subprocess.Popen",
         "ftplib.FTP",
         "ftplib.FTP_TLS",
@@ -3189,6 +3185,9 @@ def missing_context_manager(source: str) -> str:
             isinstance(node, (ast.Yield, ast.Return)) and core.walk(node, target_template)
             for node in nodes
         ):
+            continue
+
+        if any(core.filter_nodes(nodes, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef))):
             continue
 
         nodes = [tup[0] for tup in nodes]
