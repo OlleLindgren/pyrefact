@@ -78,7 +78,7 @@ def remove_redundant_iter(source: str) -> str:
         yield node.iter, node.iter.args[0]
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def remove_redundant_chained_calls(source: str) -> str:
     root = core.parse(source)
 
@@ -198,7 +198,7 @@ def _wrap_transpose(node: ast.AST) -> ast.Call:
     return ast.Call(func=ast.Name(id="zip"), args=[ast.Starred(value=node)], keywords=[])
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def _replace_subscript_looping_simple_cases(source: str) -> str:
     yield from processing.find_replace(
         source,

@@ -641,7 +641,7 @@ def simplify_boolean_expressions(source: str) -> str:
             yield node, ast.Constant(value=left <= right, kind=None)
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def simplify_boolean_expressions_symmath(source: str) -> str:
     root = core.parse(source)
     for node in core.walk(root, (ast.BoolOp, ast.UnaryOp)):

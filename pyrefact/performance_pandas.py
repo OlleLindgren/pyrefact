@@ -3,13 +3,14 @@ import ast
 from pyrefact import core, processing
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def replace_loc_at_iloc_iat(source: str) -> str:
     yield from processing.find_replace(
         source,
         "{{value}}.loc[{{i}}]",
         "{{value}}.at[{{i}}]",
         i=ast.Constant,
+        transaction=0
     )
     yield from processing.find_replace(
         source,
@@ -17,12 +18,14 @@ def replace_loc_at_iloc_iat(source: str) -> str:
         "{{value}}.at[{{i}}, {{j}}]",
         i=ast.Constant,
         j=ast.Constant,
+        transaction=1
     )
     yield from processing.find_replace(
         source,
         "{{value}}.iloc[{{i}}]",
         "{{value}}.iat[{{i}}]",
         i=ast.Constant,
+        transaction=2
     )
     yield from processing.find_replace(
         source,
@@ -30,6 +33,7 @@ def replace_loc_at_iloc_iat(source: str) -> str:
         "{{value}}.iat[{{i}}, {{j}}]",
         i=ast.Constant,
         j=ast.Constant,
+        transaction=3
     )
 
 

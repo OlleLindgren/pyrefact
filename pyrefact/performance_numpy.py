@@ -89,7 +89,7 @@ def replace_implicit_dot(source: str) -> str:
             yield call, _wrap_np_dot(*zip_args)
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def replace_implicit_matmul(source: str) -> str:
     find = """
     for {{i}} in range(len({{left}})):

@@ -296,7 +296,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         valid = core.is_valid_python(new_source)
         _log_replacement(old, new, fix_function_name, valid)
 
-        if not core.is_valid_python(new_source):
+        if not valid:
             return source
 
         return new_source
@@ -340,7 +340,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
     valid = core.is_valid_python(new_source)
     _log_replacement(old, new, fix_function_name, valid)
 
-    if not core.is_valid_python(new_source):
+    if not valid:
         return source
 
     return new_source
@@ -488,55 +488,73 @@ def _get_charnos(obj: _Rewrite, source: str) -> core.Range:
     return core.get_charnos(new, source)
 
 
-def fix(*maybe_func, restart_on_replace: bool = False, sort_order: bool = True) -> Callable:
+def fix(*maybe_func, max_iter: int = 5) -> Callable:
     """Convert an iterator of (before, after) asts to a function that fixes source code.
 
     Args:
         maybe_func (Callable): Function to fix source code. If not provided, this is a decorator.
-        restart_on_replace (bool, optional): If True, restarts the rewrite loop on replacements.
-            This is needed when a replacement may alter the code in a way that makes it hard for
-            the rewriter to properly place the next rewrite. Defaults to False.
-        sort_order (bool, optional): If True, sorts the rewrites by line number and col_offset.
+        max_iter (int, optional): Maximum number of iterations to run the rewrite loop. Defaults to 5.
     """
+    default_transaction = {"count": -100_000_000}
+    def fill_transaction(tup) -> Tuple[ast.AST, ast.AST, int]:
+        default_transaction["count"] += 1
+        if len(tup) == 3:
+            return tup
+        return (*tup, default_transaction["count"])
 
     def fix_decorator(func: Callable) -> Callable:
+
         @functools.wraps(func)
         def wrapper(source, *args, **kwargs):
-            # Track rewrite history as an infinite loop guard
-            history = set()
-            for _ in range(1000):  # Max 1000 iterations
-                if restart_on_replace:
-                    try:
-                        old, new = next(
-                            r for r in func(source, *args, **kwargs) if r not in history
-                        )
-                        rewrite = _Rewrite(old, new or "")
-                        history.add(rewrite)
-                        source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
-                    except StopIteration:
-                        return source
 
-                    continue
+            failed_transactions = collections.Counter()
+            for iteration_count in range(max_iter):
+                transaction_rewrites = collections.defaultdict(list)
+                for old, new, transaction in map(fill_transaction, func(source, *args, **kwargs)):
+                    transaction_rewrites[transaction].append(_Rewrite(old, new or ""))
 
-                rewrites = (_Rewrite(old, new or "") for old, new in func(source, *args, **kwargs))
-                if sort_order:
+                # Nothing to do
+                if not transaction_rewrites:
+                    return source
+
+                scheduled_rewrites = []
+                for transaction in sorted(transaction_rewrites):
+                    rewrites = transaction_rewrites[transaction]
                     rewrites = sorted(
                         ((_get_charnos(rewrite, source), rewrite) for rewrite in rewrites),
                         key=lambda tup: tup[0],
                         reverse=True,
                     )
+                    conflicting = False
+                    for i, (rewrite_range, rewrite) in enumerate(rewrites):
+                        if any(rewrite_range & other for (other, _) in rewrites[i + 1:]):
+                            logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites.")
+                            conflicting = True
+                            break
+                        if any(rewrite_range & other for (other, _) in scheduled_rewrites):
+                            logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites.")
+                            conflicting = True
+                            break
 
-                rewritten_ranges = []
-                for rewrite_range, rewrite in rewrites:
-                    if any(rewrite_range & other for other in rewritten_ranges):
-                        logger.debug(
-                            "Found rewrite that overlaps with previous rewrite. Restarting @fix loop."
-                        )
-                        break
+                    if conflicting:
+                        failed_transactions[(source, tuple(rewrites))] += 1
+                        continue
 
+                    scheduled_rewrites.extend(rewrites)
+
+                # In this case, source cannot be modified in this iteration, hence next iteration will be
+                # no different. So in this case we cannot recover from these failures by having a different
+                # source on the next iteration.
+                if not scheduled_rewrites:
+                    logger.error(f"{len(transaction_rewrites)} transactions found, but all were conflicting.")
+                    return source
+
+                scheduled_rewrites.sort(key=lambda tup: tup[0], reverse=True)
+                for rewrite_range, rewrite in scheduled_rewrites:
                     source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
-                    rewritten_ranges.append(rewrite_range)
-                else:
+
+                if iteration_count > 10 and any(x > 1 for x in failed_transactions.values()):
+                    logger.error(f"Stopping due to too many failed transactions: {failed_transactions}")
                     return source
 
             return source
@@ -561,6 +579,7 @@ def find_replace(
     expand_first: bool = None,
     expand_last: bool = None,
     yield_match: bool = False,
+    transaction: int = None,
     **callables_or_templates,
 ) -> Iterable[core.Range, str]:
     """Swap a find with a replacement.
@@ -629,7 +648,10 @@ def find_replace(
         template_replacement = textwrap.dedent(template_replacement)
         template_replacement = textwrap.indent(template_replacement, " " * indentation)
 
+        item = [replacement_range, template_replacement]
+        if transaction is not None:
+            item.append(transaction)
         if yield_match:
-            yield replacement_range, template_replacement, combined_match
-        else:
-            yield replacement_range, template_replacement
+            item.append(combined_match)
+
+        yield tuple(item)

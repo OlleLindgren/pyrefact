@@ -460,7 +460,7 @@ def fix_rmspace(source: str) -> str:
     return rmspace.format_str(source)
 
 
-@processing.fix
+@processing.fix(max_iter=1)
 def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
     root = core.parse(source)
 
@@ -543,7 +543,7 @@ def align_variable_names_with_convention(
     return source
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset()) -> str:
     """Remove definitions of unused variables
 
@@ -1040,7 +1040,7 @@ def remove_duplicate_functions(source: str, preserve: Collection[str]) -> str:
     return source
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def remove_redundant_else(source: str) -> str:
     """Remove redundante else and elif statements in code.
 
@@ -1065,8 +1065,8 @@ def remove_redundant_else(source: str) -> str:
             if orelse.startswith("elif"):  # Regular elif
                 modified_orelse = re.sub("^elif", "if", orelse)
 
-                source = source[:start] + modified_orelse + source[end:]
                 yield core.Range(start, end), modified_orelse
+                continue
 
             # Otherwise it's an else: if:, which is handled below
 
@@ -1195,7 +1195,7 @@ def _sequential_similar_ifs(source: str, root: ast.AST) -> Collection[ast.If]:
     )
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def _swap_explicit_if_else(source: str) -> str:
     root = core.parse(source)
     sequential_similar_ifs = _sequential_similar_ifs(source, root)
@@ -1614,7 +1614,7 @@ def inline_math_comprehensions(source: str) -> str:
     return processing.replace_nodes(source, replacements)
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def simplify_transposes(source: str) -> str:
     find = "zip(*zip(*{{value}}))"
     replace = "{{value}}"
@@ -1660,7 +1660,7 @@ def simplify_transposes(source: str) -> str:
             yield node, second_transpose_target
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def remove_dead_ifs(source: str) -> str:
     root = core.parse(source)
 
@@ -1774,7 +1774,7 @@ def remove_dead_ifs(source: str) -> str:
             continue
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def delete_commented_code(source: str) -> str:
     matches = list(re.finditer(r"(?<![^\n])(\s*(#.*))+", source))
     root = core.parse(source)
@@ -2288,7 +2288,7 @@ def invalid_escape_sequence(source: str) -> str:
             yield node, "r" + code
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def replace_filter_lambda_with_comp(source: str) -> str:
     """Replace filter(lambda ..., iterable) with equivalent list comprehension
 
@@ -2321,7 +2321,7 @@ def replace_filter_lambda_with_comp(source: str) -> str:
         yield replacement_range, replacement
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def replace_map_lambda_with_comp(source: str) -> str:
     """Replace map(lambda ..., iterable) with equivalent list comprehension
 
@@ -2372,7 +2372,7 @@ def replace_negated_numeric_comparison(source: str) -> str:
             )
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def merge_chained_comps(source: str) -> str:
     root = core.parse(source)
 
@@ -2413,7 +2413,7 @@ def merge_chained_comps(source: str) -> str:
         yield template_match.root, replacement
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def remove_redundant_comprehension_casts(source: str) -> str:
     root = core.parse(source)
 
@@ -2449,7 +2449,7 @@ def remove_redundant_comprehension_casts(source: str) -> str:
             yield node, ast.Call(func=ast.Name(id=func), args=[equivalent_setcomp], keywords=[])
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def remove_redundant_chain_casts(source: str) -> str:
     root = core.parse(source)
 
@@ -2599,7 +2599,7 @@ def replace_dictcomp_update_with_dict_literal(source: str) -> str:
             yield m.root, None
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def simplify_dict_unpacks(source: str) -> str:
     root = core.parse(source)
 
@@ -2619,7 +2619,7 @@ def simplify_dict_unpacks(source: str) -> str:
         yield (node, ast.Dict(keys=keys, values=values))
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def simplify_collection_unpacks(source: str) -> str:
     root = core.parse(source)
 
@@ -2754,7 +2754,7 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
                 yield m.root, None
 
 
-@processing.fix(restart_on_replace=True)
+@processing.fix
 def breakout_starred_args(source: str) -> str:
     root = core.parse(source)
 
@@ -3526,7 +3526,7 @@ def fix_if_return(source: str) -> str:
     """
     replace = "return {{condition}}"
 
-    yield from processing.find_replace(source, find, replace)
+    yield from processing.find_replace(source, find, replace, transaction=0)
 
     find = """
     if {{condition}}:
@@ -3535,7 +3535,7 @@ def fix_if_return(source: str) -> str:
     """
     replace = "return not ({{condition}})"
 
-    yield from processing.find_replace(source, find, replace, condition=ast.BoolOp)
+    yield from processing.find_replace(source, find, replace, condition=ast.BoolOp, transaction=1)
 
     find = """
     if {{condition}}:
@@ -3544,7 +3544,7 @@ def fix_if_return(source: str) -> str:
     """
     replace = "return not {{condition}}"
 
-    yield from processing.find_replace(source, find, replace)
+    yield from processing.find_replace(source, find, replace, transaction=2)
 
 
 @processing.fix
@@ -3557,7 +3557,7 @@ def fix_if_assign(source: str) -> str:
     """
     replace = "{{variable}} = {{condition}}"
 
-    yield from processing.find_replace(source, find, replace)
+    yield from processing.find_replace(source, find, replace, transaction=0)
 
     find = """
     if {{condition}}:
@@ -3567,7 +3567,7 @@ def fix_if_assign(source: str) -> str:
     """
     replace = "{{variable}} = not ({{condition}})"
 
-    yield from processing.find_replace(source, find, replace, condition=ast.BoolOp)
+    yield from processing.find_replace(source, find, replace, condition=ast.BoolOp, transaction=1)
 
     find = """
     if {{condition}}:
@@ -3577,4 +3577,4 @@ def fix_if_assign(source: str) -> str:
     """
     replace = "{{variable}} = not {{condition}}"
 
-    yield from processing.find_replace(source, find, replace)
+    yield from processing.find_replace(source, find, replace, transaction=2)
