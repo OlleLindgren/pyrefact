@@ -1778,10 +1778,11 @@ def remove_dead_ifs(source: str) -> str:
 def delete_commented_code(source: str) -> str:
     matches = list(re.finditer(r"(?<![^\n])(\s*(#.*))+", source))
     root = core.parse(source)
-    code_string_ranges = {
+    code_ranges = [
         core.get_charnos(node, source)
         for node in core.walk(root, (ast.Constant(value=str), ast.JoinedStr))
-    }
+    ]
+    removed_ranges = []
     for commented_block in matches:
         start = commented_block.start()
         end = commented_block.end()
@@ -1798,13 +1799,11 @@ def delete_commented_code(source: str) -> str:
                 start_offset = sum(line_lengths[:si]) if si > 0 else 0
                 end_offset = sum(line_lengths[-se:]) if se > 0 else 0
 
-                selection_end = end - end_offset
-                selection_start = start + start_offset
+                removed_range = core.Range(start + start_offset, end - end_offset)
 
-                if any(
-                    node_start <= selection_end and selection_start <= node_end
-                    for node_start, node_end in code_string_ranges
-                ):
+                if any(removed_range & other for other in removed_ranges):
+                    continue
+                if any(removed_range & other for other in code_ranges):
                     continue
 
                 uncommented_block = re.sub(
@@ -1855,7 +1854,8 @@ def delete_commented_code(source: str) -> str:
                 ):
                     continue
 
-                yield core.Range(start + start_offset, end - end_offset), None
+                yield removed_range, None
+                removed_ranges.append(removed_range)
 
 
 @processing.fix

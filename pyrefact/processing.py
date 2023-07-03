@@ -8,7 +8,17 @@ import heapq
 import re
 import textwrap
 from types import MappingProxyType
-from typing import Callable, Collection, Iterable, Literal, Mapping, NamedTuple, Sequence, Tuple
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterable,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Sequence,
+    Tuple,
+)
 
 from pyrefact import core, formatting, logs as logger
 
@@ -292,6 +302,14 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
             else:
                 choice = candidate
 
+        if not core.is_valid_python(choice):
+            new_code_lines = new_code.splitlines(keepends=True)
+            for extra_indent in range(0, 16, 4):
+                candidate = source[:old.start] + new_code_lines[0] + "".join(" " * extra_indent + l for l in new_code_lines[1:]) + source[old.end:]
+                if core.is_valid_python(candidate):
+                    choice = candidate
+                    break
+
         new_source, old, new = _minimize_whitespace_line_differences(source, choice)
         valid = core.is_valid_python(new_source)
         _log_replacement(old, new, fix_function_name, valid)
@@ -488,6 +506,73 @@ def _get_charnos(obj: _Rewrite, source: str) -> core.Range:
     return core.get_charnos(new, source)
 
 
+def schedule_rewrites(source: str, funcs: Iterable[Tuple[Callable, Sequence, Mapping]]) -> Sequence[Tuple[Any, Callable]]:
+    default_transaction = {"count": -100_000_000}
+    def fill_transaction(tup) -> Tuple[ast.AST, ast.AST, int]:
+        default_transaction["count"] += 1
+        if len(tup) == 3:
+            before, after, transaction = tup
+        elif len(tup) == 2:
+            before, after = tup
+            transaction = default_transaction["count"]
+        else:
+            raise ValueError(f"Invalid tuple: {tup!r}")
+
+        if isinstance(before, ast.AST):
+            before = core.get_charnos(before, source)
+        elif before is None:
+            before = core.get_charnos(after, source)
+
+        if after is None:
+            after = ""
+
+        return before, after, transaction
+
+
+    transaction_rewrites = collections.defaultdict(list)
+    for k, (func, args, kwargs) in enumerate(funcs):
+        for old, new, transaction in map(fill_transaction, func(*args, **kwargs)):
+            transaction_rewrites[(k, transaction, func.__name__)].append(_Rewrite(old, new or ""))
+
+        scheduled_rewrites = []
+        for transaction in sorted(transaction_rewrites):
+            rewrites = transaction_rewrites[transaction]
+            rewrites = sorted(
+                ((_get_charnos(rewrite, source), rewrite) for rewrite in rewrites),
+                key=lambda tup: tup[0],
+                reverse=True,
+            )
+            conflicting = False
+            for i, (rewrite_range, rewrite) in enumerate(rewrites):
+                if any(rewrite_range & other for _, (other, _) in rewrites[i + 1:]):
+                    logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites.")
+                    conflicting = True
+                    break
+                if any(rewrite_range & other for _, (other, _) in scheduled_rewrites):
+                    logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites.")
+                    conflicting = True
+                    break
+
+            if not conflicting:
+                scheduled_rewrites.extend((transaction, r) for r in rewrites)
+
+    # In this case, source cannot be modified in this iteration, hence next iteration will be
+    # no different. So in this case we cannot recover from these failures by having a different
+    # source on the next iteration.
+    if transaction_rewrites and not scheduled_rewrites:
+        logger.error(f"{len(transaction_rewrites)} transactions found, but all were conflicting.")
+
+    scheduled_rewrites.sort(key=lambda tup: (tup[1][0]), reverse=True)
+    return scheduled_rewrites
+
+
+def apply_rewrites(source: str, rewrites: Sequence[Tuple[Any, Callable]]) -> str:
+    for (*_, fix_func_name), (rewrite_range, rewrite) in rewrites:
+        source = _do_rewrite(source, rewrite, fix_function_name=fix_func_name)
+
+    return source
+
+
 def fix(*maybe_func, max_iter: int = 5) -> Callable:
     """Convert an iterator of (before, after) asts to a function that fixes source code.
 
@@ -495,70 +580,22 @@ def fix(*maybe_func, max_iter: int = 5) -> Callable:
         maybe_func (Callable): Function to fix source code. If not provided, this is a decorator.
         max_iter (int, optional): Maximum number of iterations to run the rewrite loop. Defaults to 5.
     """
-    default_transaction = {"count": -100_000_000}
-    def fill_transaction(tup) -> Tuple[ast.AST, ast.AST, int]:
-        default_transaction["count"] += 1
-        if len(tup) == 3:
-            return tup
-        return (*tup, default_transaction["count"])
 
     def fix_decorator(func: Callable) -> Callable:
 
         @functools.wraps(func)
         def wrapper(source, *args, **kwargs):
-
-            failed_transactions = collections.Counter()
+            history = {source}
             for iteration_count in range(max_iter):
-                transaction_rewrites = collections.defaultdict(list)
-                for old, new, transaction in map(fill_transaction, func(source, *args, **kwargs)):
-                    transaction_rewrites[transaction].append(_Rewrite(old, new or ""))
+                scheduled_rewrites = schedule_rewrites(source, [[func, [source, *args], kwargs]])
+                source = apply_rewrites(source, scheduled_rewrites)
 
-                # Nothing to do
-                if not transaction_rewrites:
-                    return source
-
-                scheduled_rewrites = []
-                for transaction in sorted(transaction_rewrites):
-                    rewrites = transaction_rewrites[transaction]
-                    rewrites = sorted(
-                        ((_get_charnos(rewrite, source), rewrite) for rewrite in rewrites),
-                        key=lambda tup: tup[0],
-                        reverse=True,
-                    )
-                    conflicting = False
-                    for i, (rewrite_range, rewrite) in enumerate(rewrites):
-                        if any(rewrite_range & other for (other, _) in rewrites[i + 1:]):
-                            logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites.")
-                            conflicting = True
-                            break
-                        if any(rewrite_range & other for (other, _) in scheduled_rewrites):
-                            logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites.")
-                            conflicting = True
-                            break
-
-                    if conflicting:
-                        failed_transactions[(source, tuple(rewrites))] += 1
-                        continue
-
-                    scheduled_rewrites.extend(rewrites)
-
-                # In this case, source cannot be modified in this iteration, hence next iteration will be
-                # no different. So in this case we cannot recover from these failures by having a different
-                # source on the next iteration.
-                if not scheduled_rewrites:
-                    logger.error(f"{len(transaction_rewrites)} transactions found, but all were conflicting.")
-                    return source
-
-                scheduled_rewrites.sort(key=lambda tup: tup[0], reverse=True)
-                for rewrite_range, rewrite in scheduled_rewrites:
-                    source = _do_rewrite(source, rewrite, fix_function_name=func.__name__)
-
-                if iteration_count > 10 and any(x > 1 for x in failed_transactions.values()):
-                    logger.error(f"Stopping due to too many failed transactions: {failed_transactions}")
-                    return source
+                if source in history:
+                    break
 
             return source
 
+        wrapper._fix_func = func
         return wrapper
 
     if not maybe_func:
@@ -568,6 +605,41 @@ def fix(*maybe_func, max_iter: int = 5) -> Callable:
         return fix_decorator(maybe_func[0])
 
     raise ValueError(f"Exactly 1 or 0 arguments must be given as maybe_func, not {len(maybe_func)}")
+
+
+def _build_chain(source, preserve, fix_funcs) -> Sequence[Tuple[Callable, Sequence, Mapping]]:
+    funcs = []
+    for func in fix_funcs:
+        if hasattr(func, "_fix_func"):
+            func = func._fix_func
+
+        args = [arg for arg in func.__code__.co_varnames if arg in {"source", "preserve"}]
+        if args == ["source"]:
+            funcs.append((func, [source], {}))
+        elif args == ["source", "preserve"]:
+            funcs.append((func, [source], {"preserve": preserve}))
+        else:
+            raise NotImplementedError(f"Cannot chain fix function {func.__name__} with unrecognized args: {args}.")
+
+    return funcs
+
+
+def chain(fix_funcs: Iterable[Callable], max_iter: int = 10) -> Callable:
+    fix_funcs = tuple(fix_funcs)
+    def func_chain(source, preserve):
+        history = {source}
+        preserve = frozenset(preserve)
+        for _ in range(max_iter):
+            # Chain must be rebuilt on each iteration, since the source argument will change.
+            funcs = _build_chain(source, preserve, fix_funcs)
+            scheduled_rewrites = schedule_rewrites(source, funcs)
+            source = apply_rewrites(source, scheduled_rewrites)
+            if source in history:
+                break
+
+        return source
+
+    return func_chain
 
 
 def find_replace(
