@@ -409,18 +409,6 @@ def fix_too_many_blank_lines(source: str) -> str:
     return source
 
 
-def fix_rmspace(source: str) -> str:
-    """Remove trailing whitespace from source code.
-
-    Args:
-        source (str): Python source code
-
-    Returns:
-        str: Source code, without trailing whitespace
-    """
-    return rmspace.format_str(source)
-
-
 @processing.fix(max_iter=1)
 def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
     root = core.parse(source)

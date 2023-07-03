@@ -13,6 +13,8 @@ import textwrap
 from pathlib import Path
 from typing import Collection, Iterable, Sequence
 
+import rmspace
+
 from pyrefact import abstractions, fixes
 from pyrefact import logs as logger
 from pyrefact import (
@@ -158,7 +160,7 @@ def format_code(
         return source
 
     source = source.expandtabs(4)
-    source = fixes.fix_rmspace(source)
+    source = rmspace.format_str(source)
     source = fixes.fix_too_many_blank_lines(source)
 
     if not source.strip():
@@ -231,7 +233,7 @@ def format_code(
     source = fixes.sort_imports(source)
 
     source = fixes.fix_line_lengths(source)
-    source = fixes.fix_rmspace(source)
+    source = rmspace.format_str(source)
 
     if minimum_indent > 0:
         source = textwrap.indent(source, " " * minimum_indent)
