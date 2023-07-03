@@ -1547,6 +1547,7 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
             yield n2, None
 
 
+@processing.fix
 def inline_math_comprehensions(source: str) -> str:
     root = core.parse(source)
 
@@ -1613,7 +1614,7 @@ def inline_math_comprehensions(source: str) -> str:
         if assignment in replacements:
             del replacements[assignment]
 
-    return processing.replace_nodes(source, replacements)
+    yield from replacements.items()
 
 
 @processing.fix
@@ -2120,11 +2121,10 @@ def _replace_lambda_with_function(source: str) -> str:
         yield replacement_range, replacement
 
 
+@processing.fix
 def simplify_redundant_lambda(source: str) -> str:
-    source = _replace_lambda_with_literal(source)
-    source = _replace_lambda_with_function(source)
-
-    return source
+    yield from _replace_lambda_with_literal._fix_func(source)
+    yield from _replace_lambda_with_function._fix_func(source)
 
 
 def _is_same_code(*nodes: ast.AST) -> bool:

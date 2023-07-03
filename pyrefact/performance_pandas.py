@@ -58,6 +58,7 @@ def replace_iterrows_index(source: str) -> str:
         yield node.iter, ast.Attribute(value=underlying_object, attr="index")
 
 
+@processing.fix
 def replace_iterrows_itertuples(source: str) -> str:
     root = core.parse(source)
     replacements = {}
@@ -160,4 +161,5 @@ def replace_iterrows_itertuples(source: str) -> str:
         replacements.update(node_replacements)
     template = ast.comprehension(target=target_template, iter=iter_template)
 
-    return processing.alter_code(source, root, replacements=replacements)
+    for node, replacement in replacements.items():
+        yield node, replacement, 0
