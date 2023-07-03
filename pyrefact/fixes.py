@@ -369,43 +369,7 @@ def _construct_import_statement(
     return f"from {'.' * node.level}{node.module or ''} import {names}"
 
 
-def _remove_unused_imports(
-    ast_tree: ast.Module, source: str, unused_imports: Collection[str]
-) -> str:
-    completely_unused_imports, partially_unused_imports = _get_unused_imports_split(
-        ast_tree, unused_imports
-    )
-    if completely_unused_imports:
-        logger.debug("Removing unused imports")
-        source = processing.remove_nodes(source, completely_unused_imports, ast_tree)
-        if not partially_unused_imports:
-            return source
-        ast_tree = core.parse(source)
-        completely_unused_imports, partially_unused_imports = _get_unused_imports_split(
-            ast_tree, unused_imports
-        )
-
-    if completely_unused_imports:
-        raise RuntimeError("Failed to remove unused imports")
-
-    # For every import, construct what we would like it to look like with redundant stuff removed, find the old
-    # version of it, and replace it.
-
-    # Iterate from bottom to top of file, so we don't have to re-calculate the linenos etc.
-    for node in sorted(
-        partially_unused_imports,
-        key=lambda n: (n.lineno, n.col_offset, n.end_lineno, n.end_col_offset),
-        reverse=True,
-    ):
-        start, end = core.get_charnos(node, source)
-        code = source[start:end]
-        replacement = _construct_import_statement(node, unused_imports)
-        logger.debug("Replacing:\n{old}\nWith:\n{new}", old=code, new=replacement)
-        source = source[:start] + replacement + source[end:]
-
-    return source
-
-
+@processing.fix
 def remove_unused_imports(source: str) -> str:
     """Remove unused imports from source code.
 
@@ -415,10 +379,19 @@ def remove_unused_imports(source: str) -> str:
     Returns:
         str: Source code, with added imports removed
     """
-    ast_tree = core.parse(source)
-    unused_imports = _get_unused_imports(ast_tree)
-    if unused_imports:
-        source = _remove_unused_imports(ast_tree, source, unused_imports)
+    root = core.parse(source)
+    unused_imports = _get_unused_imports(root)
+    completely_unused_imports, partially_unused_imports = _get_unused_imports_split(root, unused_imports)
+
+    for node in completely_unused_imports:
+        yield node, None
+
+    # For every import, construct what we would like it to look like with redundant stuff removed, find the old
+    # version of it, and replace it.
+
+    # Iterate from bottom to top of file, so we don't have to re-calculate the linenos etc.
+    for node in partially_unused_imports:
+        yield node, _construct_import_statement(node, unused_imports)
 
     return source
 
