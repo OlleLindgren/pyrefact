@@ -859,6 +859,7 @@ def delete_unused_functions_and_classes(
             yield def_node, None
 
 
+@processing.fix
 def delete_unreachable_code(source: str) -> str:
     """Find and delete dead code.
 
@@ -870,10 +871,13 @@ def delete_unreachable_code(source: str) -> str:
     """
     root = core.parse(source)
 
-    delete = set()
+    transaction = 0
     for node in parsing.iter_bodies_recursive(root):
         if not isinstance(node, (ast.If, ast.While)):
-            delete.update(_iter_unreachable_nodes(node.body))
+            for unreachable_node in _iter_unreachable_nodes(node.body):
+                yield unreachable_node, None, transaction
+
+            transaction += 1
             continue
 
         try:
@@ -882,22 +886,20 @@ def delete_unreachable_code(source: str) -> str:
             continue
 
         if isinstance(node, ast.While) and not test_value:
-            delete.add(node)
+            yield node, None, transaction
             continue
 
         if isinstance(node, ast.If):
             if test_value and node.body:
-                delete.update(node.orelse)
+                for unreachabel_node in node.orelse:
+                    yield node, None, transaction
             elif not test_value and node.orelse:
-                delete.update(node.body)
+                for unreachabel_node in node.body:
+                    yield node, None, transaction
             else:
-                delete.add(node)
+                yield node, None, transaction
 
-    if delete:
-        logger.debug("Removing unreachable code")
-        source = processing.remove_nodes(source, delete, root)
-
-    return source
+            transaction += 1
 
 
 def _get_package_names(node: ast.Import | ast.ImportFrom):
