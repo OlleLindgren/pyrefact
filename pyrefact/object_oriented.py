@@ -99,6 +99,7 @@ def _decorators_of_type(node: ast.FunctionDef, name: str) -> Iterable[ast.AST]:
             yield decorator
 
 
+@processing.fix
 def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> str:
     root = core.parse(source)
 
@@ -173,16 +174,17 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
                 )
 
     if not name_replacements:
-        return source
+        return
 
     if len(name_replacements) != len(set(name_replacements.values())):
-        return source
+        return
 
-    if replacements:
-        source = processing.replace_nodes(source, replacements)
-        root = core.parse(source)
+    transaction = 0
+    for before, after in replacements.items():
+        yield before, after, transaction
 
-    for classdef in sorted(parsing.iter_classdefs(root), key=lambda cd: cd.lineno, reverse=True):
+    transaction = 1
+    for classdef in parsing.iter_classdefs(root):
         delete = []
         additions = []
 
@@ -190,24 +192,23 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
             new_name = name_replacements.get((classdef.name, funcdef.name))
             if new_name is None:
                 continue
+
             staticmethod_decorators = set(_decorators_of_type(funcdef, "staticmethod"))
             static_names.add(new_name)
-            delete.append(funcdef)
-            additions.append(
-                ast.FunctionDef(
-                    name=new_name,
-                    args=funcdef.args,
-                    body=funcdef.body,
-                    decorator_list=[
-                        dec for dec in funcdef.decorator_list if dec not in staticmethod_decorators
-                    ],
-                    type_params=[],
-                    returns=funcdef.returns,
-                    lineno=classdef.lineno - 1,
-            ))
 
-        if delete or additions:
-            source = processing.remove_nodes(source, delete, root)
-            source = processing.insert_nodes(source, reversed(additions))
+            funcdef_static = ast.FunctionDef(
+                name=new_name,
+                args=funcdef.args,
+                body=funcdef.body,
+                decorator_list=[
+                    dec for dec in funcdef.decorator_list if dec not in staticmethod_decorators
+                ],
+                type_params=[],
+                returns=funcdef.returns,
+                lineno=classdef.lineno - 1,
+                col_offset=classdef.col_offset,
+            )
+            yield funcdef, None, transaction
+            yield None, funcdef_static, transaction
 
-    return source
+            transaction += 1

@@ -562,7 +562,7 @@ def schedule_rewrites(source: str, funcs: Iterable[Tuple[Callable, Sequence, Map
     if transaction_rewrites and not scheduled_rewrites:
         logger.error(f"{len(transaction_rewrites)} transactions found, but all were conflicting.")
 
-    scheduled_rewrites.sort(key=lambda tup: (tup[1][0]), reverse=True)
+    scheduled_rewrites.sort(key=lambda tup: (tup[1][0], tup[0]), reverse=True)
     return scheduled_rewrites
 
 

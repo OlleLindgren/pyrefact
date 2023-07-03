@@ -676,7 +676,10 @@ def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> 
         start = node
 
     start_charno = line_start_charnos[start.lineno - 1] + start.col_offset
-    end_charno = line_start_charnos[node.end_lineno - 1] + node.end_col_offset
+    if getattr(node, "end_lineno", None) is not None:
+        end_charno = line_start_charnos[node.end_lineno - 1] + node.end_col_offset
+    else:
+        return Range(start_charno, start_charno)
 
     code = source[start_charno:end_charno]
     if code[0] == " ":
