@@ -157,7 +157,7 @@ def format_code(
     if re.findall(r"# pyrefact: skip_file", source):
         return source
 
-    source = fixes.fix_tabs(source)
+    source = source.expandtabs(4)
     source = fixes.fix_rmspace(source)
     source = fixes.fix_too_many_blank_lines(source)
 

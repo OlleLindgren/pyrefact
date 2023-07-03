@@ -396,18 +396,6 @@ def remove_unused_imports(source: str) -> str:
     return source
 
 
-def fix_tabs(source: str) -> str:
-    """Replace tabs with 4 spaces in source code
-
-    Args:
-        source (str): Python source code
-
-    Returns:
-        str: Formatted source code
-    """
-    return re.sub(r"\t", " " * 4, source)
-
-
 def fix_too_many_blank_lines(source: str) -> str:
     # At module level, remove all above 2 blank lines
     source = re.sub(r"(\n\s*){3,}\n", "\n" * 3, source)
