@@ -72,111 +72,6 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, source: str) -> Iterable[ast.Nam
             yield refnode
 
 
-def _get_variable_name_substitutions(
-    ast_tree: ast.AST, source: str, preserve: Collection[str]
-) -> Mapping[ast.AST, str]:
-    renamings = collections.defaultdict(set)
-    classdefs: List[ast.ClassDef] = []
-    funcdefs: List[ast.FunctionDef] = []
-    for node in parsing.iter_classdefs(ast_tree):
-        name = node.name
-        substitute = style.rename_class(
-            name, private=parsing.is_private(name) or name not in preserve
-        )
-        classdefs.append(node)
-        renamings[node].add(substitute)
-        for refnode in _get_uses_of(node, ast_tree, source):
-            renamings[refnode].add(substitute)
-
-    typevars = set()
-    for node in parsing.iter_typedefs(ast_tree):
-        assert len(node.targets) == 1
-        target = node.targets[0]
-        assert isinstance(target, (ast.Name, ast.Attribute))
-        typevars.add(target)
-        for refnode in _get_uses_of(target, ast_tree, source):
-            typevars.add(refnode)
-
-    for node in parsing.iter_funcdefs(ast_tree):
-        name = node.name
-        substitute = style.rename_variable(
-            name, private=parsing.is_private(name) or name not in preserve, static=False
-        )
-        funcdefs.append(node)
-        renamings[node].add(substitute)
-        for refnode in _get_uses_of(node, ast_tree, source):
-            renamings[refnode].add(substitute)
-
-    for node in parsing.iter_assignments(ast_tree):
-        if node in typevars:
-            substitute = style.rename_class(node.id, private=parsing.is_private(node.id))
-        else:
-            substitute = style.rename_variable(
-                node.id, private=parsing.is_private(node.id), static=True
-            )
-        renamings[node].add(substitute)
-        for refnode in _get_uses_of(node, ast_tree, source):
-            renamings[refnode].add(substitute)
-
-    while funcdefs or classdefs:
-        for partial_tree in classdefs.copy():
-            classdefs.remove(partial_tree)
-            for node in parsing.iter_classdefs(partial_tree):
-                name = node.name
-                classdefs.append(node)
-                substitute = style.rename_class(name, private=parsing.is_private(name))
-                renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, source):
-                    renamings[refnode].add(substitute)
-            for node in parsing.iter_funcdefs(partial_tree):
-                name = node.name
-                # Don't rename magic members, don't rename if there is inheritance.
-                if partial_tree.bases or parsing.is_magic_method(node):
-                    renamings[node] = {name}
-                funcdefs.append(node)
-                substitute = style.rename_variable(
-                    name, private=parsing.is_private(name), static=False
-                )
-                renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, source):
-                    renamings[refnode].add(substitute)
-            for node in parsing.iter_assignments(partial_tree):
-                name = node.id
-                # Don't rename magic members, don't rename if there is inheritance.
-                if partial_tree.bases or (name.startswith("__") and name.endswith("__")):
-                    renamings[node] = {name}
-                substitute = style.rename_variable(
-                    name, private=parsing.is_private(name), static=False
-                )
-                renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, source):
-                    renamings[refnode].add(substitute)
-        for partial_tree in funcdefs.copy():
-            funcdefs.remove(partial_tree)
-            for node in parsing.iter_classdefs(partial_tree):
-                name = node.name
-                classdefs.append(node)
-                substitute = style.rename_class(name, private=False)
-                renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, source):
-                    renamings[refnode].add(substitute)
-            for node in parsing.iter_funcdefs(partial_tree):
-                name = node.name
-                funcdefs.append(node)
-                substitute = style.rename_variable(name, private=False, static=False)
-                renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, source):
-                    renamings[refnode].add(substitute)
-            for node in parsing.iter_assignments(partial_tree):
-                name = node.id
-                substitute = style.rename_variable(name, private=False, static=False)
-                renamings[node].add(substitute)
-                for refnode in _get_uses_of(node, partial_tree, source):
-                    renamings[refnode].add(substitute)
-
-    return renamings
-
-
 def _get_variable_re_pattern(variable) -> str:
     return r"(?<![A-Za-z_\.])" + variable + r"(?![A-Za-z_])"
 
@@ -464,6 +359,7 @@ def fix_line_lengths(source: str, *, max_line_length: int = 100) -> str:
             formatted_ranges.add(source_range)
 
 
+@processing.fix
 def align_variable_names_with_convention(
     source: str, preserve: Collection[str] = frozenset()
 ) -> str:
@@ -484,12 +380,164 @@ def align_variable_names_with_convention(
         str: Source code, where all variable names comply with normal convention
     """
     ast_tree = core.parse(source)
-    renamings = _get_variable_name_substitutions(ast_tree, source, preserve)
+    renamings = collections.defaultdict(set)
+    classdefs: List[ast.ClassDef] = []
+    funcdefs: List[ast.FunctionDef] = []
+    for node in parsing.iter_classdefs(ast_tree):
+        name = node.name
+        substitute = style.rename_class(
+            name, private=parsing.is_private(name) or name not in preserve
+        )
+        classdefs.append(node)
+        renamings[node].add(substitute)
+        for refnode in _get_uses_of(node, ast_tree, source):
+            renamings[refnode].add(substitute)
 
-    if renamings:
-        source = _fix_variable_names(source, renamings, preserve)
+    typevars = set()
+    for node in parsing.iter_typedefs(ast_tree):
+        assert len(node.targets) == 1
+        target = node.targets[0]
+        assert isinstance(target, (ast.Name, ast.Attribute))
+        typevars.add(target)
+        for refnode in _get_uses_of(target, ast_tree, source):
+            typevars.add(refnode)
 
-    return source
+    for node in parsing.iter_funcdefs(ast_tree):
+        name = node.name
+        substitute = style.rename_variable(
+            name, private=parsing.is_private(name) or name not in preserve, static=False
+        )
+        funcdefs.append(node)
+        renamings[node].add(substitute)
+        for refnode in _get_uses_of(node, ast_tree, source):
+            renamings[refnode].add(substitute)
+
+    for node in parsing.iter_assignments(ast_tree):
+        if node in typevars:
+            substitute = style.rename_class(node.id, private=parsing.is_private(node.id))
+        else:
+            substitute = style.rename_variable(
+                node.id, private=parsing.is_private(node.id), static=True
+            )
+        renamings[node].add(substitute)
+        for refnode in _get_uses_of(node, ast_tree, source):
+            renamings[refnode].add(substitute)
+
+    while funcdefs or classdefs:
+        for partial_tree in classdefs.copy():
+            classdefs.remove(partial_tree)
+            for node in parsing.iter_classdefs(partial_tree):
+                name = node.name
+                classdefs.append(node)
+                substitute = style.rename_class(name, private=parsing.is_private(name))
+                renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree, source):
+                    renamings[refnode].add(substitute)
+            for node in parsing.iter_funcdefs(partial_tree):
+                name = node.name
+                # Don't rename magic members, don't rename if there is inheritance.
+                if partial_tree.bases or parsing.is_magic_method(node):
+                    renamings[node] = {name}
+                funcdefs.append(node)
+                substitute = style.rename_variable(
+                    name, private=parsing.is_private(name), static=False
+                )
+                renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree, source):
+                    renamings[refnode].add(substitute)
+            for node in parsing.iter_assignments(partial_tree):
+                name = node.id
+                # Don't rename magic members, don't rename if there is inheritance.
+                if partial_tree.bases or (name.startswith("__") and name.endswith("__")):
+                    renamings[node] = {name}
+                substitute = style.rename_variable(
+                    name, private=parsing.is_private(name), static=False
+                )
+                renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree, source):
+                    renamings[refnode].add(substitute)
+        for partial_tree in funcdefs.copy():
+            funcdefs.remove(partial_tree)
+            for node in parsing.iter_classdefs(partial_tree):
+                name = node.name
+                classdefs.append(node)
+                substitute = style.rename_class(name, private=False)
+                renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree, source):
+                    renamings[refnode].add(substitute)
+            for node in parsing.iter_funcdefs(partial_tree):
+                name = node.name
+                funcdefs.append(node)
+                substitute = style.rename_variable(name, private=False, static=False)
+                renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree, source):
+                    renamings[refnode].add(substitute)
+            for node in parsing.iter_assignments(partial_tree):
+                name = node.id
+                substitute = style.rename_variable(name, private=False, static=False)
+                renamings[node].add(substitute)
+                for refnode in _get_uses_of(node, partial_tree, source):
+                    renamings[refnode].add(substitute)
+
+    renamings = {
+        node: list(substitutes)[0]
+        for node, substitutes in renamings.items()
+        if len(substitutes) == 1
+    }
+    substitute_node_renamings = collections.defaultdict(set)
+    for node, substitute in renamings.items():
+        substitute_node_renamings[substitute].add(node)
+
+    transaction = 0
+    for substitute, nodes in substitute_node_renamings.items():
+        replacements = []
+        for node in nodes:
+            if isinstance(node, ast.Name):
+                if node.id == substitute:
+                    continue
+                replacement = ast.Name(id=substitute)
+            elif isinstance(node, ast.FunctionDef):
+                if node.name == substitute:
+                    continue
+                replacement = ast.FunctionDef(
+                    name=substitute,
+                    args=node.args,
+                    body=node.body,
+                    decorator_list=node.decorator_list,
+                    returns=node.returns,
+                    type_comment=node.type_comment,
+                )
+            elif isinstance(node, ast.AsyncFunctionDef):
+                if node.name == substitute:
+                    continue
+                replacement = ast.AsyncFunctionDef(
+                    name=substitute,
+                    args=node.args,
+                    body=node.body,
+                    decorator_list=node.decorator_list,
+                    returns=node.returns,
+                    type_comment=node.type_comment,
+                )
+            elif isinstance(node, ast.ClassDef):
+                if node.name == substitute:
+                    continue
+                replacement = ast.ClassDef(
+                    name=substitute,
+                    bases=node.bases,
+                    keywords=node.keywords,
+                    body=node.body,
+                    decorator_list=node.decorator_list,
+                )
+            else:
+                logger.error(f"Renaming not implemented for node {node} of type {type(node)}")
+                replacements.clear()
+                break
+
+            ast.fix_missing_locations(replacement)
+
+            yield node, replacement, transaction
+
+        transaction += 1
 
 
 @processing.fix

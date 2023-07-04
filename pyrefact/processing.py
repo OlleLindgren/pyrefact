@@ -544,13 +544,17 @@ def schedule_rewrites(source: str, funcs: Iterable[Tuple[Callable, Sequence, Map
             )
             conflicting = False
             for i, (rewrite_range, rewrite) in enumerate(rewrites):
-                if any(rewrite_range & other for _, (other, _) in rewrites[i + 1:]):
-                    logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites.")
-                    conflicting = True
-                    break
-                if any(rewrite_range & other for _, (other, _) in scheduled_rewrites):
-                    logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites.")
-                    conflicting = True
+                for _, (other, _) in rewrites[i + 1:]:
+                    if rewrite_range & other:
+                        logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites: {tuple(rewrite_range)}, {tuple(other)}.")
+                        conflicting = True
+                        break
+                for _, (other, _) in scheduled_rewrites:
+                    if rewrite_range & other:
+                        logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites: {tuple(rewrite_range)}, {tuple(other)}.")
+                        conflicting = True
+                        break
+                if conflicting:
                     break
 
             if not conflicting:

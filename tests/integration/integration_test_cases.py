@@ -34,7 +34,7 @@ def _foo() -> Tuple[int, Sequence[int]]:
             x *= 12
             print(x > 30)
             print(getcwd())
-    return 1, (1, 2, 3)
+    return (1, (1, 2, 3))
 
 if __name__ == "__main__":
     _foo()
