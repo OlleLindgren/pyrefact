@@ -307,8 +307,7 @@ def _replace_subscript_looping_complex_cases(source: str) -> str:
             yield node, ast.Name(id=new_index_name)
 
 
+@processing.fix
 def replace_subscript_looping(source: str) -> str:
-    source = _replace_subscript_looping_simple_cases(source)
-    source = _replace_subscript_looping_complex_cases(source)
-
-    return source
+    yield from _replace_subscript_looping_simple_cases._fix_func(source)
+    yield from _replace_subscript_looping_complex_cases._fix_func(source)
