@@ -751,6 +751,7 @@ def _is_pointless_string(node: ast.AST) -> bool:
     return core.match_template(node, ast.Expr(value=ast.Constant(value=str)))
 
 
+@processing.fix
 def delete_pointless_statements(source: str) -> str:
     """Delete pointless statements with no side effects from code
 
@@ -761,19 +762,12 @@ def delete_pointless_statements(source: str) -> str:
         str: Modified code
     """
     ast_tree = core.parse(source)
-    delete = []
     safe_callables = parsing.safe_callable_names(ast_tree)
     for node in itertools.chain([ast_tree], parsing.iter_bodies_recursive(ast_tree)):
         for i, child in enumerate(node.body):
             if not core.has_side_effect(child, safe_callables):
                 if i > 0 or not _is_pointless_string(child):  # Docstring
-                    delete.append(child)
-
-    if delete:
-        logger.debug("Removing pointless statements")
-        source = processing.remove_nodes(source, delete, ast_tree)
-
-    return source
+                    yield child, None
 
 
 def _iter_unreachable_nodes(body: Iterable[ast.AST]) -> Iterable[ast.AST]:
