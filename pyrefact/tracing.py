@@ -383,6 +383,7 @@ def fix_starred_imports(source: str) -> str:
             yield node, None
 
 
+@processing.fix
 def fix_reimported_names(source: str) -> str:
     """Remove reimported names from imports."""
 
@@ -392,9 +393,6 @@ def fix_reimported_names(source: str) -> str:
         targets=[ast.Name(id="__all__")], value=ast.List(elts={ast.Constant(value=str)})
     )
     module_from_imports = collections.defaultdict(set)
-    additions = set()
-    removals = set()
-    replacements = {}
 
     import_insert_lineno = min(
         (node.lineno for node in core.walk(root, (ast.ImportFrom, ast.Import))), default=-1
@@ -462,7 +460,7 @@ def fix_reimported_names(source: str) -> str:
                     else:
                         new_alias = ast.alias(name=original_name, asname=asname)
 
-                    additions.add(ast.Import(names=[new_alias]), lineno=import_insert_lineno)
+                    yield None, ast.Import(names=[new_alias], lineno=import_insert_lineno)
                 else:
                     node_names.append(alias)
             else:
@@ -470,24 +468,16 @@ def fix_reimported_names(source: str) -> str:
 
         if node_names != node.names:
             if node_names:
-                replacements[node] = ast.ImportFrom(
+                yield node, ast.ImportFrom(
                     module=node.module, names=node_names, level=node.level
                 )
             else:
-                removals.add(node)
+                yield node, None
 
     for module, aliases in module_from_imports.items():
-        additions.add(
-            ast.ImportFrom(
-                module=module,
-                names=sorted(aliases, key=lambda alias: alias.name),
-                level=0,
-                lineno=import_insert_lineno,
-        ))
-
-    if additions or removals or replacements:
-        source = processing.alter_code(
-            source, root, additions=additions, removals=removals, replacements=replacements
+        yield None, ast.ImportFrom(
+            module=module,
+            names=sorted(aliases, key=lambda alias: alias.name),
+            level=0,
+            lineno=import_insert_lineno,
         )
-
-    return source
