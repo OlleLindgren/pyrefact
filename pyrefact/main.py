@@ -25,6 +25,7 @@ from pyrefact import (
     performance,
     performance_numpy,
     performance_pandas,
+    processing,
     symbolic_math,
     tracing,
 )
@@ -58,11 +59,13 @@ def _single_run_fixes(source: str) -> str:
     Returns:
         str: Modified code
     """
-    source = fixes.deinterpolate_logging_args(source)
-    source = fixes.invalid_escape_sequence(source)
-    source = tracing.fix_starred_imports(source)
-    source = tracing.fix_reimported_names(source)
-    return source
+    chain = processing.chain((
+        fixes.deinterpolate_logging_args,
+        fixes.invalid_escape_sequence,
+        tracing.fix_starred_imports,
+        tracing.fix_reimported_names,
+    ))
+    return chain(source)
 
 
 def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:

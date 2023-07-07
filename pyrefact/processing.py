@@ -630,7 +630,7 @@ def _build_chain(source, preserve, fix_funcs) -> Sequence[Tuple[Callable, Sequen
 
 def chain(fix_funcs: Iterable[Callable], max_iter: int = 10) -> Callable:
     fix_funcs = tuple(fix_funcs)
-    def func_chain(source, preserve):
+    def func_chain(source, preserve=frozenset()):
         history = {source}
         preserve = frozenset(preserve)
         for _ in range(max_iter):
