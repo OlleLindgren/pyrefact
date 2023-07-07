@@ -1472,10 +1472,12 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
     set_init_template = ast.Call(func=ast.Name(id="set"), args=[], keywords=[])
     list_init_template = ast.List(elts=[])  # list() should have been replaced by [] elsewhere.
 
+    transaction = 0
     root = core.parse(source)
     for (_, target, value), (n2,) in core.walk_sequence(root, assign_template, for_template):
         body_node = n2
         generators = []
+        transaction += 1
 
         while core.match_template(body_node, (for_template, if_template)):
             if isinstance(body_node, ast.If):
@@ -1512,8 +1514,8 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
             else:
                 continue
 
-            yield value, comp_type(elt=body_node.value.args[0], generators=generators)
-            yield n2, None
+            yield value, comp_type(elt=body_node.value.args[0], generators=generators), transaction
+            yield n2, None, transaction
 
         elif core.match_template(body_node, augass_template):
             if isinstance(value, ast.List):
@@ -1526,16 +1528,16 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
                 if not core.literal_value(value):
                     if isinstance(body_node.op, ast.Sub):
                         replacement = ast.UnaryOp(op=body_node.op, operand=replacement)
-                    yield value, replacement
-                    yield n2, None
+                    yield value, replacement, transaction
+                    yield n2, None, transaction
                     continue
 
             except ValueError:
                 pass
 
             replacement = ast.BinOp(left=value, op=body_node.op, right=replacement)
-            yield value, replacement
-            yield n2, None
+            yield value, replacement, transaction
+            yield n2, None, transaction
 
 
 @processing.fix
