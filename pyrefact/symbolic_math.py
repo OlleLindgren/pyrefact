@@ -838,5 +838,3 @@ def simplify_constrained_range(source: str) -> str:
             yield comp.iter, ast.Call(
                 func=ast.Name(id="range"), args=[ast.Constant(value=stop, kind=None)], keywords=[]
             )
-
-        return
