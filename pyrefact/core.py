@@ -708,7 +708,7 @@ def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> 
     return Range(start_charno, end_charno)
 
 
-def get_code(node: ast.AST, source: str) -> str:
+def get_code(node: ast.AST | Range, source: str) -> str:
     """Get python code from ast
 
     Args:
@@ -719,6 +719,9 @@ def get_code(node: ast.AST, source: str) -> str:
         str: Python source code
 
     """
+    if isinstance(node, Range):
+        return source[node.start : node.end]
+
     start_charno, end_charno = get_charnos(node, source)
     return source[start_charno:end_charno]
 
