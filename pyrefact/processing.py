@@ -553,14 +553,31 @@ def schedule_rewrites(source: str, funcs: Iterable[Tuple[Callable, Sequence, Map
 
         return before, after, transaction
 
-
+    overlap_error_format = "Discarding transaction {transaction} due to overlapping rewrite ranges: {range} and {other}"
+    duplicate_error_format = "Discarding duplicate transaction {transaction}."
+    scheduled_rewrites = []
     transaction_rewrites = collections.defaultdict(list)
     for k, (func, args, kwargs) in enumerate(funcs):
         for old, new, transaction in map(fill_transaction, func(*args, **kwargs)):
             transaction_rewrites[(k, transaction, func.__name__)].append(_Rewrite(old, new or ""))
 
-        scheduled_rewrites = []
+        seen_transactions = set()
+        duplicate_transaction_keys = []
+        for key in sorted(transaction_rewrites):
+            transaction = tuple(transaction_rewrites[key])
+            if transaction in seen_transactions:
+                duplicate_transaction_keys.append(key)
+
+            seen_transactions.add(transaction)
+
+        for key in duplicate_transaction_keys:
+            logger.error(duplicate_error_format.format(transaction=key))
+            del transaction_rewrites[key]
+
         for transaction in sorted(transaction_rewrites):
+            if transaction[0] != k:
+                continue
+
             rewrites = transaction_rewrites[transaction]
             rewrites = sorted(
                 ((_get_charnos(rewrite, source), rewrite) for rewrite in rewrites),
@@ -571,12 +588,12 @@ def schedule_rewrites(source: str, funcs: Iterable[Tuple[Callable, Sequence, Map
             for i, (rewrite_range, rewrite) in enumerate(rewrites):
                 for _, (other, _) in rewrites[i + 1:]:
                     if rewrite_range & other:
-                        logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites: {tuple(rewrite_range)}, {tuple(other)}.")
+                        logger.debug(overlap_error_format.format(transaction=transaction, range=tuple(rewrite_range), other=tuple(other)))
                         conflicting = True
                         break
                 for _, (other, _) in scheduled_rewrites:
                     if rewrite_range & other:
-                        logger.debug(f"Discarding transaction {transaction} due to conflicting rewrites: {tuple(rewrite_range)}, {tuple(other)}.")
+                        logger.debug(overlap_error_format.format(transaction=transaction, range=tuple(rewrite_range), other=tuple(other)))
                         conflicting = True
                         break
                 if conflicting:
