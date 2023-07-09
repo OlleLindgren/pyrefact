@@ -59,6 +59,31 @@ class _Rewrite(NamedTuple):
     old: ast.AST | core.Range  # TODO replace with (start_char, end_char)
     new: ast.AST | str  # "" indicates a removal
 
+    def __hash__(self) -> int:
+        if isinstance(self.old, ast.AST):
+            old_hash = hash((
+                getattr(self.old, "lineno", None),
+                getattr(self.old, "col_offset", None),
+                getattr(self.old, "end_lineno", None),
+                getattr(self.old, "end_col_offset", None),
+                core.unparse(self.old),
+            ))
+        else:
+            old_hash = hash(self.old)
+        
+        if isinstance(self.new, ast.AST):
+            new_hash = hash((
+                getattr(self.new, "lineno", None),
+                getattr(self.new, "col_offset", None),
+                getattr(self.new, "end_lineno", None),
+                getattr(self.new, "end_col_offset", None),
+                core.unparse(self.new),
+            ))
+        else:
+            new_hash = hash(self.new)
+
+        return hash((old_hash, new_hash))
+
 
 def _substitute_original_strings(original_source: str, new_source: str) -> str:
     """Ensure consistent string formattings in new and old source.
