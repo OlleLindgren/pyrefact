@@ -15,17 +15,6 @@ def _uses_numpy(root: ast.Module) -> bool:
     return any(core.walk(root, template))
 
 
-def _only_if_uses_numpy(f: Callable) -> Callable:
-    def wrapper(source: str) -> str:
-        root = core.parse(source)
-        if not _uses_numpy(root):
-            return source
-
-        return f(source)
-
-    return wrapper
-
-
 def _is_sum_call(call: ast.Call):
     return parsing.is_call(call, ("sum", "np.sum", "numpy.sum"))
 
@@ -77,10 +66,11 @@ def simplify_matmul_transposes(source: str) -> str:
             yield node, matmul
 
 
-@_only_if_uses_numpy
 @processing.fix
 def replace_implicit_dot(source: str) -> str:
     root = core.parse(source)
+    if not _uses_numpy(root):
+        return
 
     template = ast.Call(args=[(ast.ListComp, ast.GeneratorExp)], keywords=[])
     for call in core.walk(root, template):
