@@ -41,11 +41,11 @@ MSG_ERROR_REMOVE = """{fix_function_name:<40}: Failed to remove code:
 
 
 def _log_replacement(old: str, new: str | None, fix_function_name: str, valid: bool) -> None:
-    if new and valid:
+    if new.strip() and valid:
         logger.debug(
             MSG_INFO_REPLACE, fix_function_name=fix_function_name, old_code=old, new_code=new
         )
-    elif new and not valid:
+    elif new.strip() and not valid:
         logger.error(
             MSG_ERROR_REPLACE, fix_function_name=fix_function_name, old_code=old, new_code=new
         )
