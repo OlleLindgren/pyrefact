@@ -431,7 +431,11 @@ SAFE_CALLABLES = frozenset({
     "vars",
     "zip",
 })
-PYTHON_KEYWORDS = frozenset(keyword.kwlist + keyword.softkwlist)
+PYTHON_KEYWORDS = frozenset(
+    keyword.kwlist
+    + getattr(keyword, "softkwlist", [])  # Exists on >= 3.9, but empty on 3.9
+    + ['_', 'case', 'match', 'type']  # keyword.softkwlist as of 3.12b2
+)
 
 PYTHON_VERSION = tuple(sys.version_info)
 
