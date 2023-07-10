@@ -35,13 +35,13 @@ h = "some/path/to/something/cool"
 g = "some/path/to/something/cool"
             """,
             """
-PYREFACT_OVERUSED_CONSTANT_0 = "some/path/to/something/cool"
-x = PYREFACT_OVERUSED_CONSTANT_0
-y = PYREFACT_OVERUSED_CONSTANT_0
-z = PYREFACT_OVERUSED_CONSTANT_0
-w = PYREFACT_OVERUSED_CONSTANT_0
-h = PYREFACT_OVERUSED_CONSTANT_0
-g = PYREFACT_OVERUSED_CONSTANT_0
+SOME_PATH_TO_SOMETHING_COOL = "some/path/to/something/cool"
+x = SOME_PATH_TO_SOMETHING_COOL
+y = SOME_PATH_TO_SOMETHING_COOL
+z = SOME_PATH_TO_SOMETHING_COOL
+w = SOME_PATH_TO_SOMETHING_COOL
+h = SOME_PATH_TO_SOMETHING_COOL
+g = SOME_PATH_TO_SOMETHING_COOL
             """,
         ),
         (  # Best common scope is module scope
@@ -63,19 +63,19 @@ def bar():
             """,
             """
 import math
-PYREFACT_OVERUSED_CONSTANT_0 = "some/path/to/something/cool"
+SOME_PATH_TO_SOMETHING_COOL = "some/path/to/something/cool"
 
 def foo():
     if False:
-        x = PYREFACT_OVERUSED_CONSTANT_0
-        y = PYREFACT_OVERUSED_CONSTANT_0 + "qwerty"
+        x = SOME_PATH_TO_SOMETHING_COOL
+        y = SOME_PATH_TO_SOMETHING_COOL + "qwerty"
     else:
-        z = PYREFACT_OVERUSED_CONSTANT_0
-    w = PYREFACT_OVERUSED_CONSTANT_0 is True
+        z = SOME_PATH_TO_SOMETHING_COOL
+    w = SOME_PATH_TO_SOMETHING_COOL is True
 
 def bar():
-    h = PYREFACT_OVERUSED_CONSTANT_0
-    g = PYREFACT_OVERUSED_CONSTANT_0
+    h = SOME_PATH_TO_SOMETHING_COOL
+    g = SOME_PATH_TO_SOMETHING_COOL
     print(h, g)
             """,
         ),
@@ -102,17 +102,17 @@ def foo():
 import math
 
 def foo():
-    pyrefact_overused_constant_0 = "some/path/to/something/cool"
+    some_path_to_something_cool = "some/path/to/something/cool"
     if False:
-        x = pyrefact_overused_constant_0
-        y = pyrefact_overused_constant_0 + "qwerty"
+        x = some_path_to_something_cool
+        y = some_path_to_something_cool + "qwerty"
     else:
-        z = pyrefact_overused_constant_0
-    w = pyrefact_overused_constant_0 is True
+        z = some_path_to_something_cool
+    w = some_path_to_something_cool is True
 
     def bar():
-        h = pyrefact_overused_constant_0
-        g = pyrefact_overused_constant_0
+        h = some_path_to_something_cool
+        g = some_path_to_something_cool
         print(h, g)
 
     bar()
@@ -184,21 +184,21 @@ four("fdsafdsafdsafdsafdsafdsafdsa")
 five("fdsafdsafdsafdsafdsafdsafdsa")
             """,
             """
-PYREFACT_OVERUSED_CONSTANT_2 = "asdfasdfasdfasdfasdfasdfasdf"
-PYREFACT_OVERUSED_CONSTANT_3 = "fdsafdsafdsafdsafdsafdsafdsa"
+ASDFASDFASDFASDFASDFASDFASDF = "asdfasdfasdfasdfasdfasdfasdf"
+FDSAFDSAFDSAFDSAFDSAFDSAFDSA = "fdsafdsafdsafdsafdsafdsafdsa"
 PYREFACT_OVERUSED_CONSTANT_0 = "foo"
 _pyrefact_overused_constant_1 = "bar"
-one(PYREFACT_OVERUSED_CONSTANT_2)
-two(PYREFACT_OVERUSED_CONSTANT_2)
-three(PYREFACT_OVERUSED_CONSTANT_2)
-four(PYREFACT_OVERUSED_CONSTANT_2)
-five(PYREFACT_OVERUSED_CONSTANT_2)
-six(PYREFACT_OVERUSED_CONSTANT_2)
-one(PYREFACT_OVERUSED_CONSTANT_3)
-two(PYREFACT_OVERUSED_CONSTANT_3)
-three(PYREFACT_OVERUSED_CONSTANT_3)
-four(PYREFACT_OVERUSED_CONSTANT_3)
-five(PYREFACT_OVERUSED_CONSTANT_3)
+one(ASDFASDFASDFASDFASDFASDFASDF)
+two(ASDFASDFASDFASDFASDFASDFASDF)
+three(ASDFASDFASDFASDFASDFASDFASDF)
+four(ASDFASDFASDFASDFASDFASDFASDF)
+five(ASDFASDFASDFASDFASDFASDFASDF)
+six(ASDFASDFASDFASDFASDFASDFASDF)
+one(FDSAFDSAFDSAFDSAFDSAFDSAFDSA)
+two(FDSAFDSAFDSAFDSAFDSAFDSAFDSA)
+three(FDSAFDSAFDSAFDSAFDSAFDSAFDSA)
+four(FDSAFDSAFDSAFDSAFDSAFDSAFDSA)
+five(FDSAFDSAFDSAFDSAFDSAFDSAFDSA)
             """,
         ),
     )

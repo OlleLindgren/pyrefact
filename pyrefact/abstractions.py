@@ -536,6 +536,14 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
         ast.Tuple(elts={ast.Constant}),
         ast.List(elts={ast.Constant}),
     )
+    blacklisted_names = (
+        tracing.get_imported_names(root)
+        | tracing.get_defined_names(root)
+        | constants.BUILTIN_FUNCTIONS
+        | constants.PYTHON_KEYWORDS
+    )
+    blacklisted_names |= {name.upper() for name in blacklisted_names}
+    blacklisted_names |= {name.lower() for name in blacklisted_names}
 
     candidates = set(core.walk(root, template))
 
@@ -561,11 +569,10 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
     additions = set()
 
     i = 0
-    names = {name.id.lower().strip("_") for name in core.walk(root, ast.Name)}
-    while f"pyrefact_overused_constant_{i}" in names and i < 10:
+    while f"pyrefact_overused_constant_{i}" in blacklisted_names and i < 10:
         i += 1
 
-    if f"pyrefact_overused_constant_{i}" in names:
+    if f"pyrefact_overused_constant_{i}" in blacklisted_names:
         return source
 
     for code, nodes in sorted(code_node_mapping.items(), key=lambda t: t[0]):
@@ -580,7 +587,17 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
         best_common_scope = max(
             common_scopes, key=lambda node: getattr(node, "lineno", 1), default=root
         )
-        variable_name = f"pyrefact_overused_constant_{i}"
+        nodes = list(nodes)
+        if (
+            core.match_template(nodes[0], ast.Constant(value=str))
+            and re.match(r"[a-zA-Z_]\w*", nodes[0].value)
+            and re.sub(r"[^a-zA-Z0-9_]", "", nodes[0].value)
+        ):
+            variable_name = nodes[0].value
+        else:
+            variable_name = f"pyrefact_overused_constant_{i}"
+            i += 1
+
         variable_name = style.rename_variable(
             variable_name, static=best_common_scope is root and root_is_static, private=False
         )
@@ -591,8 +608,6 @@ def overused_constant(source: str, *, root_is_static: bool) -> str:
         assign.col_offset = best_common_scope.body[0].col_offset
         additions.add(assign)
         replacements.update({node: name for node in nodes})
-
-        i += 1
 
     return processing.alter_code(source, root, additions=additions, replacements=replacements)
 
