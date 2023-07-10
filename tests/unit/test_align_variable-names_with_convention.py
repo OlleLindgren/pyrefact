@@ -165,6 +165,48 @@ class _Spam:
         pass
         """
         ),
+        (
+            """
+def func():
+    list_ = [1, 2, 3]
+    a = list_ + [4, 5, 6]
+
+    Type = 4
+    Match = 5
+    Batch = 6
+    def__ = 2
+
+    foo_ = 1
+    bar_ = 2
+            """,
+            """
+def _func():
+    list_ = [1, 2, 3]
+    a = list_ + [4, 5, 6]
+
+    Type = 4
+    Match = 5
+    batch = 6
+    def__ = 2
+
+    foo = 1
+    bar = 2
+            """
+        ),
+        (
+            """
+def _foo() -> int:
+    return 1
+def foo() -> int:
+    return 2
+            """,
+            """
+def _foo() -> int:
+    return 1
+def foo() -> int:
+    return 2
+            """
+        )
     )
     for source, expected_abstraction in test_cases:
 

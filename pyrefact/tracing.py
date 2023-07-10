@@ -319,18 +319,28 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> _TraceResu
     return None
 
 
+def get_defined_names(root: ast.Module) -> Collection[str]:
+    """Get names defined in scope, excluding imports."""
+    names = set()
+    for node in core.walk(root, ast.Name(ctx=ast.Store)):
+        names.add(node.id)
+    for node in core.walk(root, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+        names.add(node.name)
+    for node in core.walk(root, ast.arg):
+        names.add(node.arg)
+
+    return names
+
+
+def get_referenced_names(root: ast.Module) -> Collection[str]:
+    return {node.id for node in core.walk(root, ast.Name(ctx=ast.Load))}
+
+
 def get_undefined_variables(source: str) -> Collection[str]:
     root = core.parse(source)
     imported_names = get_imported_names(root)
-    defined_names = set()
-    referenced_names = set()
-    for node in core.walk(root, ast.Name):
-        if isinstance(node.ctx, ast.Load):
-            referenced_names.add(node.id)
-        elif isinstance(node.ctx, ast.Store):
-            defined_names.add(node.id)
-    for node in core.walk(root, ast.arg):
-        defined_names.add(node.arg)
+    defined_names = get_defined_names(root)
+    referenced_names = get_referenced_names(root)
 
     return (
         referenced_names

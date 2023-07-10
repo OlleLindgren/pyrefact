@@ -431,7 +431,7 @@ SAFE_CALLABLES = frozenset({
     "vars",
     "zip",
 })
-PYTHON_KEYWORDS = frozenset(keyword.kwlist)
+PYTHON_KEYWORDS = frozenset(keyword.kwlist + keyword.softkwlist)
 
 PYTHON_VERSION = tuple(sys.version_info)
 

@@ -479,10 +479,17 @@ def align_variable_names_with_convention(
                 for refnode in _get_uses_of(node, partial_tree, source):
                     renamings[refnode].add(substitute)
 
+    blacklisted_names = (
+        tracing.get_imported_names(ast_tree)
+        | tracing.get_defined_names(ast_tree)
+        | constants.BUILTIN_FUNCTIONS
+        | constants.PYTHON_KEYWORDS
+    )
     renamings = {
         node: list(substitutes)[0]
         for node, substitutes in renamings.items()
         if len(substitutes) == 1
+        and blacklisted_names.isdisjoint(substitutes)
     }
     substitute_node_renamings = collections.defaultdict(set)
     for node, substitute in renamings.items():
