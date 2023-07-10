@@ -314,12 +314,13 @@ def _get_constant_insertion_lineno(scope: ast.AST) -> int:
 def create_abstractions(source: str) -> str:
     root = core.parse(source)
     global_names = (
-        _scoped_dependencies(root) | tracing.get_imported_names(root) | constants.BUILTIN_FUNCTIONS
+        _scoped_dependencies(root)
+        | tracing.get_imported_names(root)
+        | constants.BUILTIN_FUNCTIONS
+        | {node.name for node in parsing.iter_funcdefs(root)}
+        | {node.name for node in parsing.iter_classdefs(root)}
     )
-    for node in parsing.iter_funcdefs(root):
-        global_names.add(node.name)
-    for node in parsing.iter_classdefs(root):
-        global_names.add(node.name)
+
     replacements = {}
     additions = []
     removals = []

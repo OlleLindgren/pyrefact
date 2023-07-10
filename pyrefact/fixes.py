@@ -2599,6 +2599,51 @@ def replace_dictcomp_update_with_dict_literal(source: str) -> str:
             yield m.root, None
 
 
+def _is_recursive_binop_chain(node: ast.AST, op: ast.AST) -> bool:
+    if isinstance(node, ast.BinOp):
+        return isinstance(node.op, op) and _is_recursive_binop_chain(node.right, op)
+
+    return True
+
+
+@processing.fix
+def replace_setcomp_add_with_union(source: str) -> str:
+    find = """
+    {{variable}} = {{something}}
+    for {{target}} in {{iterable}}:
+        {{variable}}.add({{something_else}})
+    """
+    replace = """
+    {{variable}} = {{something}} | {{{something_else}} for {{target}} in {{iterable}}}
+    """
+    find = core.compile_template(find, something=(ast.SetComp, ast.Set, ast.BinOp(op=ast.BitOr)))
+    for before, after, template_match in processing.find_replace(source, find, replace, yield_match=True):
+        if isinstance(template_match.root, ast.BinOp):
+            if _is_recursive_binop_chain(template_match.root, ast.BitOr):
+                yield before, after
+        else:
+            yield before, after
+
+
+@processing.fix
+def replace_listcomp_add_with_union(source: str) -> str:
+    find = """
+    {{variable}} = {{something}}
+    for {{target}} in {{iterable}}:
+        {{variable}}.append({{something_else}})
+    """
+    replace = """
+    {{variable}} = {{something}} + [{{something_else}} for {{target}} in {{iterable}}]
+    """
+    find = core.compile_template(find, something=(ast.ListComp, ast.List, ast.BinOp(op=ast.Add)))
+    for before, after, template_match in processing.find_replace(source, find, replace, yield_match=True):
+        if isinstance(template_match.root, ast.BinOp):
+            if _is_recursive_binop_chain(template_match.root, ast.Add):
+                yield before, after
+        else:
+            yield before, after
+
+
 @processing.fix
 def simplify_dict_unpacks(source: str) -> str:
     root = core.parse(source)
