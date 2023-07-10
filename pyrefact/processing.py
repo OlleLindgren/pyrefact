@@ -70,7 +70,7 @@ class _Rewrite(NamedTuple):
             ))
         else:
             old_hash = hash(self.old)
-        
+
         if isinstance(self.new, ast.AST):
             new_hash = hash((
                 getattr(self.new, "lineno", None),
@@ -137,7 +137,7 @@ def _substitute_original_strings(original_source: str, new_source: str) -> str:
             )[0][0]
             replacements[node] = most_common_original_formatting
 
-    return replace_nodes(new_source, replacements)
+    return _replace_nodes(new_source, replacements)
 
 
 def _substitute_original_fstrings(original_source: str, new_source: str) -> str:
@@ -181,7 +181,7 @@ def _substitute_original_fstrings(original_source: str, new_source: str) -> str:
             )[0][0]
             replacements[node] = most_common_original_formatting
 
-    return replace_nodes(new_source, replacements)
+    return _replace_nodes(new_source, replacements)
 
 
 def remove_nodes(source: str, nodes: Iterable[ast.AST], root: ast.Module) -> str:
@@ -330,7 +330,12 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         if not core.is_valid_python(choice):
             new_code_lines = new_code.splitlines(keepends=True)
             for extra_indent in range(0, 16, 4):
-                candidate = source[:old.start] + new_code_lines[0] + "".join(" " * extra_indent + l for l in new_code_lines[1:]) + source[old.end:]
+                candidate = (
+                    source[: old.start]
+                    + new_code_lines[0]
+                    + "".join(" " * extra_indent + l for l in new_code_lines[1:])
+                    + source[old.end :]
+                )
                 if core.is_valid_python(candidate):
                     choice = candidate
                     break
@@ -389,7 +394,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
     return new_source
 
 
-def replace_nodes(source: str, replacements: Mapping[ast.AST, ast.AST | str]) -> str:
+def _replace_nodes(source: str, replacements: Mapping[ast.AST, ast.AST | str]) -> str:
     rewrites = sorted(
         replacements.items(),
         key=lambda tup: (
@@ -407,7 +412,7 @@ def replace_nodes(source: str, replacements: Mapping[ast.AST, ast.AST | str]) ->
     return source
 
 
-def insert_nodes(source: str, additions: Collection[ast.AST]) -> str:
+def _insert_nodes(source: str, additions: Collection[ast.AST]) -> str:
     """Insert ast nodes in python source code.
 
     Args:
@@ -430,7 +435,6 @@ def insert_nodes(source: str, additions: Collection[ast.AST]) -> str:
             + ["\n"] * (not addition.endswith("\n"))
             + lines[node.lineno :]
         )
-
     return "".join(lines)
 
 
@@ -506,11 +510,11 @@ def alter_code(
     # a < d => deletions will go before additions if same lineno and reversed sorting.
     for *_, action, _, value in sorted(actions, reverse=True):
         if action == "add":
-            source = insert_nodes(source, [value])
+            source = _insert_nodes(source, [value])
         elif action == "delete":
             source = remove_nodes(source, [value], root)
         elif action == "replace":
-            source = replace_nodes(source, {value[0]: value[1]})
+            source = _replace_nodes(source, {value[0]: value[1]})
         else:
             raise ValueError(f"Invalid action: {action}")
 
@@ -531,8 +535,11 @@ def _get_charnos(obj: _Rewrite, source: str) -> core.Range:
     return core.get_charnos(new, source)
 
 
-def schedule_rewrites(source: str, funcs: Iterable[Tuple[Callable, Sequence, Mapping]]) -> Sequence[Tuple[Any, Callable]]:
-    default_transaction = {"count": -100_000_000}
+def _schedule_rewrites(
+    source: str, funcs: Iterable[Tuple[Callable, Sequence, Mapping]]
+) -> Sequence[Tuple[Any, Callable]]:
+    default_transaction = {"count": -100000000}
+
     def fill_transaction(tup) -> Tuple[ast.AST, ast.AST, int]:
         default_transaction["count"] += 1
         if len(tup) == 3:
@@ -550,8 +557,7 @@ def schedule_rewrites(source: str, funcs: Iterable[Tuple[Callable, Sequence, Map
 
         if after is None:
             after = ""
-
-        return before, after, transaction
+        return (before, after, transaction)
 
     overlap_error_format = "Discarding transaction {transaction} due to overlapping rewrite ranges: {range} and {other}"
     duplicate_error_format = "Discarding duplicate transaction {transaction}."
@@ -559,7 +565,7 @@ def schedule_rewrites(source: str, funcs: Iterable[Tuple[Callable, Sequence, Map
     transaction_rewrites = collections.defaultdict(list)
     for k, (func, args, kwargs) in enumerate(funcs):
         for old, new, transaction in map(fill_transaction, func(*args, **kwargs)):
-            transaction_rewrites[(k, transaction, func.__name__)].append(_Rewrite(old, new or ""))
+            transaction_rewrites[k, transaction, func.__name__].append(_Rewrite(old, new or ""))
 
         seen_transactions = set()
         duplicate_transaction_keys = []
@@ -586,33 +592,39 @@ def schedule_rewrites(source: str, funcs: Iterable[Tuple[Callable, Sequence, Map
             )
             conflicting = False
             for i, (rewrite_range, rewrite) in enumerate(rewrites):
-                for _, (other, _) in rewrites[i + 1:]:
+                for _, (other, _) in rewrites[i + 1 :]:
                     if rewrite_range & other:
-                        logger.debug(overlap_error_format.format(transaction=transaction, range=tuple(rewrite_range), other=tuple(other)))
+                        logger.debug(
+                            overlap_error_format.format(
+                                transaction=transaction,
+                                range=tuple(rewrite_range),
+                                other=tuple(other),
+                        ))
                         conflicting = True
                         break
                 for _, (other, _) in scheduled_rewrites:
                     if rewrite_range & other:
-                        logger.debug(overlap_error_format.format(transaction=transaction, range=tuple(rewrite_range), other=tuple(other)))
+                        logger.debug(
+                            overlap_error_format.format(
+                                transaction=transaction,
+                                range=tuple(rewrite_range),
+                                other=tuple(other),
+                        ))
                         conflicting = True
                         break
                 if conflicting:
                     break
 
             if not conflicting:
-                scheduled_rewrites.extend((transaction, r) for r in rewrites)
-
-    # In this case, source cannot be modified in this iteration, hence next iteration will be
-    # no different. So in this case we cannot recover from these failures by having a different
-    # source on the next iteration.
-    if transaction_rewrites and not scheduled_rewrites:
-        logger.error(f"{len(transaction_rewrites)} transactions found, but all were conflicting.")
+                scheduled_rewrites.extend(((transaction, r) for r in rewrites))
+    if transaction_rewrites and (not scheduled_rewrites):
+        logger.error("{} transactions found, but all were conflicting.", len(transaction_rewrites))
 
     scheduled_rewrites.sort(key=lambda tup: (tup[1][0], tup[0]), reverse=True)
     return scheduled_rewrites
 
 
-def apply_rewrites(source: str, rewrites: Sequence[Tuple[Any, Callable]]) -> str:
+def _apply_rewrites(source: str, rewrites: Sequence[Tuple[Any, Callable]]) -> str:
     for (*_, fix_func_name), (rewrite_range, rewrite) in rewrites:
         source = _do_rewrite(source, rewrite, fix_function_name=fix_func_name)
 
@@ -628,13 +640,12 @@ def fix(*maybe_func, max_iter: int = 5) -> Callable:
     """
 
     def fix_decorator(func: Callable) -> Callable:
-
         @functools.wraps(func)
         def wrapper(source, *args, **kwargs):
             history = {source}
-            for iteration_count in range(max_iter):
-                scheduled_rewrites = schedule_rewrites(source, [[func, [source, *args], kwargs]])
-                source = apply_rewrites(source, scheduled_rewrites)
+            for _ in range(max_iter):
+                scheduled_rewrites = _schedule_rewrites(source, [[func, [source, *args], kwargs]])
+                source = _apply_rewrites(source, scheduled_rewrites)
 
                 if source in history:
                     break
@@ -665,21 +676,24 @@ def _build_chain(source, preserve, fix_funcs) -> Sequence[Tuple[Callable, Sequen
         elif args == ["source", "preserve"]:
             funcs.append((func, [source], {"preserve": preserve}))
         else:
-            raise NotImplementedError(f"Cannot chain fix function {func.__name__} with unrecognized args: {args}.")
+            raise NotImplementedError(
+                f"Cannot chain fix function {func.__name__} with unrecognized args: {args}."
+            )
 
     return funcs
 
 
 def chain(fix_funcs: Iterable[Callable], max_iter: int = 10) -> Callable:
     fix_funcs = tuple(fix_funcs)
+
     def func_chain(source, preserve=frozenset()):
         history = {source}
         preserve = frozenset(preserve)
         for _ in range(max_iter):
             # Chain must be rebuilt on each iteration, since the source argument will change.
             funcs = _build_chain(source, preserve, fix_funcs)
-            scheduled_rewrites = schedule_rewrites(source, funcs)
-            source = apply_rewrites(source, scheduled_rewrites)
+            scheduled_rewrites = _schedule_rewrites(source, funcs)
+            source = _apply_rewrites(source, scheduled_rewrites)
             if source in history:
                 break
 

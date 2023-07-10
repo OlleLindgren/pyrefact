@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-from typing import Callable
 
 from pyrefact import core, parsing, processing
 

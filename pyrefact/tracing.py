@@ -478,9 +478,7 @@ def fix_reimported_names(source: str) -> str:
 
         if node_names != node.names:
             if node_names:
-                yield node, ast.ImportFrom(
-                    module=node.module, names=node_names, level=node.level
-                )
+                yield node, ast.ImportFrom(module=node.module, names=node_names, level=node.level)
             else:
                 yield node, None
 

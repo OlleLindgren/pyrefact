@@ -9,7 +9,6 @@ import textwrap
 from pathlib import Path
 from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
 
-import rmspace
 from pyrefact import (
     abstractions,
     constants,
@@ -276,7 +275,9 @@ def remove_unused_imports(source: str) -> str:
     """
     root = core.parse(source)
     unused_imports = _get_unused_imports(root)
-    completely_unused_imports, partially_unused_imports = _get_unused_imports_split(root, unused_imports)
+    completely_unused_imports, partially_unused_imports = _get_unused_imports_split(
+        root, unused_imports
+    )
 
     for node in completely_unused_imports:
         yield node, None
@@ -488,8 +489,7 @@ def align_variable_names_with_convention(
     renamings = {
         node: list(substitutes)[0]
         for node, substitutes in renamings.items()
-        if len(substitutes) == 1
-        and blacklisted_names.isdisjoint(substitutes)
+        if len(substitutes) == 1 and blacklisted_names.isdisjoint(substitutes)
     }
     substitute_node_renamings = collections.defaultdict(set)
     for node, substitute in renamings.items():
@@ -536,7 +536,7 @@ def align_variable_names_with_convention(
                     decorator_list=node.decorator_list,
                 )
             else:
-                logger.error(f"Renaming not implemented for node {node} of type {type(node)}")
+                logger.error("Renaming not implemented for node {} of type {}", node, type(node))
                 replacements.clear()
                 break
 
@@ -889,10 +889,10 @@ def delete_unreachable_code(source: str) -> str:
 
         if isinstance(node, ast.If):
             if test_value and node.body:
-                for unreachabel_node in node.orelse:
+                for _ in node.orelse:
                     yield node, None, transaction
             elif not test_value and node.orelse:
-                for unreachabel_node in node.body:
+                for _ in node.body:
                     yield node, None, transaction
             else:
                 yield node, None, transaction
@@ -1181,10 +1181,8 @@ def _orelse_preferred_as_body(body: Sequence[ast.AST], orelse: Sequence[ast.AST]
     orelse_branches = _count_branches(orelse)
     if orelse_blocking and body_blocking and body_branches >= 2 * orelse_branches:
         return True
-    if isinstance(orelse[0], (ast.Return, ast.Continue, ast.Break)) and len(body) > 3:
-        return True
 
-    return False
+    return isinstance(orelse[0], (ast.Return, ast.Continue, ast.Break)) and len(body) > 3
 
 
 def _sequential_similar_ifs(source: str, root: ast.AST) -> Collection[ast.If]:

@@ -185,9 +185,6 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
 
     transaction = 1
     for classdef in parsing.iter_classdefs(root):
-        delete = []
-        additions = []
-
         for funcdef in parsing.iter_funcdefs(classdef):
             new_name = name_replacements.get((classdef.name, funcdef.name))
             if new_name is None:

@@ -8,7 +8,7 @@ import itertools
 import re
 import textwrap
 import traceback
-from typing import Collection, Iterable, Mapping, NamedTuple, Sequence, Set, Tuple, List
+from typing import Collection, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple
 
 from pyrefact import constants, formatting, logs as logger
 
@@ -132,9 +132,7 @@ def _match_set(node: ast.AST, template: Set[ast.AST], ignore: Collection[str]) -
     if not isinstance(node, list):
         return ()
 
-    matches = (
-        match_template(node_child, tuple(template), ignore=ignore) for node_child in node
-    )
+    matches = (match_template(node_child, tuple(template), ignore=ignore) for node_child in node)
     return merge_matches(node, matches)
 
 
@@ -178,12 +176,12 @@ def _match_template_vars(
 
 
 @functools.lru_cache(maxsize=10000)
-def issubclas_cache(obj: type, types: type | Tuple[type, ...]) -> bool:
+def _issubclas_cache(obj: type, types: type | Tuple[type, ...]) -> bool:
     return issubclass(obj, types)
 
 
-def isinstance_cache(obj: object, types: type | Tuple[type, ...]) -> bool:
-    return issubclas_cache(type(obj), types)
+def _isinstance_cache(obj: object, types: type | Tuple[type, ...]) -> bool:
+    return _issubclas_cache(type(obj), types)
 
 
 def match_template(
@@ -228,37 +226,37 @@ def match_template(
     # A type indicates that the node should be an instance of that type,
     # and nothing else. A tuple indicates that the node should be any of
     # the types in it.
-    if isinstance_cache(template, type):
-        return (node,) if isinstance_cache(node, template) else ()
+    if _isinstance_cache(template, type):
+        return (node,) if _isinstance_cache(node, template) else ()
 
     # A tuple indicates an or condition; the node must comply with any of
     # the templates in the child.
     # They may all be types for example, which boils down to the traditional
     # isinstance logic.
     # If there are wildcards, the first match is chosen.
-    if isinstance_cache(template, tuple):
+    if _isinstance_cache(template, tuple):
         return _match_tuple(node, template, ignore)
 
     # A set indicates a variable length list, where all elements must match
     # against at least one of the templates in it.
     # If there are wildcards, the first match is chosen.
     # If there are inconsistencies between different elements, the match is discarded.
-    if isinstance_cache(template, set):
+    if _isinstance_cache(template, set):
         return _match_set(node, template, ignore)
 
     # A list indicates that the node must also be a list, and for every
     # element, it must match against the corresponding node in the template.
     # It must also be equal length.
-    if isinstance_cache(template, list):
+    if _isinstance_cache(template, list):
         return _match_list(node, template, ignore)
 
     if template is True or template is False or template is None:
         return (node,) if node is template else ()
 
-    if isinstance_cache(template, Wildcard):
+    if _isinstance_cache(template, Wildcard):
         return _match_wildcard(node, template, ignore)
 
-    if isinstance_cache(template, ast.AST):
+    if _isinstance_cache(template, ast.AST):
         if isinstance(node, type(template)):
             return _match_template_vars(node, template, ignore=ignore)
 
@@ -676,10 +674,10 @@ def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> 
         start = node
 
     start_charno = line_start_charnos[start.lineno - 1] + start.col_offset
-    if getattr(node, "end_lineno", None) is not None:
-        end_charno = line_start_charnos[node.end_lineno - 1] + node.end_col_offset
-    else:
+    if getattr(node, "end_lineno", None) is None:
         return Range(start_charno, start_charno)
+
+    end_charno = line_start_charnos[node.end_lineno - 1] + node.end_col_offset
 
     code = source[start_charno:end_charno]
     if code[0] == " ":
