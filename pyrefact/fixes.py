@@ -1420,10 +1420,12 @@ def replace_for_loops_with_dict_comp(source: str) -> str:
         targets=[ast.Name(id=core.Wildcard("target", str))],
     )
 
+    transaction = 0
     root = core.parse(source)
     for (_, target, value), (n2,) in core.walk_sequence(root, assign_template, ast.For):
         body_node = n2
         generators = []
+        transaction += 1
 
         while core.match_template(
             body_node, (ast.For(body=[object]), ast.If(body=[object], orelse=[]))
@@ -1453,17 +1455,17 @@ def replace_for_loops_with_dict_comp(source: str) -> str:
             key=body_node.targets[0].slice, value=body_node.value, generators=generators
         )
         if core.match_template(value, ast.Dict(values=[], keys=[])):
-            yield value, comp
-            yield n2, None
+            yield value, comp, transaction
+            yield n2, None, transaction
         elif core.match_template(value, ast.Dict(values=list, keys={None})):
-            yield value, ast.Dict(keys=value.keys + [None], values=value.values + [comp])
-            yield n2, None
+            yield value, ast.Dict(keys=value.keys + [None], values=value.values + [comp]), transaction
+            yield n2, None, transaction
         elif core.match_template(value, ast.Dict(values=list, keys=list)):
-            yield value, ast.Dict(keys=[None, None], values=[value, comp])
-            yield n2, None
+            yield value, ast.Dict(keys=[None, None], values=[value, comp]), transaction
+            yield n2, None, transaction
         elif isinstance(value, ast.DictComp):
-            yield value, ast.Dict(keys=[None, None], values=[value, comp])
-            yield n2, None
+            yield value, ast.Dict(keys=[None, None], values=[value, comp]), transaction
+            yield n2, None, transaction
 
 
 @processing.fix
@@ -1966,12 +1968,14 @@ def implicit_defaultdict(source: str) -> str:
     )
     if_template = ast.If(body=[object], orelse=[])
 
+    transaction = 0
     root = core.parse(source)
     for (_, target, value), (n2,) in core.walk_sequence(root, assign_template, ast.For):
         loop_replacements = {}
         loop_removals = set()
         subscript_calls = set()
         consistent = True
+        transaction += 1
 
         for (condition,), (append,) in core.walk_sequence(n2, if_template, ast.Expr):
             try:
@@ -2045,23 +2049,28 @@ def implicit_defaultdict(source: str) -> str:
         if not consistent:
             continue
 
+        replacements = []
+
         if subscript_calls and subscript_calls <= {"add", "update"}:
-            yield from loop_replacements.items()
-            yield from zip(loop_removals, itertools.repeat(None))
-            yield value, ast.Call(
+            replacements.extend(loop_replacements.items())
+            replacements.extend(zip(loop_removals, itertools.repeat(None)))
+            replacements.append((value, ast.Call(
                 func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
                 args=[ast.Name(id="set")],
                 keywords=[],
-            )
+            )))
 
         if subscript_calls and subscript_calls <= {"append", "extend"}:
-            yield from loop_replacements.items()
-            yield from zip(loop_removals, itertools.repeat(None))
-            yield value, ast.Call(
+            replacements.extend(loop_replacements.items())
+            replacements.extend(zip(loop_removals, itertools.repeat(None)))
+            replacements.append((value, ast.Call(
                 func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
                 args=[ast.Name(id="list")],
                 keywords=[],
-            )
+            )))
+
+        for before, after in replacements:
+            yield before, after, transaction
 
 
 @processing.fix
@@ -2498,7 +2507,7 @@ def replace_dict_assign_with_dict_literal(source: str) -> str:
             value=core.Wildcard("value", object, common=False),
     ),]
 
-    for first, *matches in core.walk_sequence(root, *template, expand_last=True):
+    for transaction, (first, *matches) in enumerate(core.walk_sequence(root, *template, expand_last=True)):
         replacement = ast.Assign(
             targets=[first.target],
             value=ast.Dict(
@@ -2507,9 +2516,9 @@ def replace_dict_assign_with_dict_literal(source: str) -> str:
             ),
             lineno=first.target.lineno,
         )
-        yield first.root, replacement
+        yield first.root, replacement, transaction
         for m in matches:
-            yield m.root, None
+            yield m.root, None, transaction
 
 
 @processing.fix
@@ -2529,7 +2538,7 @@ def replace_dict_update_with_dict_literal(source: str) -> str:
                 args=[core.Wildcard("other", object, common=False)],
     )),]
 
-    for first, *matches in core.walk_sequence(root, *template, expand_last=True):
+    for transaction, (first, *matches) in enumerate(core.walk_sequence(root, *template, expand_last=True)):
         replacement = ast.Assign(
             targets=[first.target],
             value=ast.Dict(
@@ -2538,9 +2547,9 @@ def replace_dict_update_with_dict_literal(source: str) -> str:
             ),
             lineno=first.target.lineno,
         )
-        yield first.root, replacement
+        yield first.root, replacement, transaction
         for m in matches:
-            yield m.root, None
+            yield m.root, None, transaction
 
 
 @processing.fix
@@ -2558,7 +2567,7 @@ def replace_dictcomp_assign_with_dict_literal(source: str) -> str:
             value=core.Wildcard("value", object, common=False),
     ),]
 
-    for first, *matches in core.walk_sequence(root, *template, expand_last=True):
+    for transaction, (first, *matches) in enumerate(core.walk_sequence(root, *template, expand_last=True)):
         replacement = ast.Assign(
             targets=[first.target],
             value=ast.Dict(
@@ -2567,9 +2576,9 @@ def replace_dictcomp_assign_with_dict_literal(source: str) -> str:
             ),
             lineno=first.target.lineno,
         )
-        yield first.root, replacement
+        yield first.root, replacement, transaction
         for m in matches:
-            yield m.root, None
+            yield m.root, None, transaction
 
 
 @processing.fix
@@ -2585,7 +2594,7 @@ def replace_dictcomp_update_with_dict_literal(source: str) -> str:
                 args=[core.Wildcard("other", object, common=False)],
     )),]
 
-    for first, *matches in core.walk_sequence(root, *template, expand_last=True):
+    for transaction, (first, *matches) in enumerate(core.walk_sequence(root, *template, expand_last=True)):
         replacement = ast.Assign(
             targets=[first.target],
             value=ast.Dict(
@@ -2594,9 +2603,9 @@ def replace_dictcomp_update_with_dict_literal(source: str) -> str:
             ),
             lineno=first.target.lineno,
         )
-        yield first.root, replacement
+        yield first.root, replacement, transaction
         for m in matches:
-            yield m.root, None
+            yield m.root, None, transaction
 
 
 def _is_recursive_binop_chain(node: ast.AST, op: ast.AST) -> bool:
@@ -2790,7 +2799,7 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
             keywords=[],
     ))
     template = [assign_template, modify_template]
-    for node, *matches in core.walk_sequence(root, *template, expand_last=True):
+    for transaction, (node, *matches) in enumerate(core.walk_sequence(root, *template, expand_last=True)):
         assigned_value = node.root.value
         other_elts = []
         for m in matches:
@@ -2812,9 +2821,9 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
             else:
                 replacement = ast.Set(elts=elts)
 
-            yield assigned_value, replacement
+            yield assigned_value, replacement, transaction
             for m in matches:
-                yield m.root, None
+                yield m.root, None, transaction
 
         elif isinstance(assigned_value, (ast.ListComp, ast.SetComp)):
             elts = [ast.Starred(value=assigned_value)] + other_elts
@@ -2824,9 +2833,9 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
             else:
                 replacement = ast.Set(elts=elts)
 
-            yield assigned_value, replacement
+            yield assigned_value, replacement, transaction
             for m in matches:
-                yield m.root, None
+                yield m.root, None, transaction
 
 
 @processing.fix
@@ -2957,7 +2966,7 @@ def _keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
         ast.DictComp(generators=[comprehension_template]),
     )
 
-    for node, target, value in core.walk_wildcard(root, template):
+    for transaction, (node, target, value) in enumerate(core.walk_wildcard(root, template)):
         subscript_template = core.compile_template(
             "{{value}}[{{target}}]", value=value, target=target
         )
@@ -2976,11 +2985,12 @@ def _keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
         yield (
             node.generators[0].iter,
             ast.Call(func=ast.Attribute(value=value, attr="items"), args=[], keywords=[]),
+            transaction,
         )
 
-        yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name)])
+        yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name)]), transaction
         for subscript_use in value_target_subscripts:
-            yield subscript_use, ast.Name(id=node_target_name)
+            yield subscript_use, ast.Name(id=node_target_name), transaction
 
 
 @processing.fix
@@ -2996,11 +3006,11 @@ def _items_to_keys(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
         ifs=core.Wildcard("ifs", list),
         is_async=core.Wildcard("is_async", int),
     )
-    for node, _, _, target, value in core.walk_wildcard(root, template):
-        yield node.target, target
+    for transaction, (node, _, _, target, value) in enumerate(core.walk_wildcard(root, template)):
+        yield node.target, target, transaction
         yield node.iter, ast.Call(
             func=ast.Attribute(value=value, attr="keys"), args=[], keywords=[]
-        )
+        ), transaction
 
 
 @processing.fix
@@ -3016,11 +3026,11 @@ def _items_to_values(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
         ifs=core.Wildcard("ifs", list),
         is_async=core.Wildcard("is_async", int),
     )
-    for node, _, _, target, value in core.walk_wildcard(root, template):
-        yield node.target, target
+    for transaction, (node, _, _, target, value) in enumerate(core.walk_wildcard(root, template)):
+        yield node.target, target, transaction
         yield node.iter, ast.Call(
             func=ast.Attribute(value=value, attr="values"), args=[], keywords=[]
-        )
+        ), transaction
 
 
 @processing.fix
@@ -3033,7 +3043,7 @@ def _for_keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
             args=[],
             keywords=[],
     ),)
-    for node, target, value in core.walk_wildcard(root, template):
+    for transaction, (node, target, value) in enumerate(core.walk_wildcard(root, template)):
         subscript_template = core.compile_template(
             "{{value}}[{{target}}]", value=value, target=target
         )
@@ -3052,11 +3062,12 @@ def _for_keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
         yield (
             node.iter,
             ast.Call(func=ast.Attribute(value=value, attr="items"), args=[], keywords=[]),
+            transaction,
         )
 
-        yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name)])
+        yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name)]), transaction
         for subscript_use in value_target_subscripts:
-            yield subscript_use, ast.Name(id=node_target_name)
+            yield subscript_use, ast.Name(id=node_target_name), transaction
 
 
 @processing.fix
@@ -3070,11 +3081,11 @@ def _for_items_to_keys(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
             keywords=[],
     ),)
 
-    for node, target, value in core.walk_wildcard(root, template):
-        yield node.target, target
+    for transaction, (node, target, value) in enumerate(core.walk_wildcard(root, template)):
+        yield node.target, target, transaction
         yield node.iter, ast.Call(
             func=ast.Attribute(value=value, attr="keys"), args=[], keywords=[]
-        )
+        ), transaction
 
 
 @processing.fix
@@ -3088,11 +3099,11 @@ def _for_items_to_values(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
             keywords=[],
     ),)
 
-    for node, target, value in core.walk_wildcard(root, template):
-        yield node.target, target
+    for transaction, (node, target, value) in enumerate(core.walk_wildcard(root, template)):
+        yield node.target, target, transaction
         yield node.iter, ast.Call(
             func=ast.Attribute(value=value, attr="values"), args=[], keywords=[]
-        )
+        ), transaction
 
 
 def implicit_dict_keys_values_items(source: str) -> str:
@@ -3118,9 +3129,9 @@ def redundant_enumerate(source: str) -> str:
         ast.For(iter=iter_template, target=target_template),
     )
 
-    for node, node_iter, target in core.walk_wildcard(root, template):
-        yield node.iter, node_iter
-        yield node.target, target
+    for transaction, (node, node_iter, target) in enumerate(core.walk_wildcard(root, template)):
+        yield node.iter, node_iter, transaction
+        yield node.target, target, transaction
 
 
 @processing.fix
@@ -3145,7 +3156,7 @@ def unused_zip_args(source: str) -> str:
     )
 
     safe_callables = parsing.safe_callable_names(root)
-    for node, elts, func, node_iter in core.walk_wildcard(root, template):
+    for transaction, (node, elts, func, node_iter) in enumerate(core.walk_wildcard(root, template)):
         new_elts = []
         iters = []
         changes = False
@@ -3170,14 +3181,14 @@ def unused_zip_args(source: str) -> str:
             continue
 
         if len(new_elts) == 0:  # 0 args used => replace zip with first arg
-            yield node.target, elts[0]
-            yield node.iter, node_iter[0]
+            yield node.target, elts[0], transaction
+            yield node.iter, node_iter[0], transaction
         elif len(new_elts) == 1:  # 1 arg used => replace zip with that arg
-            yield node.target, new_elts[0]
-            yield node.iter, iters[0]
+            yield node.target, new_elts[0], transaction
+            yield node.iter, iters[0], transaction
         elif len(new_elts) > 1:  # > 1 args used => remove unused ones, keep zip
-            yield node.target, ast.Tuple(elts=new_elts)
-            yield node.iter, ast.Call(func=func, args=iters, keywords=[])
+            yield node.target, ast.Tuple(elts=new_elts), transaction
+            yield node.iter, ast.Call(func=func, args=iters, keywords=[]), transaction
 
 
 @processing.fix
