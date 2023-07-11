@@ -2624,9 +2624,24 @@ def replace_setcomp_add_with_union(source: str) -> str:
         else:
             yield before, after
 
+    find = """
+    {{variable}} = {{something}}
+    {{variable}}.update({{something_else}})
+    """
+    replace = """
+    {{variable}} = {{something}} | set({{something_else}})
+    """
+    find = core.compile_template(find, something=(ast.SetComp, ast.Set, ast.BinOp(op=ast.BitOr)))
+    for before, after, template_match in processing.find_replace(source, find, replace, yield_match=True):
+        if isinstance(template_match.root, ast.BinOp):
+            if _is_recursive_binop_chain(template_match.root, ast.BitOr):
+                yield before, after
+        else:
+            yield before, after
+
 
 @processing.fix
-def replace_listcomp_add_with_union(source: str) -> str:
+def replace_listcomp_append_with_plus(source: str) -> str:
     find = """
     {{variable}} = {{something}}
     for {{target}} in {{iterable}}:
@@ -2634,6 +2649,21 @@ def replace_listcomp_add_with_union(source: str) -> str:
     """
     replace = """
     {{variable}} = {{something}} + [{{something_else}} for {{target}} in {{iterable}}]
+    """
+    find = core.compile_template(find, something=(ast.ListComp, ast.List, ast.BinOp(op=ast.Add)))
+    for before, after, template_match in processing.find_replace(source, find, replace, yield_match=True):
+        if isinstance(template_match.root, ast.BinOp):
+            if _is_recursive_binop_chain(template_match.root, ast.Add):
+                yield before, after
+        else:
+            yield before, after
+
+    find = """
+    {{variable}} = {{something}}
+    {{variable}}.extend({{something_else}})
+    """
+    replace = """
+    {{variable}} = {{something}} + list({{something_else}})
     """
     find = core.compile_template(find, something=(ast.ListComp, ast.List, ast.BinOp(op=ast.Add)))
     for before, after, template_match in processing.find_replace(source, find, replace, yield_match=True):

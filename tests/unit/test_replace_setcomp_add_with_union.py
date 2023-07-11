@@ -23,6 +23,18 @@ x = {foo(z) ** 2 for z in range(3)} | {zua - 1 for zua in range(3)}
         ),
         (
             """
+x = {foo(z) ** 2 for z in range(3)}
+for zua in range(3):
+    x.add(zua - 1)
+x.update((1, 3, 2))
+x.update({"sadf", 312})
+            """,
+            """
+x = {foo(z) ** 2 for z in range(3)} | {zua - 1 for zua in range(3)} | set((1, 3, 2)) | set({'sadf', 312})
+            """,
+        ) if constants.PYTHON_VERSION > (3, 9) else ("", ""),
+        (
+            """
 x = [foo(z) ** 2 for z in range(3)]
 for zua in range(3):
     x.append(zua - 1)
