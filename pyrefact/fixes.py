@@ -3664,3 +3664,20 @@ def fix_if_assign(source: str) -> str:
     replace = "{{variable}} = not {{condition}}"
 
     yield from processing.find_replace(source, find, replace, transaction=2)
+
+
+@processing.fix
+def fix_raise_missing_from(source: str) -> str:
+    find = """
+    try:
+        {{stuff}}
+    except {{exception}}:
+        raise {{something}}
+    """
+    replace = """
+    try:
+        {{stuff}}
+    except {{exception}} as error:
+        raise {{something}} from error
+    """
+    yield from processing.find_replace(source, find, replace)

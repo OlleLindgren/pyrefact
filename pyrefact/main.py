@@ -80,6 +80,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.delete_commented_code(source)
     source = fixes.remove_dead_ifs(source)
     source = fixes.delete_unreachable_code(source)
+    source = fixes.fix_raise_missing_from(source)
     source = fixes.undefine_unused_variables(source, preserve=preserve)
     source = fixes.delete_pointless_statements(source)
     source = fixes.move_before_loop(source)
