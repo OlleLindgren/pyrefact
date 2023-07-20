@@ -43,6 +43,10 @@ sum(iter(v))
 sum(tuple(v))
 sum(list(v))
 sorted(foo(list(foo(iter((foo(v)))))))
+reversed(sorted(foo))
+reversed(sorted(asdf, reverse=True))
+reversed(sorted(k, reverse=False))
+reversed(sorted(k, reverse=foo() == 313))
             """,
             """
 sorted(v)
@@ -75,6 +79,10 @@ sum(v)
 sum(v)
 sum(v)
 sorted(foo(list(foo(iter((foo(v)))))))
+sorted(foo, reverse=True)
+sorted(asdf)
+sorted(k, reverse=True)
+sorted(k, reverse=not foo() == 313)
             """,
         ),
     )

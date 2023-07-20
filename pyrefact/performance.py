@@ -125,6 +125,31 @@ def remove_redundant_chained_calls(source: str) -> str:
     for node in core.walk(root, templates):
         yield node, node.args[0]
 
+    reversed_sorted_template = ast.Call(
+        func=ast.Name(id="reversed"), args=[ast.Call(func=ast.Name(id="sorted"))]
+    )
+    for node in core.walk(root, reversed_sorted_template):
+        replacement = node.args[0]
+        for i, kw in enumerate(replacement.keywords):
+            if kw.arg == "reverse":
+                kw.value = ast.UnaryOp(op=ast.Not(), operand=kw.value)
+                break
+        else:
+            i = len(replacement.keywords)
+            replacement.keywords.append(ast.keyword(arg="reverse", value=ast.Constant(value=True, kind=None)))
+
+        try:
+            value = core.literal_value(replacement.keywords[i].value)
+        except ValueError:
+            pass
+        else:
+            if value:
+                replacement.keywords[i].value = ast.Constant(value=bool(value), kind=None)
+            else:
+                del replacement.keywords[i]
+
+        yield node, replacement
+
 
 def _slice_of(node: ast.Subscript) -> ast.AST:
     node_slice = node.slice
