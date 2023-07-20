@@ -3,7 +3,24 @@ name: Tests
 on: [push, pull_request]
 
 jobs:
+  pylint-errors-only:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+    - name: Run pylint
+      run: |
+        pylint -E ./pyrefact
+
   check:
+    needs: [pylint-errors-only]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -38,6 +55,7 @@ jobs:
         python ./tests/main.py
 
   check-macos:
+    needs: [pylint-errors-only]
     runs-on: macos-latest
     strategy:
       matrix:
@@ -60,6 +78,7 @@ jobs:
       run: python ./tests/main.py
 
   check-windows:
+    needs: [pylint-errors-only]
     runs-on: macos-latest
     strategy:
       matrix:
@@ -82,6 +101,7 @@ jobs:
       run: python ./tests/main.py
 
   check-slow:
+    needs: [pylint-errors-only]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -102,7 +122,7 @@ jobs:
 
   deploy:
     environment: deploy
-    needs: [check, check-macos, check-windows]
+    needs: [pylint-errors-only, check, check-macos, check-windows]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3

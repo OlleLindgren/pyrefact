@@ -21,14 +21,14 @@ Setting up a development environment is relatively straightforward; all you real
 
 ```bash
 git clone https://github.com/OlleLindgren/pyrefact.git
-cd pyrefact
-pip install -e .
+cd pyrefact  # To the repo top/root dir
+pip install -e ".[dev]"  # Also installs dev dependencies
 ```
 
 To run the tests that go into the automated CI, just run:
 
 ```bash
-cd pyrefact
+pylint -E ./pyrefact
 ./tests/main.py
 ./tests/numpy.sh
 ```
