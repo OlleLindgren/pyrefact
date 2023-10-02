@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["astunparse==1.6.3", "pylint==2.17.6"]
+dev = ["astunparse==1.6.3", "pylint==3.0.0"]
 
 [project.urls]
 repository="https://github.com/OlleLindgren/pyrefact"
