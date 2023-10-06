@@ -898,6 +898,8 @@ class _NameWildcardTransformer(ast.NodeTransformer):
             node = [self.visit(child) for child in node]
         elif isinstance(node, type):
             return node
+        elif node is None or node is True or node is False:
+            return node
         else:
             node = super().visit(node)
 
@@ -951,6 +953,51 @@ class _NameWildcardTransformer(ast.NodeTransformer):
             return node
 
         new_node = ast.alias(name=new_name, asname=new_asname)
+        return ast.copy_location(new_node, node)
+
+    def visit_ClassDef(self, node):
+        new_name = self.name_wildcard_mapping.get(node.name, node.name)
+        new_bases = [self.visit(child) for child in node.bases]
+        new_keywords = [self.visit(child) for child in node.keywords]
+        new_decorators = [self.visit(child) for child in node.decorator_list]
+        new_body = [self.visit(child) for child in node.body]
+        new_node = ast.ClassDef(
+            name=new_name,
+            bases=new_bases,
+            keywords=new_keywords,
+            decorator_list=new_decorators,
+            body=new_body,
+        )
+        return ast.copy_location(new_node, node)
+
+    def visit_FunctionDef(self, node):
+        new_name = self.name_wildcard_mapping.get(node.name, node.name)
+        new_args = self.visit(node.args)
+        new_body = [self.visit(child) for child in node.body]
+        new_decorator_list = [self.visit(child) for child in node.decorator_list]
+        new_returns = self.visit(node.returns)
+        new_node = ast.FunctionDef(
+            name=new_name,
+            args=new_args,
+            body=new_body,
+            decorator_list=new_decorator_list,
+            returns=new_returns,
+        )
+        return ast.copy_location(new_node, node)
+
+    def visit_AsyncFunctionDef(self, node):
+        new_name = self.name_wildcard_mapping.get(node.name, node.name)
+        new_args = self.visit(node.args)
+        new_body = [self.visit(child) for child in node.body]
+        new_decorator_list = [self.visit(child) for child in node.decorator_list]
+        new_returns = self.visit(node.returns)
+        new_node = ast.AsyncFunctionDef(
+            name=new_name,
+            args=new_args,
+            body=new_body,
+            decorator_list=new_decorator_list,
+            returns=new_returns,
+        )
         return ast.copy_location(new_node, node)
 
 
