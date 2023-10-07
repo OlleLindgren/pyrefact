@@ -43,6 +43,60 @@ class TestMatchTemplate(unittest.TestCase):
         self.assertIs(m[0], node)
         self.assertEqual(m, (node,))
 
+        template = '''
+def format_with_black(source: str, *, line_length: int = 100) -> str:
+    """Format code with black.
+
+    Args:
+        source (str): Python source code
+
+    Returns:
+        str: Formatted source code.
+    """
+    original_source = source
+    indent = indentation_level(source)
+    if indent > 0:
+        source = textwrap.dedent(source)
+
+    try:
+        source = black.format_str(
+            source, mode=black.Mode(line_length=max(60, line_length - indent))
+        )
+    except (SyntaxError, black.parsing.InvalidInput):
+        logger.error("Black raised InvalidInput on code:{}", source)
+        return original_source
+
+    if indent > 0:
+        source = textwrap.indent(source, " " * indent)
+
+    return source
+'''
+        compiled_template = core.compile_template(template)
+        node = ast.parse(template).body[0]
+
+        m = core.match_template(node, compiled_template)
+        self.assertIs(m[0], node)
+        self.assertEqual(m, (node,))
+
+        template = '''
+class Range(NamedTuple):
+    start: int  # Character number
+    end: int  # Character number
+
+    def overlaps(self, other: "Range") -> bool:
+        return self.start < other.end and other.start < self.end
+
+    # Use & operator for overlaps()
+    def __and__(self, other: "Range") -> bool:
+        return self.overlaps(other)
+'''
+        compiled_template = core.compile_template(template)
+        node = ast.parse(template).body[0]
+
+        m = core.match_template(node, compiled_template)
+        self.assertIs(m[0], node)
+        self.assertEqual(m, (node,))
+
     def test_basic_wildcard(self):
         template = "x = {{anything}}"
         code = "x = 1337 ** 99 - 100 ** qwerty"
