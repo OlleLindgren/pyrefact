@@ -935,7 +935,11 @@ class _NameWildcardTransformer(ast.NodeTransformer):
         return type(node)(**node_vars)
 
     def visit_arg(self, node):
-        return self.name_wildcard_mapping.get(node.arg, node)
+        arg = self.name_wildcard_mapping.get(node.arg, node.arg)
+        annotation = self.visit(node.annotation)
+
+        new_node = ast.arg(arg=arg, annotation=annotation)
+        return ast.copy_location(new_node, node)
 
     def visit_Name(self, node):
         return self.name_wildcard_mapping.get(node.id, node)
