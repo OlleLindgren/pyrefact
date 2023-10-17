@@ -48,7 +48,7 @@ y = x.iat[2]
 y = x.loc[1.13, "name_of_column"]
             """,
             """
-y = x.at[(1.13, 'name_of_column')]
+y = x.at[(1.13, "name_of_column")]
             """,
         ),
         (

@@ -38,8 +38,8 @@ w in (foo, bar, "asdf", coo)
 w in (x for x in range(10))
 w in (x for x in range(10))
 w in (x for x in range(10))
-w in (x for x in [1, 3, '', 909, ()])
-w in (x for x in [1, 3, '', 909, ()])
+w in (x for x in [1, 3, "", 909, ()])
+w in (x for x in [1, 3, "", 909, ()])
 w in (x for x in [1, 3, "", 909, ()])
 x in {1, 2, 3}
             """,

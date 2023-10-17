@@ -135,6 +135,35 @@ def _substitute_original_strings(original_source: str, new_source: str) -> str:
             most_common_original_formatting = collections.Counter(original_formattings).most_common(
                 1
             )[0][0]
+
+            original_modifiers = set()
+            new_modifiers = set()
+
+            for ch in most_common_original_formatting:
+                if ch in ("'", '"'):
+                    break
+
+                original_modifiers.add(ch.lower())
+
+            for ch in new_formatting:
+                if ch in ("'", '"'):
+                    break
+
+                new_modifiers.add(ch.lower())
+
+            # Maybe there can be newlines here or something, I don't know but remove them to be safe.
+            # NOTE that it is impossible for 'f' to be in here with current implementation, as those
+            # are not ast.Constant, but rather ast.NamedExpr objects. But just in case we somehow
+            # change the implementation, we include it here.
+            original_modifiers &= set("brf")
+            new_modifiers &= set("brf")
+
+            # If the modifiers are not the same, we use the new modifiers.
+            if new_modifiers != original_modifiers:
+                prefix = "".join(sorted(new_modifiers, key="frb".index))
+                most_common_original_formatting = most_common_original_formatting.lstrip("brf")
+                most_common_original_formatting = prefix + most_common_original_formatting
+
             replacements[node] = most_common_original_formatting
 
     return _replace_nodes(new_source, replacements)
@@ -625,8 +654,12 @@ def _schedule_rewrites(
 
 
 def _apply_rewrites(source: str, rewrites: Sequence[Tuple[Any, Callable]]) -> str:
+    original_source = source
     for (*_, fix_func_name), (rewrite_range, rewrite) in rewrites:
         source = _do_rewrite(source, rewrite, fix_function_name=fix_func_name)
+
+    source = _substitute_original_strings(original_source, source)
+    source = _substitute_original_fstrings(original_source, source)
 
     return source
 

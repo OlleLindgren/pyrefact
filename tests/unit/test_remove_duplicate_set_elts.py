@@ -17,7 +17,7 @@ def main() -> int:
 {1, 99, "s", 1, sum(range(11)), sum(range(11))}
             """,
             """
-{1, 99, 's', sum(range(11)), sum(range(11))}
+{1, 99, "s", sum(range(11)), sum(range(11))}
             """,
         ),
     )

@@ -30,7 +30,7 @@ x.extend([1, 3, 2])
 x.extend({"sadf", 312})
             """,
             """
-x = [foo(z) ** 2 for z in range(3)] + [zua - 1 for zua in range(3)] + list([1, 3, 2]) + list({'sadf', 312})
+x = [foo(z) ** 2 for z in range(3)] + [zua - 1 for zua in range(3)] + list([1, 3, 2]) + list({"sadf", 312})
             """,
         ) if constants.PYTHON_VERSION > (3, 9) else ("", ""),
         (
