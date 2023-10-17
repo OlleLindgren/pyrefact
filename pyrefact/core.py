@@ -72,6 +72,21 @@ class Wildcard(ast.AST):
         return f"Wildcard({self.name!r}, {self.value!r}, {self.common!r})"
 
 
+class ZeroOrOne(NamedTuple):
+    """Matches zero or one of a template"""
+    template: object
+
+
+class ZeroOrMany(NamedTuple):
+    """Matches zero or many of a template"""
+    template: object
+
+
+class OneOrMany(NamedTuple):
+    """Matches one or many of a template"""
+    template: object
+
+
 @functools.lru_cache(maxsize=10000)
 def _make_match_type(fields: Tuple[str, ...]) -> type:
     return collections.namedtuple("Match", fields)
@@ -136,17 +151,72 @@ def _match_set(node: ast.AST, template: Set[ast.AST], ignore: Collection[str]) -
     return merge_matches(node, matches)
 
 
-def _match_list(node: ast.AST, template: List[ast.AST], ignore: Collection[str]) -> Tuple:
-    if not isinstance(node, list):
-        return ()
-    if len(node) != len(template):
+def _iter_template_permutations(template: List[ast.AST], length: int) -> Iterable[List[ast.AST]]:
+    node_counts = {}
+    for i, node in enumerate(template):
+        if isinstance(node, ZeroOrOne):
+            node_counts[(i, node.template)] = (0, 1)
+        elif isinstance(node, ZeroOrMany):
+            node_counts[(i, node.template)] = (0, float("inf"))
+        elif isinstance(node, OneOrMany):
+            node_counts[(i, node.template)] = (1, float("inf"))
+        else:
+            node_counts[(i, node)] = (1, 1)
+
+    slack = length - sum(min_count for min_count, _ in node_counts.values())
+    if slack < 0:
+        return
+
+    for i, node in enumerate(template):
+        if isinstance(node, ZeroOrMany):
+            node_counts[i, node.template] = (0, slack)
+        if isinstance(node, OneOrMany):
+            node_counts[i, node.template] = (1, 1 + slack)
+
+    node_counts = {
+        key: range(min_count, max_count + 1)
+        for key, (min_count, max_count) in node_counts.items()
+    }
+    keys = node_counts.keys()
+    permutations = itertools.product(*(node_counts[key] for key in keys))
+    permutations = (p for p in permutations if sum(p) == length)
+
+    for permutation in permutations:
+        yield sum(
+            ([key[1]] * count for key, count in zip(keys, permutation)),
+            []
+        )
+
+
+def _match_list(nodes: ast.AST, template: List[ast.AST], ignore: Collection[str]) -> Tuple:
+    if not isinstance(nodes, list):
         return ()
 
-    matches = (
-        match_template(child, template_child, ignore=ignore)
-        for child, template_child in zip(node, template)
-    )
-    return merge_matches(node, matches)
+    min_nodes_length = max_nodes_length = len(template)
+    for n in template:
+        if isinstance(n, ZeroOrOne):
+            min_nodes_length -= 1
+        if isinstance(n, ZeroOrMany):
+            min_nodes_length -= 1
+            max_nodes_length = float("inf")
+        if isinstance(n, OneOrMany):
+            max_nodes_length = float("inf")
+
+    if not min_nodes_length <= len(nodes) <= max_nodes_length:
+        return ()
+
+    permutations = _iter_template_permutations(template, len(nodes))
+
+    for permutation in permutations:
+        matches = (
+            match_template(child, template_child, ignore=ignore)
+            for child, template_child in zip(nodes, permutation)
+        )
+        merged = merge_matches(permutation, matches)
+        if merged:
+            return merged
+
+    return ()
 
 
 def _match_wildcard(node: ast.AST, template: Wildcard, ignore: Collection[str]) -> Tuple:
