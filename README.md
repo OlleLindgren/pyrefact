@@ -59,6 +59,32 @@ Unlike emerging AI tools, pyrefact is entirely rule based and does not share you
 * Add missing imports by guessing what you probably wanted.
   * For example, if `Sequence` is used but never defined, it will insert `from typing import Sequence` at the top of the file.
 
+### Pattern-matching
+
+Pyrefact supports pattern-matching analogous to Python's builtin `re` library:
+```python
+>>> from pyrefact import pattern_matching
+>>> source = """
+... x = 1
+... y = "asdf"
+... """
+>>> pattern = "x = 1"
+>>> list(pattern_matching.finditer(pattern, source))
+[Match(span=Range(start=1, end=6), source='\nx = 1\ny = "asdf"\n', groups=(<ast.Assign object at 0x1015f38e0>,))]
+>>> pattern_matching.findall(pattern, source)
+['x = 1']
+>>> pattern_matching.sub(pattern, "x = 33 - x", source)
+'\nx = 33 - x\ny = "asdf"\n'
+>>> pattern_matching.search(pattern, source)
+Match(span=Range(start=1, end=6), source='\nx = 1\ny = "asdf"\n', groups=(<ast.Assign object at 0x103acaf20>,))
+```
+
+Pattern-matching can also be used from the command-line:
+```bash
+python -m pyrefact.pattern_matching findall "x = {{value}}" /path/to/filename.py
+python -m pyrefact.pattern_matching sub "x = {{value}}" "x = 1 - {{value}} ** 3" /path/to/filename.py
+```
+
 ## Installation
 
 Pyrefact can be installed with pip, and works on Python 3.8 or newer:

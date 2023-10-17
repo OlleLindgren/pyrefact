@@ -657,6 +657,50 @@ class Range(NamedTuple):
         return self.overlaps(other)
 
 
+@dataclasses.dataclass(frozen=True, eq=True, order=True)
+class Match:
+    span: Range
+    source: str
+    groups: Tuple[object, ...]
+
+    @property
+    def start(self) -> int:
+        return self.span.start
+
+    @property
+    def end(self) -> int:
+        return self.span.end
+
+    @property
+    def string(self) -> str:
+        return self.source[self.start:self.end]
+
+    @property
+    def root(self) -> ast.AST:
+        return self.groups[0]
+
+    def _lineno_col_offset(self) -> Tuple[int, int]:
+        line_start_charnos = _get_line_start_charnos(self.source)
+        for lineno, start_charno in enumerate(line_start_charnos[1:], start=1):
+            if self.start < start_charno:
+                col_offset = self.start - line_start_charnos[lineno - 1]
+                return lineno, col_offset
+
+        return len(line_start_charnos), self.start - line_start_charnos[-1]
+
+    @property
+    def lineno(self) -> int:
+        lineno, _ = self._lineno_col_offset()
+
+        return lineno
+
+    @property
+    def col_offset(self) -> int:
+        _, col_offset = self._lineno_col_offset()
+
+        return col_offset
+
+
 def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> Range:
     """Get start and end character numbers in source code from ast node.
 
