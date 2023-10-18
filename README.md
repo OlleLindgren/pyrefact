@@ -122,4 +122,6 @@ The extension is published through the [VS Code Marketplace](https://marketplace
 
 ## Prerequisites
 
-Pyrefact is tested on CPython 3.8, 3.9, 3.10, 3.11 and 3.12, and on Windows, MacOS and Linux. Pyrefact is also tested on Pypy3.10.
+Pyrefact is tested on CPython 3.8, 3.9, 3.10, 3.11 and 3.12, and on Windows, MacOS and Linux. Pyrefact is also tested on PyPy3.10.
+
+PyPy tests may be removed in the future, see https://github.com/OlleLindgren/pyrefact/issues/25. I will add tests for new CPython versions when they enter alpha, and remove tests when they become EOL, along with any special logic in place to support those versions.
