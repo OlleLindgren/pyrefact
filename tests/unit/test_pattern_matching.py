@@ -295,7 +295,6 @@ class TestCompile(unittest.TestCase):
             value=ast.Constant(value=10, kind=None),
             type_comment=None,
         )
-
         assert core.match_template(pattern, expected)
         assert core.match_template(expected, pattern)
 
@@ -309,10 +308,61 @@ class TestCompile(unittest.TestCase):
         )
         assert pattern.targets == expected.targets
 
+    def test_indented_code(self):
+        source = """
+        x = 10
+        """
+        pattern = pattern_matching.compile(source)
+        expected = ast.Assign(
+            targets=[ast.Name(id='x')],
+            value=ast.Constant(value=10, kind=None),
+            type_comment=None,
+        )
+        assert core.match_template(pattern, expected)
+        assert core.match_template(expected, pattern)
+
+    def test_multiline_code(self):
+        source = """
+        import os
+        class Foo(bar):
+            x: int = 10
+
+        h = 100
+        """
+        pattern = pattern_matching.compile(source)
+        expected = [
+            ast.Import(names=[ast.alias(name='os', asname=None)]),
+            ast.ClassDef(
+                name='Foo',
+                bases=[ast.Name(id='bar')],
+                keywords=[],
+                body=[
+                    ast.AnnAssign(
+                        target=ast.Name(id='x'),
+                        annotation=ast.Name(id='int'),
+                        value=ast.Constant(value=10, kind=None),
+                        simple=1,
+                    ),
+                ],
+                decorator_list=[],
+            ),
+            ast.Assign(
+                targets=[ast.Name(id='h')],
+                value=ast.Constant(value=100, kind=None),
+                type_comment=None,
+            ),
+        ]
+        assert isinstance(pattern, list)
+        assert len(pattern) == len(expected)
+        assert core.match_template(pattern, expected)
+        assert core.match_template(expected, pattern)
+
     def runTest(self):
         self.test_function_alias()
         self.test_basic_code()
         self.test_wildcard_code()
+        self.test_indented_code()
+        self.test_multiline_code()
 
 
 def main() -> int:
