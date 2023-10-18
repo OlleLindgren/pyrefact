@@ -148,9 +148,219 @@ class Range(NamedTuple):
         m = core.match_template(node, compiled_template)
         self.assertIs(m.root, node)
 
+    def test_zeroorone(self):
+        template = core.compile_template("""
+        f = 11
+        {{...?}}
+        def foo() -> int:
+            return 1
+        """)
+
+        code = textwrap.dedent("""
+        f = 11
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        f = f - 1 ** 3
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert not core.match_template(nodes, template)
+
+    def test_one(self):
+        template = core.compile_template("""
+        f = 11
+        {{...}}
+        def foo() -> int:
+            return 1
+        """)
+
+        code = textwrap.dedent("""
+        f = 11
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert not core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        f = f - 1 ** 3
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert not core.match_template(nodes, template)
+
+    def test_zeroormany(self):
+        template = core.compile_template("""
+        f = 11
+        {{...*}}
+        def foo() -> int:
+            return 1
+        """)
+
+        code = textwrap.dedent("""
+        f = 11
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        f = f - 1 ** 3
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        f = f - 1 ** 3
+        ""
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+    def test_oneormany(self):
+        template = core.compile_template("""
+        f = 11
+        {{...+}}
+        def foo() -> int:
+            return 1
+        """)
+
+        code = textwrap.dedent("""
+        f = 11
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert not core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        f = f - 1 ** 3
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+        code = textwrap.dedent("""
+        f = 11
+        class Foo:
+            pass
+        f = f - 1 ** 3
+        ""
+        def foo() -> int:
+            return 1
+        """)
+        nodes = ast.parse(code).body
+        assert core.match_template(nodes, template)
+
+    def test_zeroorone_list(self):
+        template = core.compile_template("[{{...?}}]")
+        assert core.match_template(ast.parse("[]").body[0].value, template)
+        assert core.match_template(ast.parse("[1]").body[0].value, template)
+        assert core.match_template(ast.parse("['qwerty']").body[0].value, template)
+        assert not core.match_template(ast.parse("[1, 2]").body[0].value, template)
+
+    def test_one_list(self):
+        template = core.compile_template("[{{...}}]")
+        assert not core.match_template(ast.parse("[]").body[0].value, template)
+        assert core.match_template(ast.parse("[1]").body[0].value, template)
+        assert core.match_template(ast.parse("['qwerty']").body[0].value, template)
+        assert not core.match_template(ast.parse("[1, 2]").body[0].value, template)
+
+    def test_zeroormany_list(self):
+        template = core.compile_template("[{{...*}}]")
+        assert core.match_template(ast.parse("[]").body[0].value, template)
+        assert core.match_template(ast.parse("[1]").body[0].value, template)
+        assert core.match_template(ast.parse("['qwerty']").body[0].value, template)
+        assert core.match_template(ast.parse("[1, 2]").body[0].value, template)
+        assert core.match_template(ast.parse("[1, 2, 3, [], None, -1, 2 ** 3 - asdf]").body[0].value, template)
+
+    def test_oneoormany_list(self):
+        template = core.compile_template("[{{...+}}]")
+        assert not core.match_template(ast.parse("[]").body[0].value, template)
+        assert core.match_template(ast.parse("[1]").body[0].value, template)
+        assert core.match_template(ast.parse("['qwerty']").body[0].value, template)
+        assert core.match_template(ast.parse("[1, 2]").body[0].value, template)
+        assert core.match_template(ast.parse("[1, 2, 3, [], None, -1, 2 ** 3 - asdf]").body[0].value, template)
+
     def runTest(self):
         self.test_template_matches_self()
         self.test_basic_wildcard()
+        self.test_zeroorone()
+        self.test_one()
+        self.test_zeroormany()
+        self.test_oneormany()
+        self.test_zeroorone_list()
+        self.test_one_list()
+        self.test_zeroormany_list()
+        self.test_oneoormany_list()
 
 
 def main() -> int:

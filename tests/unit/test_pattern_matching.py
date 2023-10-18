@@ -284,12 +284,12 @@ if __name__ == "__main__":
 class TestCompile(unittest.TestCase):
 
     def test_function_alias(self):
-        assert core.compile_template is pattern_matching.compile
+        assert pattern_matching.compile is core.compile_template
 
     def test_basic_code(self):
 
         source = "x = 10"
-        pattern = pattern_matching.compile(source)
+        pattern = core.compile_template(source)
         expected = ast.Assign(
             targets=[ast.Name(id='x')],
             value=ast.Constant(value=10, kind=None),
@@ -300,7 +300,7 @@ class TestCompile(unittest.TestCase):
 
     def test_wildcard_code(self):
         source = "{{x}} = 10"
-        pattern = pattern_matching.compile(source)
+        pattern = core.compile_template(source)
         expected = ast.Assign(
             targets=[core.Wildcard(name="x", template=object)],
             value=ast.Constant(value=10, kind=None),
@@ -312,7 +312,7 @@ class TestCompile(unittest.TestCase):
         source = """
         x = 10
         """
-        pattern = pattern_matching.compile(source)
+        pattern = core.compile_template(source)
         expected = ast.Assign(
             targets=[ast.Name(id='x')],
             value=ast.Constant(value=10, kind=None),
@@ -329,7 +329,7 @@ class TestCompile(unittest.TestCase):
 
         h = 100
         """
-        pattern = pattern_matching.compile(source)
+        pattern = core.compile_template(source)
         expected = [
             ast.Import(names=[ast.alias(name='os', asname=None)]),
             ast.ClassDef(
@@ -357,12 +357,226 @@ class TestCompile(unittest.TestCase):
         assert core.match_template(pattern, expected)
         assert core.match_template(expected, pattern)
 
+    def test_zeroorone(self):
+        source = """
+        x = 10
+        {{...?}}
+        z = 1
+        {{name?}}
+        """
+        pattern = core.compile_template(source)
+        expected = [
+            ast.Assign(
+                targets=[ast.Name(id='x')],
+                value=ast.Constant(value=10, kind=None),
+                type_comment=None,
+            ),
+            core.ZeroOrOne(object),
+            ast.Assign(
+                targets=[ast.Name(id='z')],
+                value=ast.Constant(value=1, kind=None),
+                type_comment=None,
+            ),
+            core.ZeroOrOne(core.Wildcard(name="name", template=object, common=False)),
+        ]
+        assert isinstance(pattern, list)
+        assert len(pattern) == len(expected)
+        assert core.match_template(pattern[0], expected[0])
+        assert core.match_template(pattern[2], expected[2])
+        assert pattern[1] == expected[1]
+        assert pattern[3] == expected[3]
+
+    def test_one(self):
+        source = """
+        x = 10
+        {{...}}
+        z = 1
+        {{name}}
+        """
+        pattern = core.compile_template(source)
+        expected = [
+            ast.Assign(
+                targets=[ast.Name(id='x')],
+                value=ast.Constant(value=10, kind=None),
+                type_comment=None,
+            ),
+            core.Wildcard(name="Ellipsis_anything", template=object, common=False),
+            ast.Assign(
+                targets=[ast.Name(id='z')],
+                value=ast.Constant(value=1, kind=None),
+                type_comment=None,
+            ),
+            core.Wildcard(name="name", template=object, common=True),
+        ]
+        assert isinstance(pattern, list)
+        assert len(pattern) == len(expected)
+        assert core.match_template(pattern[0], expected[0])
+        assert core.match_template(pattern[2], expected[2])
+        assert pattern[1] == expected[1]
+        assert pattern[3] == expected[3]
+
+    def test_zeroormany(self):
+        source = """
+        x = 10
+        {{...*}}
+        z = 1
+        {{name*}}
+        """
+        pattern = core.compile_template(source)
+        expected = [
+            ast.Assign(
+                targets=[ast.Name(id='x')],
+                value=ast.Constant(value=10, kind=None),
+                type_comment=None,
+            ),
+            core.ZeroOrMany(object),
+            ast.Assign(
+                targets=[ast.Name(id='z')],
+                value=ast.Constant(value=1, kind=None),
+                type_comment=None,
+            ),
+            core.ZeroOrMany(core.Wildcard(name="name", template=object, common=False)),
+        ]
+        assert isinstance(pattern, list)
+        assert len(pattern) == len(expected)
+        assert core.match_template(pattern[0], expected[0])
+        assert core.match_template(pattern[2], expected[2])
+        assert pattern[1] == expected[1]
+
+    def test_oneormany(self):
+        source = """
+        x = 10
+        {{...+}}
+        z = 1
+        {{name+}}
+        """
+        pattern = core.compile_template(source)
+        expected = [
+            ast.Assign(
+                targets=[ast.Name(id='x')],
+                value=ast.Constant(value=10, kind=None),
+                type_comment=None,
+            ),
+            core.OneOrMany(object),
+            ast.Assign(
+                targets=[ast.Name(id='z')],
+                value=ast.Constant(value=1, kind=None),
+                type_comment=None,
+            ),
+            core.OneOrMany(core.Wildcard(name="name", template=object, common=False)),
+        ]
+        assert isinstance(pattern, list)
+        assert len(pattern) == len(expected)
+        assert core.match_template(pattern[0], expected[0])
+        assert core.match_template(pattern[2], expected[2])
+        assert pattern[1] == expected[1]
+
+    def test_zeroorone_list(self):
+        source = "[1, 2, {{...?}}, 3, 4, {{...?}}]"
+        pattern = core.compile_template(source)
+        expected = ast.List(
+            elts=[
+                ast.Constant(value=1, kind=None),
+                ast.Constant(value=2, kind=None),
+                core.ZeroOrOne(object),
+                ast.Constant(value=3, kind=None),
+                ast.Constant(value=4, kind=None),
+                core.ZeroOrOne(object),
+            ]
+        )
+        assert isinstance(pattern, ast.List)
+
+        assert len(pattern.elts) == len(expected.elts)
+        assert core.match_template(pattern.elts[0], expected.elts[0])
+        assert core.match_template(pattern.elts[1], expected.elts[1])
+        assert pattern.elts[2] == expected.elts[2]
+        assert core.match_template(pattern.elts[3], expected.elts[3])
+        assert core.match_template(pattern.elts[4], expected.elts[4])
+        assert pattern.elts[5] == expected.elts[5]
+
+    def test_one_list(self):
+        source = "[1, 2, {{...}}, 3, 4, {{...}}]"
+        pattern = core.compile_template(source)
+        expected = ast.List(
+            elts=[
+                ast.Constant(value=1, kind=None),
+                ast.Constant(value=2, kind=None),
+                core.Wildcard(name="Ellipsis_anything", template=object, common=False),
+                ast.Constant(value=3, kind=None),
+                ast.Constant(value=4, kind=None),
+                core.Wildcard(name="Ellipsis_anything", template=object, common=False),
+            ]
+        )
+        assert isinstance(pattern, ast.List)
+
+        assert len(pattern.elts) == len(expected.elts)
+        assert core.match_template(pattern.elts[0], expected.elts[0])
+        assert core.match_template(pattern.elts[1], expected.elts[1])
+        assert pattern.elts[2] == expected.elts[2]
+        assert core.match_template(pattern.elts[3], expected.elts[3])
+        assert core.match_template(pattern.elts[4], expected.elts[4])
+        assert pattern.elts[5] == expected.elts[5]
+
+    def test_zeroormany_list(self):
+        source = "[1, 2, {{...*}}, 3, 4, {{...*}}]"
+        pattern = core.compile_template(source)
+        expected = ast.List(
+            elts=[
+                ast.Constant(value=1, kind=None),
+                ast.Constant(value=2, kind=None),
+                core.ZeroOrMany(object),
+                ast.Constant(value=3, kind=None),
+                ast.Constant(value=4, kind=None),
+                core.ZeroOrMany(object),
+            ]
+        )
+        assert isinstance(pattern, ast.List)
+
+        assert len(pattern.elts) == len(expected.elts)
+        assert core.match_template(pattern.elts[0], expected.elts[0])
+        assert core.match_template(pattern.elts[1], expected.elts[1])
+        assert pattern.elts[2] == expected.elts[2]
+        assert core.match_template(pattern.elts[3], expected.elts[3])
+        assert core.match_template(pattern.elts[4], expected.elts[4])
+        assert pattern.elts[5] == expected.elts[5]
+
+    def test_oneormany_list(self):
+        source = "[1, 2, {{...+}}, 3, 4, {{...+}}]"
+        pattern = core.compile_template(source)
+        expected = ast.List(
+            elts=[
+                ast.Constant(value=1, kind=None),
+                ast.Constant(value=2, kind=None),
+                core.OneOrMany(object),
+                ast.Constant(value=3, kind=None),
+                ast.Constant(value=4, kind=None),
+                core.OneOrMany(object),
+            ]
+        )
+        assert isinstance(pattern, ast.List)
+
+        assert len(pattern.elts) == len(expected.elts)
+        assert core.match_template(pattern.elts[0], expected.elts[0])
+        assert core.match_template(pattern.elts[1], expected.elts[1])
+        assert pattern.elts[2] == expected.elts[2]
+        assert core.match_template(pattern.elts[3], expected.elts[3])
+        assert core.match_template(pattern.elts[4], expected.elts[4])
+        assert pattern.elts[5] == expected.elts[5]
+
     def runTest(self):
         self.test_function_alias()
         self.test_basic_code()
         self.test_wildcard_code()
         self.test_indented_code()
         self.test_multiline_code()
+        self.test_zeroorone()
+        self.test_one()
+        self.test_zeroormany()
+        self.test_oneormany()
+        self.test_zeroorone_list()
+        self.test_one_list()
+        self.test_zeroormany_list()
+        self.test_oneormany_list()
 
 
 def main() -> int:
