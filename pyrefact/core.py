@@ -234,6 +234,11 @@ def _match_list(nodes: ast.AST, template: List[ast.AST], ignore: Collection[str]
 
 
 def _match_wildcard(node: ast.AST, template: Wildcard, ignore: Collection[str]) -> Tuple:
+
+    # Special case for ellipsis {{...}} pattern, which matches everything.
+    if template.name == "Ellipsis_anything" and template.template is object:
+        return (node,)
+
     namedtuple_type = _make_match_type((template.name,))
     template_match = match_template(node, template.template, ignore=ignore)
     return namedtuple_type(template_match[0]) if len(template_match) == 1 else ()
