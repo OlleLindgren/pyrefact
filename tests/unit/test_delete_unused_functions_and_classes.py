@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 
 import sys
+from pathlib import Path
 
-from pyrefact.fixes import delete_unused_functions_and_classes
+from pyrefact import fixes
 
-CODE = """
+sys.path.append(str(Path(__file__).parents[1]))
+import testing_infra
+
+
+def main() -> int:
+    test_cases = ((
+        """
 
 def function() -> int:
     return 0
@@ -19,14 +26,20 @@ def _used_function() -> str:
 def _user_of_used_function() -> str:
     return _used_function()
 
+class Foo:
+    def bar(self) -> bool:
+        return False
+
+    @property
+    def spammy(self) -> bool:
+        return True
+
 if __name__ == "__main__":
+    Foo().spammy
     _user_of_used_function()
 
-"""
-
-
-EXPECTED = """
-
+        """,
+        """
 def _used_function() -> str:
     '''Docstring mentioning _private_function()'''
     return "this function is used"
@@ -34,17 +47,23 @@ def _used_function() -> str:
 def _user_of_used_function() -> str:
     return _used_function()
 
+class Foo:
+    @property
+    def spammy(self) -> bool:
+        return True
+
 if __name__ == "__main__":
+    Foo().spammy
     _user_of_used_function()
 
-"""
-
-
-def main() -> int:
-    got = delete_unused_functions_and_classes(CODE)
-    assert got.strip() == EXPECTED.strip(), "\n".join(
-        ("Wrong result: (got, expected)", got, EXPECTED)
+        """,
+        ),
     )
+
+    for source, expected_abstraction in test_cases:
+        processed_content = fixes.delete_unused_functions_and_classes(source)
+        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
+            return 1
 
     return 0
 

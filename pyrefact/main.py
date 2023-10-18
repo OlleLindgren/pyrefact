@@ -317,13 +317,13 @@ def main(args: Sequence[str] | None = None) -> int:
         for node in core.walk(ast_root, (ast.Name, ast.Attribute)):
             if isinstance(node, ast.Name) and node.id in imported_names:
                 used_names[_namespace_name(filename)].add(node.id)
-            elif (
-                isinstance(node, ast.Attribute)
-                and isinstance(node.value, ast.Name)
-                and node.value.id in imported_names
-            ):
+            elif isinstance(node, ast.Attribute):
+
+                # Attributes and class methods are hard to trace (it basically requires
+                # type checking), so we always add them to preserve.
                 used_names[_namespace_name(filename)].add(node.attr)
-                used_names[_namespace_name(filename)].add(node.value.id)
+                if isinstance(node.value, ast.Name) and node.value.id in imported_names:
+                    used_names[_namespace_name(filename)].add(node.value.id)
 
     if args.from_stdin:
         logger.set_level(100)  # Higher than critical
