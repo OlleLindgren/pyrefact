@@ -10,15 +10,14 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 x = {z: 21 for z in range(3)}
 x[10] = 100
-            """,
-            """
+    """,
+        """
 x = {**{z: 21 for z in range(3)}, 10: 100}
-            """,
+    """,
         ),
         (
             """
@@ -26,12 +25,11 @@ x = {z: 21 for z in range(3)}
 x[10] = 100
 x[101] = 220
 x[103] = 223
-            """,
-            """
+    """,
+        """
 x = {**{z: 21 for z in range(3)}, 10: 100, 101: 220, 103: 223}
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.replace_dictcomp_assign_with_dict_literal(source)

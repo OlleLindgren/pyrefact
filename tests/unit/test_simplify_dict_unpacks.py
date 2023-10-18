@@ -10,40 +10,38 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 x = {**{}}
-            """,
-            """
+    """,
+        """
 x = {}
-            """,
+    """,
         ),
         (
             """
 x = {**{}, 13: 14}
-            """,
-            """
+    """,
+        """
 x = {13: 14}
-            """,
+    """,
         ),
         (
             """
 x = {3: {}, 13: 14}
-            """,
-            """
+    """,
+        """
 x = {3: {}, 13: 14}
-            """,
+    """,
         ),
         (
             """
 x = {1: 2, 3: 4, **{99: 109, None: None}, 4: 5, **{"asdf": 12 - 13}}
-            """,
-            """
+    """,
+        """
 x = {1: 2, 3: 4, 99: 109, None: None, 4: 5, "asdf": 12 - 13}
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.simplify_dict_unpacks(source)

@@ -62,9 +62,8 @@ def _unit():
 
 
 def _integration() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 some_variable = collections.namedtuple("some_variable", ["field", "foo", "bar"])
 variable = TypeVar("variable")
 T = Mapping[Tuple[int, int], Collection[str]]
@@ -120,21 +119,21 @@ def _main() -> None:
         """,
         ),
         (
-        """
+            """
 def foo():
     with_ = 1
     name_ = 1
     __def = 3
         """,
-        """
+            """
 def _foo():
     with_ = 1
     name = 1
     __def = 3
-        """
+        """,
         ),
         (
-        """
+            """
 import unittest
 
 class TestFoo(unittest.TestCase):
@@ -149,7 +148,7 @@ class Spam:
     def setUp(self):
         pass
         """,
-        """
+            """
 import unittest
 
 class _TestFoo(unittest.TestCase):
@@ -163,7 +162,7 @@ class _Foo(object):
 class _Spam:
     def set_up(self):
         pass
-        """
+        """,
         ),
         (
             """
@@ -178,7 +177,7 @@ def func():
 
     foo_ = 1
     bar_ = 2
-            """,
+        """,
             """
 def _func():
     list_ = [1, 2, 3]
@@ -191,7 +190,7 @@ def _func():
 
     foo = 1
     bar = 2
-            """
+        """,
         ),
         (
             """
@@ -199,17 +198,15 @@ def _foo() -> int:
     return 1
 def foo() -> int:
     return 2
-            """,
+        """,
             """
 def _foo() -> int:
     return 1
 def foo() -> int:
     return 2
-            """
-        )
-    )
+        """,
+    ),)
     for source, expected_abstraction in test_cases:
-
         processed_content = fixes.align_variable_names_with_convention(source, set())
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

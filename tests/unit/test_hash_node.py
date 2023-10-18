@@ -43,8 +43,7 @@ def qz(aaa, bbb, ccc):
         return -aaa
     return aaa*bbb +ccc*aaa
         """,
-        ),
-    )
+    ),)
     negatives = (("lambda x: list(x)", "lambda x: set(x)"),)
 
     for left_expression, right_expression in positives:

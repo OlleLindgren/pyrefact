@@ -10,9 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 def f(x: int) -> int:
     return x+1
 d = {}
@@ -30,7 +29,7 @@ d = collections.defaultdict(list)
 for x in range(10):
     y = f(x)
     d[x].append(y)
-            """,
+        """,
         ),
         (
             """
@@ -51,7 +50,7 @@ d = collections.defaultdict(set)
 for x in range(10):
     y = f(x)
     d[x].add(y)
-            """,
+        """,
         ),
         (
             """
@@ -70,7 +69,7 @@ def f(x: int) -> int:
 d = collections.defaultdict(list)
 for x in range(10):
     d[x].append(f(x))
-            """,
+        """,
         ),
         (
             """
@@ -104,7 +103,7 @@ for x in range(10):
     z = h(x)
     w = x+19
     d[w].extend([z, 9, 12])
-            """,
+        """,
         ),
         (
             """
@@ -169,14 +168,14 @@ for x in range(10):
     if x not in d:
         d[x] = []
     d[x].append(f(x))
-            """,
+        """,
             """
 def f(x: int) -> int:
     return x+1
 d = collections.defaultdict(list)
 for x in range(10):
     d[x].append(f(x))
-            """,
+        """,
         ),
         (
             """
@@ -187,14 +186,14 @@ for x in range(10):
     if x not in d:
         d[x] = set()
     d[x].add(f(x))
-            """,
+        """,
             """
 def f(x: int) -> int:
     return x+1
 d = collections.defaultdict(set)
 for x in range(10):
     d[x].add(f(x))
-            """,
+        """,
         ),
         (
             """
@@ -209,9 +208,8 @@ for x in range(10):
 d = collections.defaultdict(list)
 for x in range(10):
     d[x].extend((i for i in range(100)))
-            """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.implicit_defaultdict(source)

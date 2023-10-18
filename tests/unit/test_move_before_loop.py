@@ -16,12 +16,12 @@ def main() -> int:
 for i in range(100):
     x = 10
     print(x + i)
-            """,
+        """,
             """
 x = 10
 for i in range(100):
     print(x + i)
-            """,
+        """,
         ),
         (  # constant expressions that depend on loop
             """
@@ -30,14 +30,14 @@ for i in range(100):
     y = 100 - x
     x = 22
     print(x + i - y)
-            """,
+        """,
             """
 x = 10
 for i in range(100):
     y = 100 - x
     x = 22
     print(x + i - y)
-            """,
+        """,
         ),
         (  # multiple constant expressions that do not depend on loop
             """
@@ -49,7 +49,7 @@ for i in range(100):
     x = 20
     print(x > 1 > 10)
     print(x + i)
-            """,
+        """,
             """
 x = 26
 x = 11
@@ -59,7 +59,7 @@ for i in range(100):
     print(1 + i + 10)
     print(x > 1 > 10)
     print(x + i)
-            """,
+        """,
         ),
         (  # more complicated constant expressions, some of which depend on loop
             """
@@ -73,7 +73,7 @@ for i in range(100):
     x = 20
     print(x > 1 > 10)
     print(x + i)
-            """,
+        """,
             """
 x = 26
 x = 11
@@ -85,7 +85,7 @@ for i in range(100):
     x = 20
     print(x > 1 > 10)
     print(x + i)
-            """,
+        """,
         ),
         (  # AugAssign should not be moved
             """
@@ -93,13 +93,13 @@ x = 0
 for i in range(100):
     x += 1
     print(x + i)
-            """,
+        """,
             """
 x = 0
 for i in range(100):
     x += 1
     print(x + i)
-            """,
+        """,
         ),
         (  # AnnAssign can be moved
             """
@@ -107,59 +107,59 @@ x = 0
 for i in range(100):
     x: int = 1
     print(x + i)
-            """,
+        """,
             """
 x = 0
 x: int = 1
 for i in range(100):
     print(x + i)
-            """,
+        """,
         ),
         (  # Multi-assign can be moved if independent
             """
 for i in range(100):
     x, y = 10, 22
     print(x, y)
-            """,
+        """,
             """
 x, y = 10, 22
 for i in range(100):
     print(x, y)
-            """,
+        """,
         ),
         (  # Multi-assign can not be moved if not independent
             """
 for i in range(100):
     x, y, z = 10, 22, i
     print(x, y, z)
-            """,
+        """,
             """
 for i in range(100):
     x, y, z = 10, 22, i
     print(x, y, z)
-            """,
+        """,
         ),
         (  # x depends on the for loop's iter
             """
 for i in range(100):
     x = i
     print(x + i)
-            """,
+        """,
             """
 for i in range(100):
     x = i
     print(x + i)
-            """,
+        """,
         ),
         (  # x depends on the while loop's test
             """
 while (x := 10) > 2:
     print(x + i)
-            """,
+        """,
             """
 while (x := 10) > 2:
     print(x + i)
-            """,
+        """,
         ),
         (  # the while loop's test depends on x
             """
@@ -168,24 +168,24 @@ i = 0
 while x < 10:
     x = 100
     print(x)
-            """,
+        """,
             """
 x = 0
 i = 0
 while x < 10:
     x = 100
     print(x)
-            """,
+        """,
         ),
         (  # the while loop's test depends on x
             """
 while core.match_template(w, templates):
     w = w.args[0].args[0]
-            """,
+        """,
             """
 while core.match_template(w, templates):
     w = w.args[0].args[0]
-            """,
+        """,
         ),
         (
             """
@@ -221,7 +221,7 @@ for a in b:
         continue
 
     print(1)
-            """,
+        """,
             """
 for a in b:
     variable = True
@@ -255,7 +255,7 @@ for a in b:
         continue
 
     print(1)
-            """,
+        """,
         ),
         (
             """
@@ -271,7 +271,7 @@ for user_id in iter_user_logins():
         '''
         [start, end, user_id],
     )
-            """,
+        """,
             """
 date = '2022-03-01'
 start_time = '13:08:19'
@@ -285,7 +285,7 @@ for user_id in iter_user_logins():
         '''
         [start, end, user_id],
     )
-            """,
+        """,
         ),
         (
             """
@@ -310,7 +310,7 @@ for i in range(10):
     w.update(x)
     print(w)
     print(x[2])
-            """,
+        """,
             """
 x = {1: 2}
 for i in range(10):
@@ -319,7 +319,7 @@ for i in range(10):
     w.update(x)
     print(w)
     print(x[2])
-            """,
+        """,
         ),
         (  # Removing a key from x is mutation of x
             """
@@ -330,7 +330,7 @@ for i in range(10):
     w.update(x)
     print(w)
     del x[1]
-            """,
+        """,
             """
 for i in range(10):
     x = {1: 2}
@@ -339,7 +339,7 @@ for i in range(10):
     w.update(x)
     print(w)
     del x[1]
-            """,
+        """,
         ),
         (
             """
@@ -376,7 +376,7 @@ for i in range(10):
         outer_header = f["level_2"]
 
     print(outer_header)
-            """,
+        """,
             """
 import h5py
 f = h5py.File("path/to/file.hdf5")
@@ -387,7 +387,7 @@ for i in range(10):
         outer_header = f["level_2"]
 
     print(outer_header)
-            """,
+        """,
         ),
         (
             """
@@ -414,14 +414,14 @@ for i in range(100):
     abcde
     '''
     print(x * 2)
-            """,
+        """,
             """
 x = '''
     abcde
     '''
 for i in range(100):
     print(x * 2)
-            """,
+        """,
         ),
         (  # multiline f string
             """
@@ -430,16 +430,15 @@ for i in range(100):
     abcde{3}
     '''
     print(x * 2)
-            """,
+        """,
             """
 x = f'''
     abcde{3}
     '''
 for i in range(100):
     print(x * 2)
-            """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.move_before_loop(source)

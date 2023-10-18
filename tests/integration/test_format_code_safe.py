@@ -10,10 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 def q() -> None:
     print(1)
     Spam.weeee()
@@ -113,14 +111,13 @@ class TestSomeStuff(unittest.TestCase):
 def foo() -> int:
     """This seems useless, but pyrefact shouldn't remove it with --safe"""
     return 10
-            ''',
+        ''',
             '''
 def foo() -> int:
     """This seems useless, but pyrefact shouldn't remove it with --safe"""
     return 10
-            ''',
-        ),
-    )
+        ''',
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = pyrefact.format_code(source, safe=True)

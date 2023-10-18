@@ -10,76 +10,75 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 for _, x in df.iterrows():
     print(x["value"])
-            """,
+        """,
             """
 for x in df.itertuples():
     print(x.value)
-            """,
+        """,
         ),
         (
             """
 for _, x in df.iterrows():
     print(x.at["value"])
-            """,
+        """,
             """
 for x in df.itertuples():
     print(x.value)
-            """,
+        """,
         ),
         (
             """
 for _, x in df.iterrows():
     print(x.iat[9])
-            """,
+        """,
             """
 for x in df.itertuples():
     print(x[9 + 1])
-            """,
+        """,
         ),
         (
             """
 for _, x in df.iterrows():
     print(x.iat[9 + value - 1])
-            """,
+        """,
             """
 for x in df.itertuples():
     print(x[9 + value - 1 + 1])
-            """,
+        """,
         ),
         (
             """
 for _, x in df.iterrows():
     print(x)
-            """,
+        """,
             """
 for _, x in df.iterrows():
     print(x)
-            """,
+        """,
         ),
         (
             """
 for i, x in df.iterrows():
     print(x["value"])
-            """,
+        """,
             """
 for i, x in df.iterrows():
     print(x["value"])
-            """,
+        """,
         ),
         (  # Anti-pattern attribute access of column
             """
 for _, x in df.iterrows():
     print(x.value)
-            """,
+        """,
             """
 for _, x in df.iterrows():
     print(x.value)
-            """,
+        """,
         ),
         (
             """
@@ -106,26 +105,25 @@ for _, x in df.iterrows():
     y = 0
     y += x.at["qwerty"] ** x.iat[9]
     y += x.__getattr__(1)
-            """,
+        """,
             """
 for _, x in df.iterrows():
     print(x["value"])
     y = 0
     y += x.at["qwerty"] ** x.iat[9]
     y += x.__getattr__(1)
-            """,
+        """,
         ),
         (
             """
 for i, x in df.iterrows():
     x["value"] = 1
-            """,
+        """,
             """
 for i, x in df.iterrows():
     x["value"] = 1
-            """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = performance_pandas.replace_iterrows_itertuples(source)

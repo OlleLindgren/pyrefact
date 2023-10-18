@@ -16,21 +16,21 @@ def main() -> int:
             """
 z = {a for a in range(10)}
 x = sum(z)
-            """,
-            """
+    """,
+        """
 z = {a for a in range(10)}
 x = sum({a for a in range(10)})
-            """,
+    """,
         ),
         (
             """
 w = [a ** 2 for a in range(10)]
 y = sum(w)
-            """,
-            """
+    """,
+        """
 w = [a ** 2 for a in range(10)]
 y = sum([a ** 2 for a in range(10)])
-            """,
+    """,
         ),
         (
             """
@@ -38,25 +38,25 @@ k = True
 w = [a ** 2 for a in range(11) if k]
 k = False
 y = sum(w)
-            """,
-            """
+    """,
+        """
 k = True
 w = [a ** 2 for a in range(11) if k]
 k = False
 y = sum(w)
-            """,
+    """,
         ),
         (
             """
 for i in range(10):
     w = [a ** 2 for a in range(10)]
     y = sum(w)
-            """,
+        """,
             """
 for i in range(10):
     w = [a ** 2 for a in range(10)]
     y = sum([a ** 2 for a in range(10)])
-            """,
+        """,
         ),
         (
             """
@@ -64,18 +64,16 @@ w = []
 for i in range(10):
     y = sum(w)
     w = [a ** 2 for a in range(i)]
-            """,
+        """,
             """
 w = []
 for i in range(10):
     y = sum(w)
     w = [a ** 2 for a in range(i)]
-            """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
-
         processed_content = fixes.inline_math_comprehensions(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):

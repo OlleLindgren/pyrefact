@@ -136,7 +136,9 @@ def remove_redundant_chained_calls(source: str) -> str:
                 break
         else:
             i = len(replacement.keywords)
-            replacement.keywords.append(ast.keyword(arg="reverse", value=ast.Constant(value=True, kind=None)))
+            replacement.keywords.append(
+                ast.keyword(arg="reverse", value=ast.Constant(value=True, kind=None))
+            )
 
         try:
             value = core.literal_value(replacement.keywords[i].value)

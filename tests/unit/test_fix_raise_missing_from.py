@@ -10,20 +10,19 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 try:
     sketchy_function()
 except ValueError:
     raise RuntimeError()
-            """,
+        """,
             """
 try:
     sketchy_function()
 except ValueError as error:
     raise RuntimeError() from error
-            """,
+        """,
         ),
         (
             """
@@ -31,13 +30,13 @@ try:
     sketchy_function()
 except ValueError as foo:
     raise RuntimeError() from foo
-            """,
+        """,
             """
 try:
     sketchy_function()
 except ValueError as foo:
     raise RuntimeError() from foo
-            """,
+        """,
         ),
         (
             """
@@ -45,15 +44,14 @@ try:
     sketchy_function()
 except ValueError:
     pass
-            """,
+        """,
             """
 try:
     sketchy_function()
 except ValueError:
     pass
-            """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.fix_raise_missing_from(source)

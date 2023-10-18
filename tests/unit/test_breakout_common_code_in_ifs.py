@@ -20,7 +20,7 @@ if random.random() < 2:
 else:
     print(100)
     print(21)
-            """,
+        """,
             """
 import random
 print(100)
@@ -28,7 +28,7 @@ if random.random() < 2:
     print(3)
 else:
     print(21)
-            """,
+        """,
         ),
         (  # After
             """
@@ -39,7 +39,7 @@ if random.random() < 2:
 else:
     print(21)
     print(100)
-            """,
+        """,
             """
 import random
 if random.random() < 2:
@@ -47,7 +47,7 @@ if random.random() < 2:
 else:
     print(21)
 print(100)
-            """,
+    """,
         ),
         (  # Before and after
             """
@@ -60,7 +60,7 @@ else:
     print(102)
     print(21)
     print(100)
-            """,
+        """,
             """
 import random
 print(102)
@@ -69,7 +69,7 @@ if random.random() < 2:
 else:
     print(21)
 print(100)
-            """,
+    """,
         ),
         (  # body becomes empty
             """
@@ -79,7 +79,7 @@ if random.random() < 2:
 else:
     print(33)
     print(100)
-            """,
+        """,
             """
 import random
 if random.random() < 2:
@@ -87,7 +87,7 @@ if random.random() < 2:
 else:
     print(33)
 print(100)
-            """,
+    """,
         ),
         (  # orelse becomes empty
             """
@@ -97,7 +97,7 @@ if random.random() < 2:
     print(33)
 else:
     print(100)
-            """,
+        """,
             """
 import random
 print(100)
@@ -105,7 +105,7 @@ if random.random() < 2:
     print(33)
 else:
     pass
-            """,
+        """,
         ),
         (  # nested if, match start
             """
@@ -118,7 +118,7 @@ elif random.random() >= 2:
 else:
     print(100)
     print(21)
-            """,
+        """,
             """
 import random
 print(100)
@@ -128,7 +128,7 @@ elif random.random() >= 2:
     pass
 else:
     print(21)
-            """,
+        """,
         ),
         (  # nested if, match end
             """
@@ -146,7 +146,7 @@ elif random.random() >= 2:
 else:
     print(21)
     print(100)
-            """,
+        """,
             """
 import random
 import heapq
@@ -160,7 +160,7 @@ elif random.random() >= 2:
 else:
     print(21)
 print(100)
-            """,
+    """,
         ),
         (  # nested if, match inner but not outer
             """
@@ -178,7 +178,7 @@ elif random.random() >= 2:
 else:
     print(21)
     print(100)
-            """,
+        """,
             """
 import random
 import heapq
@@ -194,7 +194,7 @@ elif random.random() >= 2:
 else:
     print(21)
     print(100)
-            """,
+        """,
         ),
         (  # nested if, no match since the else is missing in the inner condition
             """
@@ -209,7 +209,7 @@ elif random.random() >= 2:
 else:
     print(21)
     print(100)
-            """,
+        """,
             """
 import random
 import heapq
@@ -222,7 +222,7 @@ elif random.random() >= 2:
 else:
     print(21)
     print(100)
-            """,
+        """,
         ),
         (  # nested if, inner ifs are identical
             """
@@ -244,7 +244,7 @@ if random.random() < 2:
     pass
 else:
     pass
-            """,
+        """,
         ),
         (  # TODO nested if with identical inner parts
             """
@@ -284,7 +284,7 @@ elif random.random() >= 2:
     print(100)
 else:
     raise Exception()
-            """,
+        """,
             """
 import random
 if random.random() < 2:
@@ -294,7 +294,7 @@ elif random.random() >= 2:
 else:
     raise Exception()
 print(100)
-            """,
+    """,
         ),
         (  # Implicit if/else
             """
@@ -306,7 +306,7 @@ def foo():
         return 8
     print(33)
     return 99
-            """,
+        """,
             """
 import random
 def foo():
@@ -316,7 +316,7 @@ def foo():
         return 8
 
     return 99
-            """,
+        """,
         ),
         (  # Implicit if/else return
             """
@@ -325,7 +325,7 @@ def foo(x: str):
     if x == 89:
         return 5
     return 5
-            """,
+        """,
             """
 import random
 def foo(x: str):
@@ -333,8 +333,7 @@ def foo(x: str):
     if x == 89:
         pass
             """,
-        ),
-    )
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.breakout_common_code_in_ifs(source)

@@ -11,9 +11,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 for x in range(11):
     print(x > 7)
     if x == 3:
@@ -25,7 +24,7 @@ for x in range(11):
 
     print(x)
     """,
-            """
+        """
 def _pyrefact_abstraction_1(x) -> bool:
     if x == 3:
         return False
@@ -58,7 +57,7 @@ for x in range(11):
 
     print(x)
     """,
-            """
+        """
 def _pyrefact_abstraction_1(x) -> bool:
     if x == 3:
         return True
@@ -94,7 +93,7 @@ for x in range(11):
     print(x, 1, 2)
     print(x, x, x)
     """,
-            """
+        """
 def _pyrefact_abstraction_1(x):
     if x == 3:
         return 12
@@ -259,8 +258,8 @@ else:
     z = 99
 
 print(q, z)
-        """,
-            """
+    """,
+        """
 def _pyrefact_abstraction_1(x):
     if x == 3:
         return 2
@@ -306,12 +305,10 @@ z = _pyrefact_abstraction_3(q)
 
 print(q, z)
 
-        """,  # Duplicate functions should be removed, but not by create_abstractions().
-        ),
-    )
+    """,  # Duplicate functions should be removed, but not by create_abstractions().
+    ),)
 
     for source, expected_abstraction in test_cases:
-
         processed_content = abstractions.create_abstractions(source)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
             return 1

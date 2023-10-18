@@ -11,46 +11,45 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 x = []
 for i in range(10):
     x.append(i)
-            """,
+        """,
             """
 x = [i for i in range(10)]
-            """,
+    """,
         ),
         (
             """
 x = set()
 for i in range(10):
     x.add(i)
-            """,
+        """,
             """
 x = {i for i in range(10)}
-            """,
+    """,
         ),
         (
             """
 x = set()
 for i in range(10):
     x.add(1 if i > 5 else 100 - i)
-            """,
+        """,
             """
 x = {1 if i > 5 else 100 - i for i in range(10)}
-            """,
+    """,
         ),
         (
             """
 x = []
 for i in range(10):
     x.append(i ** 2)
-            """,
+        """,
             """
 x = [i ** 2 for i in range(10)]
-            """,
+    """,
         ),
         (
             """
@@ -58,13 +57,13 @@ x = []
 for i in range(10):
     x.append(i ** 2)
     x.append(i + 2)
-            """,
+        """,
             """
 x = []
 for i in range(10):
     x.append(i ** 2)
     x.append(i + 2)
-            """,
+        """,
         ),
         (
             """
@@ -75,7 +74,7 @@ for i in range(10):
             """,
             """
 x = [i ** 2 for i in range(10) if i > 3]
-            """,
+    """,
         ),
         (
             """
@@ -88,7 +87,7 @@ for i in range(100):
             """,
             """
 x = {i ** 2 for i in range(100) if i > 3 and i % 8 == 0 and (i ** 2 % 5 == 7)}
-            """,
+    """,
         ),
         (
             """
@@ -121,7 +120,7 @@ for i in range(10):
             """,
             """
 values = [i * j for i in range(10) for j in range(11)]
-            """,
+    """,
         ),
         (
             """
@@ -133,7 +132,7 @@ for i in range(10):
             """,
             """
 values = [i * j for i in range(10) for j in range(11) if i % j]
-            """,
+    """,
         ),
         (
             """
@@ -148,62 +147,60 @@ for i in range(10):
             """,
             """
 values = [i * j + k for i in range(10) if i % 3 and (not i % 5) for j in range(11) if i % 7 and i % 9 for k in range(5555)]
-            """,
+    """,
         ),
         (
             """
 x = 0
 for i in range(10):
     x += 1
-            """,
+        """,
             """
 x = sum((1 for i in range(10)))
-            """,
+    """,
         ),
         (
             """
 x = []
 for i in range(10):
     x += 1
-            """,
+        """,
             """
 x = [1 for i in range(10)]
-            """,
+    """,
         ),
         (
             """
 x = 777
 for i in range(10):
     x += 1
-            """,
+        """,
             """
 x = 777 + sum((1 for i in range(10)))
-            """,
+    """,
         ),
         (
             """
 x = -777
 for i in range(10):
     x -= 1
-            """,
+        """,
             """
 x = -777 - sum((1 for i in range(10)))
-            """,
+    """,
         ),
         (
             """
 x = [1, 2, 3]
 for i in range(10):
     x += 1
-            """,
+        """,
             """
 x = [1, 2, 3] + [1 for i in range(10)]
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
-
         processed_content = fixes.replace_for_loops_with_set_list_comp(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):

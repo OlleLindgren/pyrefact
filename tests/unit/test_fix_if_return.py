@@ -10,18 +10,17 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 def f(x: int) -> int:
     if x == 100:
         return False
     return True
-            """,
+        """,
             """
 def f(x: int) -> int:
     return not x == 100
-            """,
+        """,
         ),
         (
             """
@@ -30,11 +29,11 @@ def f(x: int) -> int:
         return False
 
     return True
-            """,
+        """,
             """
 def f(x: int) -> int:
     return not (2 ** x >= -1 and y ** 3 == 100 and (not foo(False)))
-            """,
+        """,
         ),
         (
             """
@@ -43,14 +42,13 @@ def f(x: int) -> int:
     if x == 100:
         return True
     return False
-            """,
+        """,
             """
 def f(x: int) -> int:
     foo()
     return x == 100
-            """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.fix_if_return(source)

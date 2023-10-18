@@ -10,9 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 sorted(reversed(v))
 sorted(sorted(v))
 sorted(iter(v))
@@ -47,8 +46,8 @@ reversed(sorted(foo))
 reversed(sorted(asdf, reverse=True))
 reversed(sorted(k, reverse=False))
 reversed(sorted(k, reverse=foo() == 313))
-            """,
-            """
+    """,
+        """
 sorted(v)
 sorted(v)
 sorted(v)
@@ -83,12 +82,10 @@ sorted(foo, reverse=True)
 sorted(asdf)
 sorted(k, reverse=True)
 sorted(k, reverse=not foo() == 313)
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
-
         processed_content = performance.remove_redundant_chained_calls(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):

@@ -11,9 +11,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 u = list()
 v = tuple()
 w = dict()
@@ -22,8 +21,8 @@ b = list((1, 2, 3, 99))
 c = set([1, 2, 3])
 d = iter((1, 2, 3, 5))
 aa = (1 for u in (1, 2, 3, 5))
-            """,
-            """
+    """,
+        """
 u = []
 v = ()
 w = {}
@@ -32,12 +31,10 @@ b = [1, 2, 3, 99]
 c = {1, 2, 3}
 d = iter((1, 2, 3, 5))
 aa = (1 for u in (1, 2, 3, 5))
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
-
         processed_content = fixes.replace_functions_with_literals(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):

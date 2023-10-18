@@ -10,17 +10,16 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 if False:
     print(3)
 if True:
     print(2)
-            """,
+        """,
             """
 print(2)
-            """,
+    """,
         ),
         (
             """
@@ -28,9 +27,9 @@ if ():
     print(3)
 if []:
     print(2)
-            """,
+        """,
             """
-            """,
+        """,
         ),
         (
             """
@@ -45,7 +44,7 @@ if [1]:
     print(222222)
 else:
     print(x ** x)
-            """,
+        """,
             """
 x = 0
 if x == 3:
@@ -53,7 +52,7 @@ if x == 3:
 
 print(x + x)
 print(222222)
-            """,
+    """,
         ),
         (
             """
@@ -64,14 +63,14 @@ while sys.executable == "/usr/bin/python":
     print(7)
 while True:
     sys.exit(2)
-            """,
+        """,
             """
 import sys
 while sys.executable == "/usr/bin/python":
     print(7)
 while True:
     sys.exit(2)
-            """,
+        """,
         ),
         (
             """
@@ -83,8 +82,8 @@ d = 13 if () else {2: 3}
 e = 14 if list((1, 2, 3)) else 13
 print(3 if 2 > 0 else 2)
 print(14 if False else 2)
-            """,
-            """
+    """,
+        """
 x = 13
 a = x if x > 3 else 0
 b = x
@@ -93,57 +92,56 @@ d = {2: 3}
 e = 14 if list((1, 2, 3)) else 13
 print(3)
 print(2)
-            """,
+    """,
         ),
         (
             """
 y = (i for i in range(11) if not ())
-            """,
-            """
+    """,
+        """
 y = (i for i in range(11))
-            """,
+    """,
         ),
         (
             """
 y = (i for i in range(11) if 7 and not () if foo() if bar() if baz() and wombat() ** 3)
-            """,
-            """
+    """,
+        """
 y = (i for i in range(11) if foo() if bar() if baz() and wombat() ** 3)
-            """,
+    """,
         ),
         (
             """
 y = (i for i in range(11) if ())
-            """,
-            """
+    """,
+        """
 y = ()
-            """,
+    """,
         ),
         (
             """
 y = [i for i in range(11) if ()]
-            """,
-            """
+    """,
+        """
 y = []
-            """,
+    """,
         ),
         (
             """
 y = {i for i in range(11) if ()}
-            """,
-            """
+    """,
+        """
 y = set()
-            """,
+    """,
         ),
         (
             """
 y = {i: i for i in range(11) if ()}
-            """,
-            """
+    """,
+        """
 y = {}
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.remove_dead_ifs(source)

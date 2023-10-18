@@ -10,110 +10,108 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
+    test_cases = ((
+        """
+for key in (1, 2, 3):
+    print(key)
+        """,
             """
 for key in (1, 2, 3):
     print(key)
-            """,
-            """
-for key in (1, 2, 3):
-    print(key)
-            """,
+        """,
         ),
         (
             """
 for key in list((1, 2, 3)):
     print(key)
-            """,
+        """,
             """
 for key in (1, 2, 3):
     print(key)
-            """,
+        """,
         ),
         (
             """
 for q in tuple((1, 2, 3)):
     print(q)
-            """,
+        """,
             """
 for q in (1, 2, 3):
     print(q)
-            """,
+        """,
         ),
         (
             """
 values = (1, 2, 3)
 for q in list(values):
     print(q)
-            """,
+        """,
             """
 values = (1, 2, 3)
 for q in values:
     print(q)
-            """,
+        """,
         ),
         (
             """
 values = (1, 2, 3)
 for q in sorted(values):
     print(q)
-            """,
+        """,
             """
 values = (1, 2, 3)
 for q in sorted(values):
     print(q)
-            """,
+        """,
         ),
         (
             """
 values = range(50)
 w = [x for x in list(values)]
 print(w)
-            """,
-            """
+    """,
+        """
 values = range(50)
 w = [x for x in values]
 print(w)
-            """,
+    """,
         ),
         (
             """
 values = range(50)
 w = [x for x in iter(values)]
 print(w)
-            """,
-            """
+    """,
+        """
 values = range(50)
 w = [x for x in values]
 print(w)
-            """,
+    """,
         ),
         (
             """
 values = range(50)
 w = {x for x in list(values)}
 print(w)
-            """,
-            """
+    """,
+        """
 values = range(50)
 w = {x for x in values}
 print(w)
-            """,
+    """,
         ),
         (
             """
 values = range(50)
 w = (x for x in list(values))
 print(w)
-            """,
-            """
+    """,
+        """
 values = range(50)
 w = (x for x in values)
 print(w)
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = performance.remove_redundant_iter(source)

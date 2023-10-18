@@ -10,9 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 import random
 x = 11
 y = 12
@@ -25,7 +24,7 @@ else:
     do_stuff(y)
     do_stuff(x - y ** 2)
     print(doing_other_stuff(y) - do_stuff(x ** x))
-            """,
+        """,
             """
 import random
 x = 11
@@ -41,7 +40,7 @@ else:
 do_stuff(var_1)
 do_stuff(var_2 - var_1 ** 2)
 print(doing_other_stuff(var_1) - do_stuff(var_2 ** var_2))
-            """,
+    """,
         ),
         (  # Too little code would be simplified => do not replace this
             """
@@ -53,7 +52,7 @@ if z > 1 - z:
     do_stuff(x)
 else:
     do_stuff(y)
-            """,
+        """,
             """
 import random
 x = 11
@@ -63,7 +62,7 @@ if z > 1 - z:
     do_stuff(x)
 else:
     do_stuff(y)
-            """,
+        """,
         ),
         (
             """
@@ -83,7 +82,7 @@ else:
         raise RuntimeError(f"Invalid value for {y}")
 
     print(random.randint(1 / z ** 2, - 1 / (z + x - y) ** 2))
-            """,
+        """,
             """
 import random
 x = 11
@@ -101,9 +100,8 @@ if var_1 > 1 / z:
     raise RuntimeError(f"Invalid value for {var_1}")
 
 print(random.randint(1 / z ** 2, -1 / (z + var_2 - var_1) ** 2))
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = abstractions.simplify_if_control_flow(source)

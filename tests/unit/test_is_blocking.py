@@ -17,66 +17,66 @@ def main() -> int:
 for i in range(10):
     continue
 """,
-        """
+    """
 for i in range(10):
     break
 """,
-        """
+    """
 for i in range(10):
     print(1)
     print(2)
     with x as y:
         continue
 """,
-        """
+    """
 for i in x:
     while True:
         break
 """,
-        """
+    """
 for i in x:
     while True:
         break
     continue
 """,
-        """
+    """
 while True:
     break
     raise Exception()
 """,
-        """
+    """
 while statement:
     if x:
         statement = False
     if random.random():
         statement = False
 """,
-        """
+    """
 while False:
     print(2)
     raise RuntimeError()
 """,
-        """
+    """
 if 66:
     pass
 """,
-        """
+    """
 if 66:
     print(6)
 else:
     return 22
 """,
-        """
+    """
 if None:
     break
 else:
     f = 2 + x()
 """,
-        """
+    """
 for i in []:
     raise ValueError()
 """,
-        """
+    """
 for i in something:
     raise ValueError()
 """,
@@ -96,20 +96,20 @@ for i in something:
 for i in [1, 2, 3]:
     raise ValueError()
 """,
-        """
+    """
 for i in (1, 2, 3):
     print(1)
     print(2)
     with x as y:
         raise RuntimeError()
 """,
-        """
+    """
 for i in [None, False]:
     while True:
         break
     assert False
 """,
-        """
+    """
 if x:
     raise RuntimeError()
 elif y:
@@ -122,34 +122,34 @@ else:
     print(2)
     return 99
 """,
-        """
+    """
 while True:
     while True:
         while True:
             print(3)
 """,
-        """
+    """
 while True:
     while True:
         while True:
             raise Exception()
 """,
-        """
+    """
 while 1:
     while False:
         pass
 """,
-        """
+    """
 if 66:
     return 0
 """,
-        """
+    """
 if 66:
     return 0
 else:
     print(8)
 """,
-        """
+    """
 if None:
     pass
 else:

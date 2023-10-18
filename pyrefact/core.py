@@ -74,16 +74,19 @@ class Wildcard(ast.AST):
 
 class ZeroOrOne(NamedTuple):
     """Matches zero or one of a template"""
+
     template: object
 
 
 class ZeroOrMany(NamedTuple):
     """Matches zero or many of a template"""
+
     template: object
 
 
 class OneOrMany(NamedTuple):
     """Matches one or many of a template"""
+
     template: object
 
 
@@ -174,18 +177,14 @@ def _iter_template_permutations(template: List[ast.AST], length: int) -> Iterabl
             node_counts[i, node.template] = (1, 1 + slack)
 
     node_counts = {
-        key: range(min_count, max_count + 1)
-        for key, (min_count, max_count) in node_counts.items()
+        key: range(min_count, max_count + 1) for key, (min_count, max_count) in node_counts.items()
     }
     keys = node_counts.keys()
     permutations = itertools.product(*(node_counts[key] for key in keys))
     permutations = (p for p in permutations if sum(p) == length)
 
     for permutation in permutations:
-        yield sum(
-            ([key[1]] * count for key, count in zip(keys, permutation)),
-            []
-        )
+        yield sum(([key[1]] * count for key, count in zip(keys, permutation)), [])
 
 
 def _match_list(nodes: ast.AST, template: List[ast.AST], ignore: Collection[str]) -> Tuple:
@@ -743,7 +742,7 @@ class Match:
 
     @property
     def string(self) -> str:
-        return self.source[self.start:self.end]
+        return self.source[self.start : self.end]
 
     @property
     def root(self) -> ast.AST:

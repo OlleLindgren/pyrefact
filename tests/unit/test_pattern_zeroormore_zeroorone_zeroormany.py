@@ -4,7 +4,6 @@ from pyrefact.core import match_template, ZeroOrOne, ZeroOrMany, OneOrMany
 
 
 class TestZeroOrOne(unittest.TestCase):
-
     def test(self):
         assert match_template([], [ZeroOrOne(object)])
         assert match_template([object], [ZeroOrOne(object)])
@@ -19,7 +18,6 @@ class TestZeroOrOne(unittest.TestCase):
 
 
 class TestZeroOrMany(unittest.TestCase):
-
     def test(self):
         assert match_template([], [ZeroOrMany(object)])
         assert match_template([object], [ZeroOrMany(object)])
@@ -34,7 +32,6 @@ class TestZeroOrMany(unittest.TestCase):
 
 
 class TestOneOrMany(unittest.TestCase):
-
     def test(self):
         assert not match_template([], [OneOrMany(object)])
         assert match_template([object], [OneOrMany(object)])
@@ -49,7 +46,6 @@ class TestOneOrMany(unittest.TestCase):
 
 
 class TestCombination(unittest.TestCase):
-
     def test(self):
         assert match_template([], [ZeroOrMany(object), ZeroOrOne(object)])
         assert match_template([object], [ZeroOrMany(object), ZeroOrOne(object)])
@@ -63,6 +59,7 @@ class TestCombination(unittest.TestCase):
         assert not match_template([object], [ZeroOrOne(object), str])
         assert match_template([22], [ZeroOrOne(str), int])
         assert not match_template([], [ZeroOrMany(object), ZeroOrOne(object), OneOrMany(object)])
+
 
 def main() -> int:
     # For use with ./tests/main.py, which looks for these main functions.

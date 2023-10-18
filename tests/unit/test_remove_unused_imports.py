@@ -10,55 +10,53 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 import numpy
-            """,
-            """
-            """,
+    """,
+        """
+    """,
         ),
         (
             """
 import numpy as np, pandas as pd
 print(pd)
-            """,
-            """
+    """,
+        """
 import pandas as pd
 print(pd)
-            """,
+    """,
         ),
         (
             """
 from . import a, c
 c(2)
-            """,
-            """
+    """,
+        """
 from . import c
 c(2)
-            """,
+    """,
         ),
         (
             """
 from ... import a, c
 c(2)
-            """,
-            """
+    """,
+        """
 from ... import c
 c(2)
-            """,
+    """,
         ),
         (
             """
 from ....af.qwerty import a, b, c as d, q, w as f
 print(a, b, d)
-            """,
-            """
+    """,
+        """
 from ....af.qwerty import a, b, c as d
 print(a, b, d)
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.remove_unused_imports(source)

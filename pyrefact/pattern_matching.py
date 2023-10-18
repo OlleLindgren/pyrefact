@@ -21,6 +21,7 @@ def findall(pattern: str | ast.AST, source: str) -> Sequence[core.Match]:
 
 def sub(pattern: str | ast.AST, repl: str, source: str, count: int = 0) -> str:
     count = count if count > 0 else float("inf")
+
     @processing.fix
     def fix_func(src: str):
         replacements = 0
@@ -67,17 +68,17 @@ def _recursively_find_files(path: Path) -> Iterable[Path]:
 
 def main(args: Sequence[str]) -> int:
     args = _parse_args(args)
-    filenames = sorted({
-        filename
-        for path in args.path
-        for filename in _recursively_find_files(path)
-    })
+    filenames = sorted(
+        {filename for path in args.path for filename in _recursively_find_files(path)}
+    )
     for filename in filenames:
         source = filename.read_text()
 
         if args.command == "findall":
             for match in finditer(args.pattern, source):
-                print(f"{filename}:{match.lineno}:{match.col_offset}: {match.string.splitlines()[0]}")
+                print(
+                    f"{filename}:{match.lineno}:{match.col_offset}: {match.string.splitlines()[0]}"
+                )
 
         elif args.command == "sub":
             print(f"Parsing {filename}...")

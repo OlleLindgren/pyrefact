@@ -10,9 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 def f(x) -> int:
     if x > 10:
         x += 1
@@ -22,7 +21,7 @@ def f(x) -> int:
     else:
         y = 13
     return y
-            """,
+        """,
             """
 def f(x) -> int:
     if x > 10:
@@ -46,7 +45,7 @@ def f(x) -> int:
         y = 13
     print(3)
     return y
-            """,
+        """,
             """
 def f(x) -> int:
     if x > 10:
@@ -58,9 +57,8 @@ def f(x) -> int:
         y = 13
     print(3)
     return y
-            """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.early_return(source)

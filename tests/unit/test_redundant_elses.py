@@ -11,9 +11,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 def f(x: int) -> int:
     if x == 2:
         return 10
@@ -26,7 +25,7 @@ def f(x: int) -> int:
         return 10
 
     return 11 - x
-            """,
+        """,
         ),
         (
             """
@@ -46,7 +45,7 @@ def f(x: int) -> int:
         return x**x - 3
 
     return 11 - x
-            """,
+        """,
         ),
         (
             """
@@ -82,7 +81,7 @@ def f(x: int) -> int:
         return 0
 
     return 11 - x
-            """,
+        """,
         ),
         (
             """
@@ -98,7 +97,7 @@ for i in range(10):
         continue
 
     print(2)
-            """,
+        """,
         ),
         (
             """
@@ -118,7 +117,7 @@ for i in range(10):
             time.sleep(3)
 
     print(2)
-            """,
+        """,
         ),
         (
             """
@@ -164,7 +163,7 @@ def foo() -> bool:
     if z:
         return False
     return True
-            """,
+        """,
         ),  # First pass
         (
             """
@@ -188,12 +187,11 @@ def foo() -> bool:
         return False
 
     return True
-            """,
+        """,
         ),  # Second pass
     )
 
     for source, expected_abstraction in test_cases:
-
         processed_content = fixes.remove_redundant_else(source)
 
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):

@@ -11,38 +11,36 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            r"""
+    test_cases = ((
+        r"""
 import re
 print(re.findall("\d+", "1234x23"))
-            """,
-            r"""
+    """,
+        r"""
 import re
 print(re.findall(r"\d+", "1234x23"))
-            """,
+    """,
         ),
         (
             r"""
 import re
 print(re.findall("\+", "1234+23"))
-            """,
-            r"""
+    """,
+        r"""
 import re
 print(re.findall(r"\+", "1234+23"))
-            """,
+    """,
         ),
         (  # Watch out with f strings
             r"""
 import re
 print(re.findall(f"\d{'+'}", "1234x23"))
-            """,
-            r"""
+    """,
+        r"""
 import re
 print(re.findall(f"\d{'+'}", "1234x23"))
-            """,
-        ),
-    )
+    """,
+    ),)
 
     logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 

@@ -10,9 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 for x in range(100):
     if x > 10:
         y = 13
@@ -22,8 +21,8 @@ for x in range(100):
         print(x > 30)
         y = 100 - sum(x, 2, 3)
 print(x)
-            """,
-            """
+    """,
+        """
 for x in range(100):
     if x > 10:
         y = 13
@@ -34,7 +33,7 @@ for x in range(100):
         print(x > 30)
         y = 100 - sum(x, 2, 3)
 print(x)
-            """,
+    """,
         ),
         (
             """
@@ -139,8 +138,7 @@ for i in range(100):
             print(i ** 3)
             print(i ** 4)
             """,
-        ),
-    )
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.early_continue(source)

@@ -680,7 +680,8 @@ def simplify_if_control_flow(source: str) -> str:
                     end_lineno=0 + len(body),
                     col_offset=0,
                     end_col_offset=0,
-            ))]  # Put as single element in list to emulate mutable string
+            ))
+            ]  # Put as single element in list to emulate mutable string
             for body in bodies
         ]
 

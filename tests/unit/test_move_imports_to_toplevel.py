@@ -10,9 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 #!/usr/bin/env python3
 '''docstring'''
 import time
@@ -33,7 +32,7 @@ def call2():
 def call3():
     import math
     print(math.sum([3]))
-            """,
+        """,
             """
 #!/usr/bin/env python3
 '''docstring'''
@@ -55,7 +54,7 @@ def call2():
 
 def call3():
     print(math.sum([3]))
-            """,
+        """,
         ),
         (
             """
@@ -73,7 +72,7 @@ def woo():
 def hoo():
     from numpy import intp as c_intp
     print(199)
-            """,
+        """,
             """
 import os
 from numpy import intp as c_intp
@@ -87,9 +86,8 @@ def woo():
     print(199)
 def hoo():
     print(199)
-            """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.move_imports_to_toplevel(source)

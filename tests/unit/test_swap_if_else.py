@@ -43,7 +43,7 @@ def f(x) -> int:
         return 100 - sum(x, 2, 3)
 
     return 13
-            """,
+        """,
             """
 def f(x) -> int:
     if x <= 10:
@@ -100,14 +100,14 @@ if X % 5 == 0:
         if X % (X - 4) == 0:
             return 61
 return 12
-            """,
-            """
+    """,
+        """
 if X % 5 == 0:
     if X % 61 == 0:
         if X % (X - 4) == 0:
             return 61
 return 12
-            """,
+    """,
         ),
         (  # There's a pattern going on here, it shouldn't be disturbed.
             """
@@ -125,7 +125,7 @@ def foo(x):
         w = papaf(x)
         return y, w
     return 1, 2
-            """,
+        """,
             """
 def foo(x):
     if isinstance(x, str):
@@ -141,9 +141,8 @@ def foo(x):
         w = papaf(x)
         return y, w
     return 1, 2
-            """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.swap_if_else(source)

@@ -10,70 +10,68 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 x = {1, 2, 3}
 x.add(7)
 x.add(191)
-            """,
-            """
+    """,
+        """
 x = {1, 2, 3, 7, 191}
-            """,
+    """,
         ),
         (
             """
 x = [1, 2, 3]
 x.append(7)
 x.append(191)
-            """,
-            """
+    """,
+        """
 x = [1, 2, 3, 7, 191]
-            """,
+    """,
         ),
         (  # simplify_collection_unpacks is assumed to run after  this
             """
 x = {1, 2, 3}
 x.update((7, 22))
 x.update((191, 191))
-            """,
-            """
+    """,
+        """
 x = {1, 2, 3, 7, 22, 191, 191}
-            """,
+    """,
         ),
         (
             """
 x = [1, 2, 3]
 x.extend((7, 22))
 x.extend(foo)
-            """,
-            """
+    """,
+        """
 x = [1, 2, 3, 7, 22, *foo]
-            """,
+    """,
         ),
         (
             """
 f = [1, 2, 3]
 f.extend(foo, bar)
 f.extend((7, 22))
-            """,
-            """
+    """,
+        """
 f = [1, 2, 3, *foo, *bar, 7, 22]
-            """,
+    """,
         ),
         (
             """
 f = [1, 2, 3]
 x.extend(foo, bar)
 x.extend((7, 22))
-            """,
-            """
+    """,
+        """
 f = [1, 2, 3]
 x.extend(foo, bar)
 x.extend((7, 22))
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.replace_collection_add_update_with_collection_literal(source)

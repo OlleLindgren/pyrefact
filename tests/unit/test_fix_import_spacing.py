@@ -11,16 +11,15 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 import os
 import re
-            """,
-            """
+    """,
+        """
 import os
 import re
-            """,
+    """,
         ),
         (
             """
@@ -28,11 +27,11 @@ import os
 
 
 import re
-            """,
-            """
+    """,
+        """
 import os
 import re
-            """,
+    """,
         ),
         (
             """
@@ -41,12 +40,12 @@ def f():
 
 
     import re
-            """,
+        """,
             """
 def f():
     import os
     import re
-            """,
+        """,
         ),
         (
             """
@@ -54,22 +53,22 @@ import os; import sys
 
 
 import re
-            """,
-            """
+    """,
+        """
 import os; import sys
 import re
-            """,
+    """,
         ),
         (
             """
 import os
 
 from re import findall
-            """,
-            """
+    """,
+        """
 import os
 from re import findall
-            """,
+    """,
         ),
         (
             """
@@ -83,8 +82,8 @@ from pathlib import (
 )
 import numpy
 import pandas as pd
-            """,
-            """
+    """,
+        """
 import os
 import re
 from pathlib import (
@@ -94,7 +93,7 @@ from pathlib import (
 
 import numpy
 import pandas as pd
-            """,
+    """,
         ),
         (
             """
@@ -112,8 +111,8 @@ def foo():
     print(100)
 import pandas
 foo()
-            """,
-            """
+    """,
+        """
 import os
 
 # Interesting comment
@@ -132,15 +131,15 @@ def foo():
 import pandas
 
 foo()
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
-
         processed_content = fixes.fix_import_spacing(source)
 
-        if not testing_infra.check_fixes_equal(processed_content, expected_abstraction, clear_whitespace=False):
+        if not testing_infra.check_fixes_equal(
+            processed_content, expected_abstraction, clear_whitespace=False
+        ):
             return 1
 
     return 0

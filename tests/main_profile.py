@@ -28,7 +28,9 @@ def main() -> int:
                 pyrefact.main.main([tmpdir])
             finally:
                 with open(out_filename, "w") as stream:
-                    stats = pstats.Stats(profile, stream=stream).sort_stats(pstats.SortKey.CUMULATIVE)
+                    stats = pstats.Stats(profile, stream=stream).sort_stats(
+                        pstats.SortKey.CUMULATIVE
+                    )
                     stats.dump_stats(out_filename)
                     print(f"Saved profiling to {out_filename}")
                     return 0

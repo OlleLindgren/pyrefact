@@ -5,7 +5,6 @@ from pyrefact import core, pattern_matching
 
 
 class TestFinditer(unittest.TestCase):
-
     def test_basic_code(self):
         pattern = source = "x = 1"
         iterator = pattern_matching.finditer(pattern, source)
@@ -16,16 +15,13 @@ class TestFinditer(unittest.TestCase):
 
         m = matches[0]
         expected = core.Match(
-            span=core.Range(start=0, end=5),
-            source=source,
-            groups=(core.parse(source).body[0],),
+            span=core.Range(start=0, end=5), source=source, groups=(core.parse(source).body[0],)
         )
 
         self.assertEqual(m.span, expected.span)
         self.assertEqual(m.source, expected.source)
         assert core.match_template(m.groups[0], expected.groups[0])
         assert core.match_template(expected.groups[0], m.groups[0])
-
 
     def test_complex_code(self):
         source = """
@@ -62,9 +58,7 @@ class {{name}}({{base}}):
 
         m = matches[0]
         expected = core.Match(
-            span=core.Range(start=1, end=111),
-            source=source,
-            groups=(core.parse(source).body[0],),
+            span=core.Range(start=1, end=111), source=source, groups=(core.parse(source).body[0],)
         )
 
         self.assertEqual(m.span, expected.span)
@@ -74,9 +68,7 @@ class {{name}}({{base}}):
 
         m = matches[1]
         expected = core.Match(
-            span=core.Range(start=113, end=222),
-            source=source,
-            groups=(core.parse(source).body[1],),
+            span=core.Range(start=113, end=222), source=source, groups=(core.parse(source).body[1],)
         )
 
         self.assertEqual(m.span, expected.span)
@@ -90,7 +82,6 @@ class {{name}}({{base}}):
 
 
 class TestFindall(unittest.TestCase):
-
     def test_basic_code(self):
         pattern = source = "x = 1"
         iterator = pattern_matching.findall(pattern, source)
@@ -101,7 +92,6 @@ class TestFindall(unittest.TestCase):
 
         m = matches[0]
         self.assertEqual(m, source)
-
 
     def test_complex_code(self):
         source = """
@@ -145,16 +135,13 @@ class {{name}}({{base}}):
 
 
 class TestSearch(unittest.TestCase):
-
     def test_basic_code(self):
         pattern = source = "x = 1"
         m = pattern_matching.search(pattern, source)
         self.assertIsInstance(m, core.Match)
 
         expected = core.Match(
-            span=core.Range(start=0, end=5),
-            source=source,
-            groups=(core.parse(source).body[0],),
+            span=core.Range(start=0, end=5), source=source, groups=(core.parse(source).body[0],)
         )
 
         self.assertEqual(m.span, expected.span)
@@ -166,7 +153,7 @@ class TestSearch(unittest.TestCase):
         # TODO move these to a separate test file/class/function or something
         self.assertEqual(m.span.start, m.start)
         self.assertEqual(m.span.end, m.end)
-        self.assertEqual(m.string, m.source[m.start:m.end])
+        self.assertEqual(m.string, m.source[m.start : m.end])
         self.assertEqual(m.lineno, 1)
         self.assertEqual(m.col_offset, 0)
         self.assertIs(m.root, m.groups[0])
@@ -202,9 +189,7 @@ class {{name}}({{base}}):
         self.assertIsInstance(m, core.Match)
 
         expected = core.Match(
-            span=core.Range(start=1, end=111),
-            source=source,
-            groups=(core.parse(source).body[0],),
+            span=core.Range(start=1, end=111), source=source, groups=(core.parse(source).body[0],)
         )
 
         self.assertEqual(m.span, expected.span)
@@ -218,7 +203,6 @@ class {{name}}({{base}}):
 
 
 class TestSub(unittest.TestCase):
-
     def test_basic_code(self):
         pattern = source = "x = 1"
         replacement = "x = 2"

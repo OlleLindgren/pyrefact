@@ -29,7 +29,10 @@ def _create_diff_view(processed_content: str, expected_content: str) -> str:
 
 
 def check_fixes_equal(
-    processed_content: str, expected_abstraction: str, clear_paranthesises=False, clear_whitespace=True
+    processed_content: str,
+    expected_abstraction: str,
+    clear_paranthesises=False,
+    clear_whitespace=True,
 ) -> int:
     if clear_whitespace:
         processed_content = _remove_multi_whitespace(processed_content)

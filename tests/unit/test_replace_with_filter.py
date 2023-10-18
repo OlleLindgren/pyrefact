@@ -10,9 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 for x in range(10):
     if x:
         print(3)
@@ -20,7 +19,7 @@ for x in range(10):
             """
 for x in filter(None, range(10)):
     print(3)
-            """,
+        """,
         ),
         (
             """
@@ -28,11 +27,11 @@ for x in range(10):
     if not f(x):
         continue
     print(x)
-            """,
+        """,
             """
 for x in filter(f, range(10)):
     print(x)
-            """,
+        """,
         ),
         (
             """
@@ -43,7 +42,7 @@ for x in range(10):
             """
 for x in filter(f, range(10)):
     print(3)
-            """,
+        """,
         ),
         (
             """
@@ -67,11 +66,11 @@ for x in range(10):
     if not x:
         continue
     print(3)
-            """,
+        """,
             """
 for x in filter(None, range(10)):
     print(3)
-            """,
+        """,
         ),
         (  # I find itertools.filterfalse much less readable
             """
@@ -79,13 +78,13 @@ for x in range(10):
     if f(x):
         continue
     print(x)
-            """,
+        """,
             """
 for x in range(10):
     if f(x):
         continue
     print(x)
-            """,
+        """,
         ),
         (
             """
@@ -96,7 +95,7 @@ for x in range(10):
             """
 for x in filter(f, range(10)):
     print(x)
-            """,
+        """,
         ),
         (  # Another filterfalse opportunity that I will not implement
             """
@@ -116,13 +115,13 @@ for x in filter(bool, range(10)):
     if not f(x):
         continue
     print(x)
-            """,
+        """,
             """
 for x in filter(bool, range(10)):
     if not f(x):
         continue
     print(x)
-            """,
+        """,
         ),
         (
             """
@@ -143,14 +142,14 @@ for x in filterfalse(bool, range(10)):
     if not f(x):
         continue
     print(x)
-            """,
+        """,
             """
 from itertools import filterfalse
 for x in filterfalse(bool, range(10)):
     if not f(x):
         continue
     print(x)
-            """,
+        """,
         ),
         (
             """
@@ -165,8 +164,7 @@ for x in itertools.filterfalse(int, range(10)):
     if f(x):
         print(x)
             """,
-        ),
-    )
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.replace_with_filter(source)

@@ -10,9 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 from logging import info
 from logging import warning
 from logging import error, info, log
@@ -21,10 +20,10 @@ from logging import (
     critical   ,
     error, error, error as error)
 from logging import critical
-            """,
-            """
+    """,
+        """
 from logging import critical, error, info, log, warning
-            """,
+    """,
         ),
         (
             """
@@ -33,11 +32,11 @@ from numpy import ndarray
 from logging import warning
 from numpy import array
 from logging import error as info, warning as error
-            """,
-            """
+    """,
+        """
 from logging import error as info, info, warning, warning as error
 from numpy import array, ndarray
-            """,
+    """,
         ),
         (
             """
@@ -46,14 +45,14 @@ import logging
 import logging, numpy, pandas as pd, os as sys, os as os
 import pandas as pd, os, os, os
 import os
-            """,
-            """
+    """,
+        """
 import logging
 import numpy
 import os
 import os as sys
 import pandas as pd
-            """,
+    """,
         ),
         (
             """
@@ -61,36 +60,35 @@ if foo():
     from spam import eggs
 else:
     from spam import spam
-            """,
+        """,
             """
 if foo():
     from spam import eggs
 else:
     from spam import spam
-            """,
+        """,
         ),
         (
             """
 from spam import eggs
 print(10)
 from spam import spam
-            """,
-            """
+    """,
+        """
 from spam import eggs
 print(10)
 from spam import spam
-            """,
+    """,
         ),
         (
             """
 from spam import eggs
 from spam import spam
-            """,
-            """
+    """,
+        """
 from spam import eggs, spam
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.fix_duplicate_imports(source)

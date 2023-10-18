@@ -17,13 +17,13 @@ x = 404
 y = 404
 z = 404
 w = 404
-            """,
-            """
+    """,
+        """
 x = 404
 y = 404
 z = 404
 w = 404
-            """,
+    """,
         ),
         (  # Bigger things are not ok
             """
@@ -33,8 +33,8 @@ z = "some/path/to/something/cool"
 w = "some/path/to/something/cool"
 h = "some/path/to/something/cool"
 g = "some/path/to/something/cool"
-            """,
-            """
+    """,
+        """
 SOME_PATH_TO_SOMETHING_COOL = "some/path/to/something/cool"
 x = SOME_PATH_TO_SOMETHING_COOL
 y = SOME_PATH_TO_SOMETHING_COOL
@@ -42,7 +42,7 @@ z = SOME_PATH_TO_SOMETHING_COOL
 w = SOME_PATH_TO_SOMETHING_COOL
 h = SOME_PATH_TO_SOMETHING_COOL
 g = SOME_PATH_TO_SOMETHING_COOL
-            """,
+    """,
         ),
         (  # Best common scope is module scope
             """
@@ -60,7 +60,7 @@ def bar():
     h = "some/path/to/something/cool"
     g = "some/path/to/something/cool"
     print(h, g)
-            """,
+        """,
             """
 import math
 SOME_PATH_TO_SOMETHING_COOL = "some/path/to/something/cool"
@@ -77,7 +77,7 @@ def bar():
     h = SOME_PATH_TO_SOMETHING_COOL
     g = SOME_PATH_TO_SOMETHING_COOL
     print(h, g)
-            """,
+        """,
         ),
         (  # Best common scope is not module scope
             """
@@ -97,7 +97,7 @@ def foo():
         print(h, g)
 
     bar()
-            """,
+        """,
             """
 import math
 
@@ -116,7 +116,7 @@ def foo():
         print(h, g)
 
     bar()
-            """,
+        """,
         ),
         (  # Best common scope is not module scope
             """
@@ -141,7 +141,7 @@ def moo():
 
 def koo():
     print({"spam": 3, "eggs": 2, "snake": 1336}.get("spam"))
-            """,
+        """,
             """
 PYREFACT_OVERUSED_CONSTANT_0 = {"spam": 3, "eggs": 2, "snake": 1336}
 def foo():
@@ -165,7 +165,7 @@ def moo():
 
 def koo():
     print(PYREFACT_OVERUSED_CONSTANT_0.get("spam"))
-            """,
+        """,
         ),
         (  # Best common scope is not module scope
             """
@@ -182,8 +182,8 @@ two("fdsafdsafdsafdsafdsafdsafdsa")
 three("fdsafdsafdsafdsafdsafdsafdsa")
 four("fdsafdsafdsafdsafdsafdsafdsa")
 five("fdsafdsafdsafdsafdsafdsafdsa")
-            """,
-            """
+    """,
+        """
 ASDFASDFASDFASDFASDFASDFASDF = "asdfasdfasdfasdfasdfasdfasdf"
 FDSAFDSAFDSAFDSAFDSAFDSAFDSA = "fdsafdsafdsafdsafdsafdsafdsa"
 PYREFACT_OVERUSED_CONSTANT_0 = "foo"
@@ -199,9 +199,8 @@ two(FDSAFDSAFDSAFDSAFDSAFDSAFDSA)
 three(FDSAFDSAFDSAFDSAFDSAFDSAFDSA)
 four(FDSAFDSAFDSAFDSAFDSAFDSAFDSA)
 five(FDSAFDSAFDSAFDSAFDSAFDSAFDSA)
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = abstractions.overused_constant(source, root_is_static=True)

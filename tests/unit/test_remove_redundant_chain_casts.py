@@ -10,72 +10,70 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 set(itertools.chain(range(10), range(11)))
-            """,
-            """
+    """,
+        """
 {*range(10), *range(11)}
-            """,
+    """,
         ),
         (
             """
 set(itertools.chain())
-            """,
-            """
+    """,
+        """
 set()
-            """,
+    """,
         ),
         (
             """
 tuple(itertools.chain(range(10), range(11)))
-            """,
-            """
+    """,
+        """
 (*range(10), *range(11))
-            """,
+    """,
         ),
         (
             """
 tuple(itertools.chain())
-            """,
-            """
+    """,
+        """
 ()
-            """,
+    """,
         ),
         (
             """
 list(itertools.chain())
-            """,
-            """
+    """,
+        """
 []
-            """,
+    """,
         ),
         (
             """
 iter(itertools.chain())
-            """,
-            """
+    """,
+        """
 iter(())
-            """,
+    """,
         ),
         (
             """
 list(itertools.chain(range(10), range(11)))
-            """,
-            """
+    """,
+        """
 [*range(10), *range(11)]
-            """,
+    """,
         ),
         (
             """
 iter(itertools.chain(range(10), range(11)))
-            """,
-            """
+    """,
+        """
 itertools.chain(range(10), range(11))
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.remove_redundant_chain_casts(source)

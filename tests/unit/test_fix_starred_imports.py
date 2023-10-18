@@ -10,18 +10,17 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 from os import *
 
 print(getcwd())
-            """,
-            """
+    """,
+        """
 from os import getcwd
 
 print(getcwd())
-            """,
+    """,
         ),
         (
             """
@@ -30,25 +29,25 @@ from pathlib import *
 from sys import *
 
 print(Path(getcwd()))
-            """,
-            """
+    """,
+        """
 from os import getcwd
 from pathlib import Path
 
 print(Path(getcwd()))
-            """,
+    """,
         ),
         (
             """
 import time
 
 print(time.time())
-            """,
-            """
+    """,
+        """
 import time
 
 print(time.time())
-            """,
+    """,
         ),
         (
             """
@@ -63,8 +62,8 @@ Current time:      {datetime.now().isoformat()}
 Created:           {datetime.datetime.utcfromtimestamp(stat(__file__).st_ctime)}
 Last modified:     {datetime.datetime.utcfromtimestamp(stat(__file__).st_mtime)}
 ''')
-            """,
-            """
+    """,
+        """
 from os import getcwd, stat
 from datetime import datetime
 
@@ -74,9 +73,8 @@ Current time:      {datetime.now().isoformat()}
 Created:           {datetime.datetime.utcfromtimestamp(stat(__file__).st_ctime)}
 Last modified:     {datetime.datetime.utcfromtimestamp(stat(__file__).st_mtime)}
 ''')
-            """,
-        ),
-    )
+    """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = tracing.fix_starred_imports(source)

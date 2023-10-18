@@ -11,9 +11,8 @@ import testing_infra
 
 
 def _test_remove_unused_self_cls() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 class Foo:
     def __init__(self):
         self.bar = 3
@@ -79,8 +78,7 @@ class Foo:
     def i_have_many_decorators():
         return 10
             """,
-        ),
-    )
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = object_oriented.remove_unused_self_cls(source)
@@ -91,9 +89,8 @@ class Foo:
 
 
 def _test_move_staticmethod_global() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 def q() -> None:
     print(1)
     Spam.weeee()
@@ -140,8 +137,7 @@ class Foo:
     def __init__(self):
         self.x = 2
             """,
-        ),
-    )
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = object_oriented.move_staticmethod_static_scope(source, preserve=set())
