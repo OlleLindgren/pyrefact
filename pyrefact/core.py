@@ -1141,17 +1141,15 @@ class _NameWildcardTransformer(ast.NodeTransformer):
         return ast.copy_location(new_node, node)
 
     def visit_Expr(self, node):
-        if isinstance(node.value, ast.Name) and node.value.id in self.name_wildcard_mapping:
-            wildcard = self.name_wildcard_mapping[node.value.id]
-            if hasattr(wildcard, "template") and isinstance(wildcard.template, (ast.Name, ast.Attribute, ast.Constant)):
-                wildcard = Wildcard(
-                    wildcard.name, ast.Expr(wildcard.template), common=wildcard.common
-                )
+        if not match_template(node.value, ast.Name(id=tuple(self.name_wildcard_mapping))):
+            node = ast.Expr(self.visit(node.value))
+            return ast.copy_location(node, node)
 
-            return wildcard
+        wildcard = self.name_wildcard_mapping[node.value.id]
+        if isinstance(wildcard.template, (ast.Name, ast.Attribute, ast.Constant)):
+            wildcard = Wildcard(wildcard.name, ast.Expr(wildcard.template), common=wildcard.common)
 
-        node = ast.Expr(self.visit(node.value))
-        return ast.copy_location(node, node)
+        return wildcard
 
 
 @functools.lru_cache(maxsize=10_000)
@@ -1173,15 +1171,23 @@ def compile_template(
 
     name_wildcard_mapping = {}
     tmp_wildcards = {
-        **{name.strip("{}"): object for name in re.findall(r"\{\{\w+\}\}", source)},
-        **{name.strip("{}").rstrip("?"): ZeroOrOne(object) for name in re.findall(r"\{\{\w+\?\}\}", source)},
-        **{name.strip("{}").rstrip("*"): ZeroOrMany(object) for name in re.findall(r"\{\{\w+\*\}\}", source)},
-        **{name.strip("{}").rstrip("+"): OneOrMany(object) for name in re.findall(r"\{\{\w+\+\}\}", source)},
+        **{name[2:-2]: object for name in re.findall(r"\{\{\w+\}\}", source)},
+        **{name[2:-3]: ZeroOrOne(object) for name in re.findall(r"\{\{\w+\?\}\}", source)},
+        **{name[2:-3]: ZeroOrMany(object) for name in re.findall(r"\{\{\w+\*\}\}", source)},
+        **{name[2:-3]: OneOrMany(object) for name in re.findall(r"\{\{\w+\+\}\}", source)},
         **{"Ellipsis_anything": object for name in re.findall(r"\{\{\.{3}\}\}", source)},
-        **{"ZeroOrOne_anything": ZeroOrOne(object) for name in re.findall(r"\{\{\.{3}\?\}\}", source)},
-        **{"ZeroOrMany_anything": ZeroOrMany(object) for name in re.findall(r"\{\{\.{3}\*\}\}", source)},
-        **{"OneOrMany_anything": OneOrMany(object) for name in re.findall(r"\{\{\.{3}\+\}\}", source)},
-    }
+        **{
+            "ZeroOrOne_anything": ZeroOrOne(object)
+            for name in re.findall(r"\{\{\.{3}\?\}\}", source)
+        },
+        **{
+            "ZeroOrMany_anything": ZeroOrMany(object)
+            for name in re.findall(r"\{\{\.{3}\*\}\}", source)
+        },
+        **{
+            "OneOrMany_anything": OneOrMany(object)
+            for name in re.findall(r"\{\{\.{3}\+\}\}", source)
+    },}
     for name, template in wildcards.items():
         if name not in tmp_wildcards:
             tmp_wildcards[name] = template
@@ -1216,7 +1222,12 @@ def compile_template(
             suffix = ""
             common = True
 
-        if name in {"ZeroOrOne_anything", "ZeroOrMany_anything", "OneOrMany_anything", "Ellipsis_anything"}:
+        if name in {
+            "ZeroOrOne_anything",
+            "ZeroOrMany_anything",
+            "OneOrMany_anything",
+            "Ellipsis_anything",
+        }:
             replacement_name = "..."
         else:
             replacement_name = name
@@ -1225,16 +1236,15 @@ def compile_template(
 
         template = transformer.visit(template)
         if name in {"ZeroOrOne_anything", "ZeroOrMany_anything", "OneOrMany_anything"}:
-            name_wildcard_mapping[wildcard_placeholder_name] = template
+            wildcard = template
         elif name == "Ellipsis_anything":
-            name_wildcard_mapping[wildcard_placeholder_name] = Wildcard(name, template, common=False)
+            wildcard = Wildcard(name, template, common=False)
+        elif isinstance(template, (ZeroOrOne, ZeroOrMany, OneOrMany)):
+            wildcard = type(template)(Wildcard(name, template.template, common=common))
         else:
-            if isinstance(template, (ZeroOrOne, ZeroOrMany, OneOrMany)):
-                wildcard = type(template)(Wildcard(name, template.template, common=common))
-            else:
-                wildcard = Wildcard(name, template, common=common)
+            wildcard = Wildcard(name, template, common=common)
 
-            name_wildcard_mapping[wildcard_placeholder_name] = wildcard
+        name_wildcard_mapping[wildcard_placeholder_name] = wildcard
 
     if unfilled_wildcards := re.findall(r"\{\{\w+[+*?]?\}\}", source):
         raise ValueError(f"Unfilled wildcards found in source: {unfilled_wildcards}")
