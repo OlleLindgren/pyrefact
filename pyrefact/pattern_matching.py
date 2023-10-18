@@ -45,16 +45,16 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command")
     subparsers.required = True
 
-    # Findall, e.g. python -m pyrefact.pattern_matching findall <pattern> <path>
-    findall_parser = subparsers.add_parser("findall")
-    findall_parser.add_argument("pattern", type=str)
-    findall_parser.add_argument("path", type=Path, nargs="+")
+    # Findall, e.g. python -m pyrefact.pattern_matching find <pattern> <path>
+    find_parser = subparsers.add_parser("find")
+    find_parser.add_argument("pattern", type=str)
+    find_parser.add_argument("path", type=Path, nargs="+")
 
-    # Sub, e.g. python -m pyrefact.pattern_matching sub <pattern> <replacement> <path>
-    sub_parser = subparsers.add_parser("sub")
-    sub_parser.add_argument("pattern", type=str)
-    sub_parser.add_argument("replacement", type=str)
-    sub_parser.add_argument("path", type=Path, nargs="+")
+    # Sub, e.g. python -m pyrefact.pattern_matching replace <pattern> <replacement> <path>
+    replace_parser = subparsers.add_parser("replace")
+    replace_parser.add_argument("pattern", type=str)
+    replace_parser.add_argument("replacement", type=str)
+    replace_parser.add_argument("path", type=Path, nargs="+")
 
     return parser.parse_args(args)
 
@@ -74,17 +74,21 @@ def main(args: Sequence[str]) -> int:
     for filename in filenames:
         source = filename.read_text()
 
-        if args.command == "findall":
+        if args.command == "find":
             for match in finditer(args.pattern, source):
                 print(
                     f"{filename}:{match.lineno}:{match.col_offset}: {match.string.splitlines()[0]}"
                 )
 
-        elif args.command == "sub":
+        elif args.command == "replace":
             print(f"Parsing {filename}...")
             new_source = sub(args.pattern, args.replacement, source)
             if new_source != source:
                 filename.write_text(new_source)
+
+        else:
+            print(f"Unknown command: {args.command}")
+            return 1
 
     return 0
 

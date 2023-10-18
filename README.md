@@ -81,8 +81,8 @@ Match(span=Range(start=1, end=6), source='\nx = 1\ny = "asdf"\n', groups=(<ast.A
 
 Pattern-matching can also be used from the command-line:
 ```bash
-python -m pyrefact.pattern_matching findall "x = {{value}}" /path/to/filename.py
-python -m pyrefact.pattern_matching sub "x = {{value}}" "x = 1 - {{value}} ** 3" /path/to/filename.py
+python -m pyrefact.pattern_matching find "x = {{value}}" /path/to/filename.py
+python -m pyrefact.pattern_matching replace "x = {{value}}" "x = 1 - {{value}} ** 3" /path/to/filename.py
 ```
 
 ## Installation
