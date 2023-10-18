@@ -502,9 +502,13 @@ def align_variable_names_with_convention(
             if isinstance(node, ast.Name):
                 if node.id == substitute:
                     continue
+                if node.id in preserve:
+                    continue
                 replacement = ast.Name(id=substitute)
             elif isinstance(node, ast.FunctionDef):
                 if node.name == substitute:
+                    continue
+                if node.name in preserve:
                     continue
                 replacement = ast.FunctionDef(
                     name=substitute,
@@ -517,6 +521,8 @@ def align_variable_names_with_convention(
             elif isinstance(node, ast.AsyncFunctionDef):
                 if node.name == substitute:
                     continue
+                if node.name in preserve:
+                    continue
                 replacement = ast.AsyncFunctionDef(
                     name=substitute,
                     args=node.args,
@@ -527,6 +533,8 @@ def align_variable_names_with_convention(
                 )
             elif isinstance(node, ast.ClassDef):
                 if node.name == substitute:
+                    continue
+                if node.name in preserve:
                     continue
                 replacement = ast.ClassDef(
                     name=substitute,
