@@ -39,6 +39,9 @@ def search(pattern: str | ast.AST, source: str) -> core.Match | None:
     return next(finditer(pattern, source), None)
 
 
+compile = core.compile_template  # pylint: disable=redefined-builtin,unused-variable
+
+
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="pyrefact.pattern_matching.findall")
 

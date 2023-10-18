@@ -1,3 +1,4 @@
+import ast
 import unittest
 from typing import Iterable, Sequence
 
@@ -280,6 +281,40 @@ if __name__ == "__main__":
         self.test_complex_code()
 
 
+class TestCompile(unittest.TestCase):
+
+    def test_function_alias(self):
+        assert core.compile_template is pattern_matching.compile
+
+    def test_basic_code(self):
+
+        source = "x = 10"
+        pattern = pattern_matching.compile(source)
+        expected = ast.Assign(
+            targets=[ast.Name(id='x')],
+            value=ast.Constant(value=10, kind=None),
+            type_comment=None,
+        )
+
+        assert core.match_template(pattern, expected)
+        assert core.match_template(expected, pattern)
+
+    def test_wildcard_code(self):
+        source = "{{x}} = 10"
+        pattern = pattern_matching.compile(source)
+        expected = ast.Assign(
+            targets=[core.Wildcard(name="x", template=object)],
+            value=ast.Constant(value=10, kind=None),
+            type_comment=None,
+        )
+        assert pattern.targets == expected.targets
+
+    def runTest(self):
+        self.test_function_alias()
+        self.test_basic_code()
+        self.test_wildcard_code()
+
+
 def main() -> int:
     # For use with ./tests/main.py, which looks for these main functions.
     # unittest.main() will do sys.exit() or something, it quits the whole
@@ -300,6 +335,11 @@ def main() -> int:
         return 1
 
     test_result = TestSub().run()
+    if not test_result.wasSuccessful():
+        test_result.printErrors()
+        return 1
+
+    test_result = TestCompile().run()
     if not test_result.wasSuccessful():
         test_result.printErrors()
         return 1
