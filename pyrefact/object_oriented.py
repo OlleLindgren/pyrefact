@@ -135,6 +135,9 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
 
     replacements = {}
     for classdef in sorted(parsing.iter_classdefs(root), key=lambda cd: cd.lineno, reverse=True):
+        if classdef.bases:
+            continue
+
         for funcdef in parsing.iter_funcdefs(classdef):
             if funcdef.name in attributes_to_preserve:
                 continue

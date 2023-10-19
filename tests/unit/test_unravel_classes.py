@@ -137,7 +137,32 @@ class Foo:
     def __init__(self):
         self.x = 2
             """,
-    ),)
+    ),
+    (
+        """
+class Foo(object):
+    @staticmethod
+    def h():
+        print(1)
+
+class Bar:
+    @staticmethod
+    def h():
+        print(1)
+        """,
+        """
+class Foo(object):
+    @staticmethod
+    def h():
+        print(1)
+
+def _h():
+    print(1)
+class Bar:
+    pass
+        """
+    )
+    )
 
     for source, expected_abstraction in test_cases:
         processed_content = object_oriented.move_staticmethod_static_scope(source, preserve=set())
