@@ -97,15 +97,16 @@ def code_dependencies_outputs(
             continue
 
         else:
-            node_created = set()
-            node_needed = set()
+            node_created: Set[str] = set()
+            node_needed: Set[str] = set()
             generator_internal_names = set()
             for child in core.walk(
                 node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
             ):
-                comp_created = set()
+                comp_created: Set[str] = set()
                 for comp in child.generators:
-                    comp_created.update(core.walk(comp.target, ast.Name(ctx=ast.Store)))
+                    for name in core.walk(comp.target, ast.Name(ctx=ast.Store)):
+                        comp_created.add(name.id)
                 for grandchild in ast.walk(child):
                     if isinstance(grandchild, ast.Name) and grandchild.id in comp_created:
                         generator_internal_names.add(grandchild)
