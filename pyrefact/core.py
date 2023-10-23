@@ -8,9 +8,14 @@ import itertools
 import re
 import textwrap
 import traceback
-from typing import Collection, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple
+from types import MappingProxyType
+from typing import Any, Collection, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, TypeVar
 
 from pyrefact import constants, formatting, logs as logger
+
+
+Template = TypeVar("Template", bound=ast.AST | type | Collection[ast.AST | type])
+DEFAULT_IGNORE = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset"))
 
 
 def unparse(node: ast.AST | str) -> str:
@@ -125,7 +130,7 @@ def _all_fields_consistent(
     return True
 
 
-def merge_matches(root: ast.AST, matches: Iterable[Tuple[object]]) -> Tuple[object]:
+def merge_matches(root: ast.AST, matches: Iterable[Tuple[Any]]) -> Tuple[ast.AST, ...]:
     namedtuple_matches = []
     for match in matches:
         if not match:
@@ -161,7 +166,7 @@ def _match_tuple(node: ast.AST, template: Tuple[ast.AST, ...], ignore: Collectio
     return ()
 
 
-def _match_set(node: ast.AST, template: Set[ast.AST], ignore: Collection[str]) -> Tuple:
+def _match_set(node: ast.AST, template: Set[ast.AST], ignore: Collection[str]) -> Tuple[ast.AST, ...]:
     if not isinstance(node, list):
         return ()
 
@@ -169,15 +174,15 @@ def _match_set(node: ast.AST, template: Set[ast.AST], ignore: Collection[str]) -
     return merge_matches(node, matches)
 
 
-def _iter_template_permutations(template: List[ast.AST], length: int) -> Iterable[List[ast.AST]]:
+def _iter_template_permutations(template: List[Template], length: int) -> Iterable[List[Template]]:
     node_counts = {}
     for i, node in enumerate(template):
         if isinstance(node, ZeroOrOne):
             node_counts[(i, node.template)] = (0, 1)
         elif isinstance(node, ZeroOrMany):
-            node_counts[(i, node.template)] = (0, float("inf"))
+            node_counts[(i, node.template)] = (0, length)
         elif isinstance(node, OneOrMany):
-            node_counts[(i, node.template)] = (1, float("inf"))
+            node_counts[(i, node.template)] = (1, length)
         else:
             node_counts[(i, node)] = (1, 1)
 
@@ -202,7 +207,7 @@ def _iter_template_permutations(template: List[ast.AST], length: int) -> Iterabl
         yield sum(([key[1]] * count for key, count in zip(keys, permutation)), [])
 
 
-def _match_list(nodes: ast.AST, template: List[ast.AST], ignore: Collection[str]) -> Tuple:
+def _match_list(nodes: ast.AST, template: List[ast.AST], ignore: Collection[str]) -> Tuple[ast.AST, ...]:
     if not isinstance(nodes, list):
         return ()
 
@@ -245,10 +250,8 @@ def _match_wildcard(node: ast.AST, template: Wildcard, ignore: Collection[str]) 
 
 
 def _match_template_vars(
-    node: ast.AST,
-    template: ast.AST,
-    ignore: Collection[str] = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset")),
-) -> Tuple:
+    node: ast.AST, template: ast.AST, ignore: Collection[str] = DEFAULT_IGNORE,
+) -> Tuple[ast.AST, ...]:
     t_vars = vars(template)
     n_vars = vars(node)
 
@@ -259,7 +262,8 @@ def _match_template_vars(
             return ()
 
     matches = (
-        match_template(n_vars[key], t_vars[key], ignore=ignore) for key in t_vars.keys() - ignore
+        match_template(n_vars[key], t_vars[key], ignore=ignore)
+        for key in t_vars.keys() - ignore
     )
     return merge_matches(node, matches)
 
@@ -274,10 +278,8 @@ def _isinstance_cache(obj: object, types: type | Tuple[type, ...]) -> bool:
 
 
 def match_template(
-    node: ast.AST,
-    template: ast.AST,
-    ignore: Collection[str] = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset")),
-) -> Tuple:
+    node: ast.AST, template: Template, ignore: Collection[str] = DEFAULT_IGNORE,
+) -> Tuple[ast.AST, ...]:
     """Match a node against a provided ast template.
 
     Args:
@@ -358,7 +360,7 @@ def match_template(
 
 
 @functools.lru_cache(maxsize=100)
-def parse(source_code: str) -> ast.AST:
+def parse(source_code: str) -> ast.Module:
     """Parse python source code and cache
 
     Args:
@@ -378,17 +380,20 @@ def parse(source_code: str) -> ast.AST:
 
 
 @functools.lru_cache(maxsize=100)
-def _group_nodes_in_scope(scope: ast.AST) -> Mapping[ast.AST, Sequence[ast.AST]]:
+def _group_nodes_in_scope(scope: ast.AST) -> Mapping[type, Sequence[ast.AST]]:
     node_types = collections.defaultdict(list)
     for node in ast.walk(scope):
         node_types[type(node)].append(node)
 
-    return node_types
+    for key in node_types:
+        node_types[key] = tuple(node_types[key])
+
+    return MappingProxyType(node_types)
 
 
 def walk_wildcard(
-    scope: ast.AST, node_template: ast.AST | Tuple[ast.AST, ...], ignore: Collection[str] = ()
-) -> Sequence[Tuple[ast.AST, ...]]:
+    scope: ast.AST, node_template: Template, ignore: Collection[str] = ()
+) -> Iterable[Tuple[ast.AST, ...]]:
     """Iterate over all nodes in scope that match a particular type or template.
 
     The `node_template` argument supports the same syntax as in match_template().
@@ -419,9 +424,7 @@ def walk_wildcard(
                     yield template_match
 
 
-def walk(
-    scope: ast.AST, node_template: ast.AST | Tuple[ast.AST, ...], ignore: Collection[str] = ()
-) -> Sequence[ast.AST]:
+def walk(scope: ast.AST, template: Template, ignore: Collection[str] = ()) -> Iterable[ast.AST]:
     """Iterate over all nodes in scope that match a particular type or template.
 
     The `node_template` argument supports the same syntax as in match_template(), but
@@ -435,18 +438,18 @@ def walk(
     Returns:
         Sequence[ast.AST]: All nodes in scope of that type
     """
-    for node, *_ in walk_wildcard(scope, node_template, ignore=ignore):
+    for node, *_ in walk_wildcard(scope, template, ignore=ignore):
         yield node
 
 
 def _iter_wildcards(
-    template: ast.AST, recursion_blacklist: Collection = None
+    template: Template, recursion_blacklist: Set = frozenset()
 ) -> Iterable[Wildcard]:
     if recursion_blacklist is None:
         recursion_blacklist = set()
     if id(template) in recursion_blacklist:
         return
-    recursion_blacklist = set.union(recursion_blacklist, {id(template)})
+    recursion_blacklist = {id(template)} | recursion_blacklist
     if isinstance(template, Wildcard):
         yield template
         return
@@ -464,8 +467,8 @@ def _iter_wildcards(
 
 
 def walk_sequence(
-    scope: ast.Module, *templates: ast.AST, expand_first: bool = False, expand_last: bool = False
-) -> Iterable[Sequence[ast.AST]]:
+    scope: ast.Module, *templates: Template, expand_first: bool = False, expand_last: bool = False
+) -> Iterable[Tuple[ast.AST]]:
     """Iterate over all sequences of nodes in scope that match a sequence of templates."""
     uncommon = set()
     for node in walk(
@@ -530,11 +533,9 @@ def walk_sequence(
                 yield tuple(matches)
 
 
-def filter_nodes(
-    nodes: Iterable[ast.AST], node_type: ast.AST | Sequence[ast.AST]
-) -> Sequence[ast.AST]:
+def filter_nodes(nodes: Iterable[ast.AST], template: Template) -> Iterable[ast.AST]:
     for node in nodes:
-        if match_template(node, node_type):
+        if match_template(node, template):
             yield node
 
 
@@ -750,7 +751,7 @@ class Range(NamedTuple):
 class Match:
     span: Range
     source: str
-    groups: Tuple[object, ...]
+    groups: Tuple[ast.AST, ...]
 
     @property
     def start(self) -> int:
@@ -1281,11 +1282,11 @@ def format_template(source: str, template_match: NamedTuple, **callables) -> str
         raise ValueError(f"Unfilled wildcards found in source: {unfilled_wildcards}")
 
     for callable_slot in re.finditer(r"\{\{\w+\((\w+,?)+\)\}\}", source):
-        callable_slot = callable_slot.group()
-        callable_name, *arg_names = re.findall(r"\w+", callable_slot)
+        callable_slot_text = callable_slot.group()
+        callable_name, *arg_names = re.findall(r"\w+", callable_slot_text)
         callable_result = callables[callable_name](
             *[template_match_asdict[name] for name in arg_names]
         )
-        source = source.replace(callable_slot, callable_result)
+        source = source.replace(callable_slot_text, callable_result)
 
     return source

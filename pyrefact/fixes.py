@@ -3345,7 +3345,7 @@ def missing_context_manager(source: str) -> str:
     return source
 
 
-def _group_statements_of_type(root: ast.AST, template: ast.AST) -> Sequence[Sequence[ast.AST]]:
+def _group_statements_of_type(root: ast.AST, template: core.Template) -> Sequence[Sequence[ast.AST]]:
     """Get unique groups of imports, such that they're as long as possible, and don't overlap."""
     groups = [
         [m[0] for m in matches]

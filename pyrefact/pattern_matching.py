@@ -15,7 +15,7 @@ def finditer(pattern: str | ast.AST, source: str) -> Iterable[core.Match]:
         yield core.Match(rng, source, groups)
 
 
-def findall(pattern: str | ast.AST, source: str) -> Sequence[core.Match]:
+def findall(pattern: str | ast.AST, source: str) -> Sequence[str]:
     return [m.string for m in finditer(pattern, source)]
 
 

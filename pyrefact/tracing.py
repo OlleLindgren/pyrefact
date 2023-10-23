@@ -6,7 +6,7 @@ import functools
 import importlib
 import sys
 from pathlib import Path
-from typing import Collection, Iterable, NamedTuple, Sequence, Tuple
+from typing import Iterable, NamedTuple, Set, Sequence, Tuple
 
 from pyrefact import constants, core, parsing, processing
 
@@ -27,7 +27,7 @@ def _get_imports(ast_tree: ast.Module) -> Iterable[ast.Import | ast.ImportFrom]:
             yield node
 
 
-def get_imported_names(ast_tree: ast.Module) -> Collection[str]:
+def get_imported_names(ast_tree: ast.Module) -> Set[str]:
     """Get all names that are imported in module.
 
     Args:
@@ -46,7 +46,7 @@ def get_imported_names(ast_tree: ast.Module) -> Collection[str]:
 
 def code_dependencies_outputs(
     code: Sequence[ast.AST],
-) -> Tuple[Collection[str], Collection[str], Collection[str]]:
+) -> Tuple[Set[str], Set[str], Set[str]]:
     """Get required and created names in code.
 
     Args:
@@ -58,10 +58,10 @@ def code_dependencies_outputs(
     Returns:
         Tuple[Collection[str], Collection[str]]: created_names, maybe_created_names, required_names
     """
-    required_names = set()
-    created_names = set()
+    required_names: Set[str] = set()
+    created_names: Set[str] = set()
     created_names_original = created_names
-    maybe_created_names = set()
+    maybe_created_names: Set[str] = set()
 
     for node in code:
         temp_children = []
@@ -188,7 +188,7 @@ def _trace_module_source_file(module: str) -> str | None:
 
 
 @functools.lru_cache(maxsize=100_000)
-def trace_origin(name: str, source: str, *, __all__: bool = False) -> _TraceResult:
+def trace_origin(name: str, source: str, *, __all__: bool = False) -> _TraceResult | None:
     """Trace the origin of a name in python source code.
 
     Args:
@@ -233,7 +233,7 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> _TraceResu
         all_append_template = ast.Call(
             func=ast.Attribute(value=ast.Name(id="__all__"), attr="append"), args=[str]
         )
-        all_filter = set()
+        all_filter: Set[str] = set()
         all_nodes = tuple(core.filter_nodes(root.body, all_template))
 
         if all_nodes:
@@ -319,7 +319,7 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> _TraceResu
     return None
 
 
-def get_defined_names(root: ast.Module) -> Collection[str]:
+def get_defined_names(root: ast.Module) -> Set[str]:
     """Get names defined in scope, excluding imports."""
     return (
         {node.id for node in core.walk(root, ast.Name(ctx=ast.Store))}
@@ -329,11 +329,11 @@ def get_defined_names(root: ast.Module) -> Collection[str]:
     )
 
 
-def _get_referenced_names(root: ast.Module) -> Collection[str]:
+def _get_referenced_names(root: ast.Module) -> Set[str]:
     return {node.id for node in core.walk(root, ast.Name(ctx=ast.Load))}
 
 
-def get_undefined_variables(source: str) -> Collection[str]:
+def get_undefined_variables(source: str) -> Set[str]:
     root = core.parse(source)
     imported_names = get_imported_names(root)
     defined_names = get_defined_names(root)

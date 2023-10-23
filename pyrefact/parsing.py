@@ -53,7 +53,7 @@ def _unpack_ast_target(target: ast.AST) -> Iterable[ast.Name]:
             yield from _unpack_ast_target(subtarget)
 
 
-def iter_assignments(ast_tree: ast.Module) -> Iterable[ast.Name]:
+def iter_assignments(root: ast.Module) -> Iterable[ast.Name]:
     """Iterate over defined variables in code
 
     Args:
@@ -62,7 +62,7 @@ def iter_assignments(ast_tree: ast.Module) -> Iterable[ast.Name]:
     Yields:
         ast.Name: A name that is being assigned.
     """
-    for node in ast_tree.body:
+    for node in root.body:
         if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
             yield from _unpack_ast_target(node.target)
         if isinstance(node, ast.Assign):
@@ -70,44 +70,44 @@ def iter_assignments(ast_tree: ast.Module) -> Iterable[ast.Name]:
                 yield from _unpack_ast_target(target)
 
 
-def iter_funcdefs(ast_tree: ast.Module) -> Iterable[ast.FunctionDef]:
+def iter_funcdefs(root: ast.Module) -> Iterable[ast.FunctionDef]:
     """Iterate over defined variables in code
 
     Args:
-        source (str): Python source code
+        root (ast.Module): Module to parse
 
     Yields:
         ast.FunctionDef: A function definition node
     """
-    for node in ast_tree.body:
+    for node in root.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             yield node
 
 
-def iter_classdefs(ast_tree: ast.Module) -> Iterable[ast.ClassDef]:
+def iter_classdefs(root: ast.Module) -> Iterable[ast.ClassDef]:
     """Iterate over defined variables in code
 
     Args:
-        ast_tree (ast.Module): Module to parse
+        root (ast.Module): Module to parse
 
     Yields:
         ast.ClassDef: A class definition node
     """
-    for node in ast_tree.body:
+    for node in root.body:
         if isinstance(node, (ast.ClassDef)):
             yield node
 
 
-def iter_typedefs(ast_tree: ast.Module) -> Iterable[ast.Name]:
+def iter_typedefs(root: ast.Module) -> Iterable[ast.Name]:
     """Iterate over all TypeVars and custom type annotations in code
 
     Args:
-        ast_tree (ast.Module): Module to parse
+        root (ast.Module): Module to parse
 
     Yields:
         ast.Assign: An assignment of a custom type annotation or typevar
     """
-    for node in core.filter_nodes(ast_tree.body, ast.Assign(targets=[object])):
+    for node in core.filter_nodes(root.body, ast.Assign(targets=[object])):
         for child in ast.walk(node.value):
             if isinstance(child, ast.Name) and (
                 child.id in constants.ASSUMED_SOURCES["typing"] or "namedtuple" in child.id
@@ -122,10 +122,10 @@ def iter_typedefs(ast_tree: ast.Module) -> Iterable[ast.Name]:
 
 
 def iter_bodies_recursive(
-    ast_root: ast.Module,
-) -> Iterable[ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef]:
+    root: ast.Module,
+) -> Iterable[ast.FunctionDef | ast.ClassDef | ast.AsyncFunctionDef]:
     try:
-        left = list(ast_root.body)
+        left = list(root.body)
     except AttributeError:
         return
     while left:
