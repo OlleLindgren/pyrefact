@@ -1,1 +1,3 @@
-from .main import format_code, format_file
+from .main import *
+from .pattern_matching import *
+from .processing import *

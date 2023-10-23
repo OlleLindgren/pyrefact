@@ -17,6 +17,16 @@ from pyrefact import constants, formatting, logs as logger
 Template = TypeVar("Template", bound=Union[ast.AST, type, Collection[Union[ast.AST, type]]])
 DEFAULT_IGNORE = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset"))
 
+__all__ = [
+    "Wildcard",
+    "ZeroOrOne",
+    "ZeroOrMany",
+    "OneOrMany",
+    "match_template",
+    "Range",
+    "Match",
+]
+
 
 def unparse(node: ast.AST | str) -> str:
     if isinstance(node, str):

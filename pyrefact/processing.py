@@ -22,6 +22,8 @@ from typing import (
 
 from pyrefact import core, formatting, logs as logger
 
+__all__ = ["find_replace", "fix"]
+
 MSG_INFO_REPLACE = """{fix_function_name:<40}: Replacing code:
 {old_code}
 * -> *****************

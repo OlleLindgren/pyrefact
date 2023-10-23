@@ -10,6 +10,9 @@ from typing import Iterable, Sequence
 from pyrefact import core, processing
 
 
+__all__ = ["compile", "findall", "finditer", "search", "sub"]
+
+
 def finditer(pattern: str | ast.AST, source: str) -> Iterable[core.Match]:
     for rng, _, groups in processing.find_replace(source, pattern, "", yield_match=True):
         yield core.Match(rng, source, groups)

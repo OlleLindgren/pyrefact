@@ -34,6 +34,9 @@ MAX_MODULE_PASSES = 5
 MAX_FILE_PASSES = 25
 
 
+__all__ = ["format_code", "format_file", "main"]
+
+
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("paths", help="Paths to refactor", type=Path, nargs="*", default=())
