@@ -9,12 +9,12 @@ import re
 import textwrap
 import traceback
 from types import MappingProxyType
-from typing import Any, Collection, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, TypeVar
+from typing import Any, Collection, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, TypeVar, Union
 
 from pyrefact import constants, formatting, logs as logger
 
 
-Template = TypeVar("Template", bound=ast.AST | type | Collection[ast.AST | type])
+Template = TypeVar("Template", bound=Union[ast.AST, type, Collection[ast.AST | type]])
 DEFAULT_IGNORE = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset"))
 
 
