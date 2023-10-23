@@ -69,7 +69,7 @@ class Wildcard(ast.AST):
         if self.template is not object and self.common is True:
             return f"Wildcard({self.name!r}, {self.template!r})"
 
-        return f"Wildcard({self.name!r}, {self.value!r}, {self.common!r})"
+        return f"Wildcard({self.name!r}, {self.template!r}, {self.common!r})"
 
 
 @dataclasses.dataclass(eq=True, frozen=True)
