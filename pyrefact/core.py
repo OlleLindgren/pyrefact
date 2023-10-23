@@ -14,7 +14,7 @@ from typing import Any, Collection, Iterable, List, Mapping, NamedTuple, Sequenc
 from pyrefact import constants, formatting, logs as logger
 
 
-Template = TypeVar("Template", bound=Union[ast.AST, type, Collection[ast.AST | type]])
+Template = TypeVar("Template", bound=Union[ast.AST, type, Collection[Union[ast.AST, type]]])
 DEFAULT_IGNORE = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset"))
 
 
