@@ -123,6 +123,7 @@ jobs:
   deploy:
     environment: deploy
     needs: [pylint-errors-only, check, check-macos, check-windows]
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
