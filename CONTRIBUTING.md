@@ -138,7 +138,7 @@ test cases from wherever we copied it. In general, it's good to have:
 * A test case where it should fix multiple problems
   * This would test for race conditions, which can be a problem.
 
-Then, add your fix to either `_multi_run_fixes()` or `_single_run_fixes()` in [main.py](/pyrefact/main.py), depending on whether you want it "in the loop",
+Then, add your fix to either `_multi_run_fixes()` or `single_run_fixes` (inlined in format_code() as a chain) in [main.py](/pyrefact/main.py), depending on whether you want it "in the loop",
 or "before the loop" of other fixes. Most of the fixes run in `_multi_run_fixes()`.
 
 Finally, run [tests/main.py](/tests/main.py) and see that all tests passes. It will automatically find your new test file if you used the normal naming convention.
