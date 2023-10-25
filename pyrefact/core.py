@@ -801,6 +801,26 @@ class Match:
         return col_offset
 
 
+class _Position(NamedTuple):
+    lineno: int
+    col_offset: int
+    end_lineno: int
+    end_col_offset: int
+
+
+def _get_position(node: ast.AST) -> _Position:
+    lineno = getattr(node, "lineno", 1)
+    col_offset = getattr(node, "col_offset", 0)
+    end_lineno = getattr(node, "end_lineno", lineno)
+    end_col_offset = getattr(node, "end_col_offset", col_offset)
+    return _Position(
+        lineno,
+        col_offset,
+        end_lineno,
+        end_col_offset,
+    )
+
+
 def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> Range:
     """Get start and end character numbers in source code from ast node.
 
@@ -813,15 +833,18 @@ def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> 
     """
     line_start_charnos = _get_line_start_charnos(source)
     if match_template(node, ast.AST(decorator_list=list)) and node.decorator_list:
-        start = min(node.decorator_list, key=lambda n: (n.lineno, n.col_offset))
+        start = min(node.decorator_list, key=_get_position)
     else:
         start = node
 
-    start_charno = line_start_charnos[start.lineno - 1] + start.col_offset
+    start_position = _get_position(start)
+    node_position = _get_position(node)
+
+    start_charno = line_start_charnos[start_position.lineno - 1] + start_position.col_offset
     if getattr(node, "end_lineno", None) is None:
         return Range(start_charno, start_charno)
 
-    end_charno = line_start_charnos[node.end_lineno - 1] + node.end_col_offset
+    end_charno = line_start_charnos[node_position.end_lineno - 1] + node_position.end_col_offset
 
     code = source[start_charno:end_charno]
     if code[0] == " ":
