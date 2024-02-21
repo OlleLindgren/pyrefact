@@ -566,6 +566,92 @@ class TestCompile(unittest.TestCase):
         assert core.match_template(pattern.elts[4], expected.elts[4])
         assert pattern.elts[5] == expected.elts[5]
 
+    def test_one_import_from(self):
+        source = "from foo import {{...}}"
+        pattern = core.compile_template(source)
+        expected = ast.ImportFrom(
+            module="foo",
+            names=[
+                ast.alias(
+                    name=core.Wildcard(
+                        name="Ellipsis_anything",
+                        template=object,
+                        common=False
+                    ),
+                    asname=None,
+            )],
+            level=0,
+        )
+        assert isinstance(pattern, ast.ImportFrom)
+        assert pattern.module == expected.module
+        assert len(pattern.names) == len(expected.names) == 1
+        assert vars(pattern.names[0]) == vars(expected.names[0])
+
+        source = "from foo import {{...}} as {{...}}"
+        pattern = core.compile_template(source)
+        expected = ast.ImportFrom(
+            module="foo",
+            names=[
+                ast.alias(
+                    name=core.Wildcard(
+                        name="Ellipsis_anything",
+                        template=object,
+                        common=False
+                    ),
+                    asname=core.Wildcard(
+                        name="Ellipsis_anything",
+                        template=object,
+                        common=False
+                    ),
+            )],
+            level=0,
+        )
+        assert isinstance(pattern, ast.ImportFrom)
+        assert pattern.module == expected.module
+        assert len(pattern.names) == len(expected.names) == 1
+        assert vars(pattern.names[0]) == vars(expected.names[0])
+
+    def test_oneormany_import_from(self):
+        source = "from foo import {{...+}}"
+        pattern = core.compile_template(source)
+        expected = ast.ImportFrom(
+            module="foo",
+            names=[
+                core.OneOrMany(
+                    ast.alias(
+                        name=object,
+                        asname=object,
+            ))],
+            level=0,
+        )
+        assert isinstance(pattern, ast.ImportFrom)
+        assert pattern.module == expected.module
+        assert len(pattern.names) == len(expected.names) == 1
+        assert isinstance(pattern.names[0], core.OneOrMany)
+        assert vars(pattern.names[0].template) == vars(expected.names[0].template)
+
+        source = "from foo import {{name+}}"
+        pattern = core.compile_template(source)
+        expected = ast.ImportFrom(
+            module="foo",
+            names=[
+                core.OneOrMany(
+                    ast.alias(
+                        name=core.Wildcard(
+                            name="name",
+                            template=object,
+                            common=False
+                        ),
+                        asname=object,
+            ))],
+            level=0,
+        )
+        assert isinstance(pattern, ast.ImportFrom)
+        assert pattern.module == expected.module
+        assert len(pattern.names) == len(expected.names) == 1
+        assert isinstance(pattern.names[0], core.OneOrMany)
+        assert vars(pattern.names[0].template) == vars(expected.names[0].template)
+
     def runTest(self):
         self.test_function_alias()
         self.test_basic_code()
@@ -580,6 +666,7 @@ class TestCompile(unittest.TestCase):
         self.test_one_list()
         self.test_zeroormany_list()
         self.test_oneormany_list()
+        self.test_one_import_from()
 
 
 def main() -> int:

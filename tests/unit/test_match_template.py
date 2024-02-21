@@ -351,6 +351,69 @@ class Range(NamedTuple):
         assert core.match_template(ast.parse("[1, 2]").body[0].value, template)
         assert core.match_template(ast.parse("[1, 2, 3, [], None, -1, 2 ** 3 - asdf]").body[0].value, template)
 
+    def test_one_import_from(self):
+        template = core.compile_template("from foo import {{...}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+
+        template = core.compile_template("from {{...}} import bar")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+
+        template = core.compile_template("from {{...}} import {{...}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+
+        template = core.compile_template("from {{somewhere}} import {{something}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+
+        template = core.compile_template("from {{somewhere}} import {{...}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+
+        template = core.compile_template("from {{...}} import {{something}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+
+    def test_oneormore_import_from(self):
+        template = core.compile_template("from foo import {{...+}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+        assert core.match_template(ast.parse("from foo import bar, spam, eggs").body[0], template)
+        assert core.match_template(ast.parse("from foo import bar as eggs, spam, eggs as bar").body[0], template)
+
+        template = core.compile_template("from {{...}} import {{...+}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+        assert core.match_template(ast.parse("from foo import bar, spam, eggs").body[0], template)
+
+        template = core.compile_template("from {{somewhere}} import {{...+}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+        assert core.match_template(ast.parse("from foo import bar, spam, eggs").body[0], template)
+
+        template = core.compile_template("from {{...}} import {{something+}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+        assert core.match_template(ast.parse("from foo import bar, bar, bar").body[0], template)
+        assert not core.match_template(ast.parse("from foo import bar, spam").body[0], template)
+
+        template = core.compile_template("from {{somewhere}} import {{something+}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+        assert core.match_template(ast.parse("from foo import eggs, eggs").body[0], template)
+        assert not core.match_template(ast.parse("from foo import spam, eggs").body[0], template)
+
+    def test_zeroormore_import_from(self):
+        # This doesn't make much sense, but let's test it anyway so it's not undefined
+        template = core.compile_template("from foo import {{...*}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+        assert core.match_template(ast.parse("from foo import bar, spam, eggs").body[0], template)
+
+        template = core.compile_template("from {{...}} import {{...*}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+        assert core.match_template(ast.parse("from foo import bar, spam, eggs").body[0], template)
+
+    def test_zeroorone_import_from(self):
+        # This doesn't make much sense, but let's test it anyway so it's not undefined
+        template = core.compile_template("from foo import {{...?}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+        assert not core.match_template(ast.parse("from foo import bar, spam, eggs").body[0], template)
+
+        template = core.compile_template("from {{...}} import {{...?}}")
+        assert core.match_template(ast.parse("from foo import bar").body[0], template)
+        assert not core.match_template(ast.parse("from foo import bar, spam, eggs").body[0], template)
+
     def runTest(self):
         self.test_template_matches_self()
         self.test_basic_wildcard()

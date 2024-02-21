@@ -1126,7 +1126,43 @@ class _NameWildcardTransformer(ast.NodeTransformer):
         if (new_name, new_asname) == (node.name, node.asname):
             return node
 
-        new_node = ast.alias(name=new_name, asname=new_asname)
+        # NOTE Here we unfortunately have to create a bit of counterintuitiveness.
+        # (1) If we want consistency between:
+        #   from module import {{name}} as {{asname}}
+        #   from module import {{name}}
+        # then we have to put the wildcard/wrapper around the name and asname
+        # individually.
+        # (2) If we want consistency between
+        #   from module import {{name}}
+        #   from module import {{name+}}
+        # then we have to put the wildcard/wrapper around the whole alias.
+        # I choose consistency in case (1), and to support (2) despite the slight
+        # inconsistency.
+        if isinstance(new_name, (ZeroOrOne, ZeroOrMany, OneOrMany)):
+            # To support mixed asname/no asname on the same ImportFrom, we match
+            # both in the case where new_asname is None.
+            if new_asname is None:
+                new_asname = object
+            new_node = type(new_name)(
+                template=ast.alias(
+                    name=new_name.template,
+                    asname=new_asname,
+                )
+            )
+
+        else:
+            new_node = ast.alias(name=new_name, asname=new_asname)
+
+        return ast.copy_location(new_node, node)
+
+    def visit_ImportFrom(self, node):
+        new_module = self.name_wildcard_mapping.get(node.module, node.module)
+        new_names = [self.visit(child) for child in node.names]
+        new_node = ast.ImportFrom(
+            module=new_module,
+            names=new_names,
+            level=node.level,
+        )
         return ast.copy_location(new_node, node)
 
     def visit_ClassDef(self, node):
