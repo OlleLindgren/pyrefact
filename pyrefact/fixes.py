@@ -3476,6 +3476,31 @@ def _breakout_stacked_imports(source: str) -> str:
     return source
 
 
+@processing.fix
+def _fix_imported_attr_as_self(source: str) -> str:
+    root = core.parse(source)
+
+    template = ast.Import(
+        names=[
+            ast.alias(
+                name=core.Wildcard("name", str),
+                asname=core.Wildcard("asname", str)
+    )])
+    for node, asname, name in core.walk_wildcard(root, template):
+        *names, last = name.split(".")
+        if last == asname:
+            if names:
+                replacement = ast.ImportFrom(
+                    module=".".join(names),
+                    names=[ast.alias(name=last, asname=None)],
+                    level=0,
+                )
+            else:
+                replacement = ast.Import(names=[ast.alias(name=last, asname=None)])
+
+            yield node, replacement
+
+
 def _fix_imported_as_self_or_unsorted(source: str) -> str:
     root = core.parse(source)
 
@@ -3516,6 +3541,7 @@ def fix_duplicate_imports(source: str) -> str:
     source = _fix_duplicate_from_imports(source)
     source = _fix_duplicate_regular_imports(source)
     source = _breakout_stacked_imports(source)
+    source = _fix_imported_attr_as_self(source)
 
     return source
 

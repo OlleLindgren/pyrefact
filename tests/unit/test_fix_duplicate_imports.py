@@ -88,7 +88,49 @@ from spam import spam
         """
 from spam import eggs, spam
     """,
-    ),)
+        ),
+        (
+            """
+import foo as foo
+    """,
+        """
+import foo
+    """,
+        ),
+        (
+            """
+import foo as food
+    """,
+        """
+import foo as food
+    """,
+        ),
+        (
+            """
+import foo.bar as bar, spam.eggs as eggs
+    """,
+        """
+from foo import bar
+from spam import eggs
+    """,
+        ),
+        (
+            """
+import foo.bar as bars
+    """,
+        """
+import foo.bar as bars
+    """,
+        ),
+        (
+            """
+import a.b.c.d.e.f.g.h.i as i
+    """,
+        """
+from a.b.c.d.e.f.g.h import i
+    """,
+        ),
+    )
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.fix_duplicate_imports(source)
