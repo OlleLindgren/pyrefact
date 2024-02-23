@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+import warnings
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -11,6 +12,11 @@ from pyrefact import core, processing
 
 
 __all__ = ["compile", "findall", "finditer", "search", "sub"]
+
+warnings.filterwarnings(
+    "ignore",
+    message=r".*'pyrefact\.pattern_matching' found in sys\.modules after import of package 'pyrefact', but prior to execution of 'pyrefact\.pattern_matching'.*",
+)
 
 
 def finditer(pattern: str | ast.AST, source: str) -> Iterable[core.Match]:
