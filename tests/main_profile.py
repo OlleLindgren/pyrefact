@@ -25,7 +25,7 @@ def main() -> int:
 
         with cProfile.Profile() as profile:
             try:
-                pyrefact.main.main([tmpdir])
+                pyrefact.main([tmpdir])
             finally:
                 with open(out_filename, "w") as stream:
                     stats = pstats.Stats(profile, stream=stream).sort_stats(
