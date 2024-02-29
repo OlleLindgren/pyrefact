@@ -549,6 +549,7 @@ def filter_nodes(nodes: Iterable[ast.AST], template: Template) -> Iterable[ast.A
             yield node
 
 
+@functools.lru_cache(maxsize=100_000)
 def is_valid_python(source: str) -> bool:
     """Determine if source code is valid python.
 
