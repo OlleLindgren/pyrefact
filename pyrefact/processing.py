@@ -102,11 +102,17 @@ def _substitute_original_strings(original_source: str, new_source: str) -> str:
     Returns:
         str: new_source, but with consistent string formattings as in original_source
     """
+    if original_source == new_source:
+        return new_source
+
     original_ast = core.parse(original_source)
 
     original_string_formattings = collections.defaultdict(set)
     for node in core.walk(original_ast, ast.Constant(value=str)):
         original_string_formattings[node.value].add(core.get_code(node, original_source))
+
+    if not original_string_formattings:
+        return new_source
 
     for value, sources in original_string_formattings.items():
         template = ast.Module(body=[ast.Expr(value=ast.Constant(value=value))])
@@ -130,9 +136,9 @@ def _substitute_original_strings(original_source: str, new_source: str) -> str:
         template = ast.Module(body=[ast.Expr(value=ast.Constant(value=node.value))])
         if (
             original_formattings
+            and new_formatting not in original_formattings
             and core.is_valid_python(new_formatting)
             and core.match_template(core.parse(new_formatting), template)
-            and new_formatting not in original_formattings
         ):
             most_common_original_formatting = collections.Counter(original_formattings).most_common(
                 1
