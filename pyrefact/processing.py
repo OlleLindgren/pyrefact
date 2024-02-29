@@ -105,39 +105,66 @@ def _substitute_original_strings(original_source: str, new_source: str) -> str:
     if original_source == new_source:
         return new_source
 
+    new_ast = core.parse(new_source)
+
+    new_string_formattings = collections.defaultdict(list)
+    for node in core.walk(new_ast, ast.Constant(value=str)):
+        new_string_formattings[node.value].append(core.get_code(node, new_source))
+
+    if not new_string_formattings:
+        return new_source
+
+    if all(
+        new_formatting in original_source
+        for new_formatting in set().union(*new_string_formattings.values())
+    ):
+        return new_source
+
     original_ast = core.parse(original_source)
 
-    original_string_formattings = collections.defaultdict(set)
+    original_string_formattings = collections.defaultdict(list)
     for node in core.walk(original_ast, ast.Constant(value=str)):
-        original_string_formattings[node.value].add(core.get_code(node, original_source))
+        original_string_formattings[node.value].append(core.get_code(node, original_source))
 
     if not original_string_formattings:
+        return new_source
+
+    if all(
+        set(new_string_formattings[key]) <= set(original_string_formattings[key])
+        for key in new_string_formattings.keys() & original_string_formattings.keys()
+    ):
         return new_source
 
     for value, sources in original_string_formattings.items():
         template = ast.Module(body=[ast.Expr(value=ast.Constant(value=value))])
         # Temporary set created and orignal sources object is overwritten with this, which is
         # preferable to assigning a new set. Not so elegant perhaps.
-        tmp = {
+        tmp = [
             src
             for src in sources
             if core.is_valid_python(src) and core.match_template(core.parse(src), template)
-        }
+        ]
         sources.clear()
-        sources.update(tmp)
+        sources.extend(tmp)
 
     replacements = {}
-    new_ast = core.parse(new_source)
-    for node in core.walk(new_ast, ast.Constant(value=tuple(original_string_formattings))):
+    for node in core.walk(new_ast, ast.Constant(value=tuple(set(original_string_formattings)))):
+        original_formattings = set(original_string_formattings[node.value])
+        new_formattings = set(new_string_formattings[node.value])
+        if not original_formattings:
+            continue
+        if new_formattings <= original_formattings:
+            continue
+
         # If this new string formatting doesn't exist in the orignal source, find the most
         # common orignal equivalent string formatting and use that instead.
-        original_formattings = original_string_formattings[node.value]
         new_formatting = core.get_code(node, new_source)
+        if new_formatting in original_formattings:
+            continue
+
         template = ast.Module(body=[ast.Expr(value=ast.Constant(value=node.value))])
         if (
-            original_formattings
-            and new_formatting not in original_formattings
-            and core.is_valid_python(new_formatting)
+            core.is_valid_python(new_formatting)
             and core.match_template(core.parse(new_formatting), template)
         ):
             most_common_original_formatting = collections.Counter(original_formattings).most_common(
