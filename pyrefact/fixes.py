@@ -575,9 +575,11 @@ def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset
         for node in core.filter_nodes(scope.body, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
             class_body_blacklist.update(parsing.assignment_targets(node))
 
+    yielded = set()
     for name in _iter_unused_names(root):
-        if name.id not in preserve and name.id != "_" and name not in class_body_blacklist:
+        if name.id not in preserve and name.id != "_" and name not in class_body_blacklist and name not in yielded:
             yield name, ast.Name(id="_")
+            yielded.add(name)
 
     for node in core.walk(
         root,
