@@ -139,7 +139,7 @@ if all(y in [1, 2, 5] for y in sorted(set(list(z)))):
         """,
         """
 X = sorted(range(100))[::3]
-Z = [w ** 3 for a in X if a % 3 == 0 and a % 4 == 2 for w in X if w > len(X) // 2]
+Z = [w**3 for a in X if a % 3 == 0 and a % 4 == 2 for w in X if w > len(X) // 2]
 if all(y in {1, 2, 5} for y in sorted(set(Z))):
     print(Z, X)
         """,
@@ -247,7 +247,7 @@ for i in range(100):
 print(x)
             """,
         """
-X = [i ** 2 for i in range(100)]
+X = [i**2 for i in range(100)]
 print(X)
         """,
     ),
@@ -422,7 +422,7 @@ def _f(x) -> int:
         return 99
     if x >= 912:
         return -2
-    if x ** x > x ** 3:
+    if x**x > x**3:
         return -1
 
     return 14
@@ -489,7 +489,7 @@ e = [
 print(e)
         """,
         """
-E = [x ** 2 for x in range(8, 100)]
+E = [x**2 for x in range(8, 100)]
 print(E)
         """,
     ),
