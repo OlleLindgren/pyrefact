@@ -42,8 +42,6 @@ print(re.findall(f"\d{'+'}", "1234x23"))
     """,
     ),)
 
-    logging.basicConfig(level=logging.DEBUG, format="%(message)s")
-
     for source, expected_abstraction in test_cases:
         processed_content = fixes.invalid_escape_sequence(source)
         if not testing_infra.check_fixes_equal(processed_content, expected_abstraction):
