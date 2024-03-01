@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import collections
+import dataclasses
 import difflib
 import functools
 import heapq
@@ -601,6 +602,13 @@ def _get_charnos(obj: _Rewrite, source: str) -> core.Range:
     return core.get_charnos(new, source)
 
 
+@dataclasses.dataclass(frozen=True, order=True, eq=True)
+class _Transaction:
+    group_number: int
+    transaction_number: int
+    group_name: str
+
+
 def _schedule_rewrites(
     source: str, funcs: Iterable[Tuple[Callable, Sequence, Mapping]]
 ) -> Sequence[Tuple[Any, Callable]]:
@@ -631,26 +639,27 @@ def _schedule_rewrites(
     transaction_rewrites = collections.defaultdict(list)
     for k, (func, args, kwargs) in enumerate(funcs):
         for old, new, transaction in map(fill_transaction, func(*args, **kwargs)):
-            transaction_rewrites[k, transaction, func.__name__].append(_Rewrite(old, new or ""))
+            t = _Transaction(k, transaction, func.__name__)
+            transaction_rewrites[t].append(_Rewrite(old, new or ""))
 
         seen_transactions = set()
         duplicate_transaction_keys = []
-        for key in sorted(transaction_rewrites):
-            transaction = tuple(transaction_rewrites[key])
+        for t in sorted(transaction_rewrites):
+            transaction = tuple(transaction_rewrites[t])
             if transaction in seen_transactions:
-                duplicate_transaction_keys.append(key)
+                duplicate_transaction_keys.append(t)
 
             seen_transactions.add(transaction)
 
-        for key in duplicate_transaction_keys:
-            logger.error(duplicate_error_format.format(transaction=key))
-            del transaction_rewrites[key]
+        for t in dict.fromkeys(duplicate_transaction_keys):
+            logger.error(duplicate_error_format.format(transaction=t))
+            del transaction_rewrites[t]
 
-        for transaction in sorted(transaction_rewrites):
-            if transaction[0] != k:
+        for t in sorted(transaction_rewrites):
+            if t.group_number != k:
                 continue
 
-            rewrites = transaction_rewrites[transaction]
+            rewrites = transaction_rewrites[t]
             rewrites = sorted(
                 ((_get_charnos(rewrite, source), rewrite) for rewrite in rewrites),
                 key=lambda tup: tup[0],
@@ -662,7 +671,7 @@ def _schedule_rewrites(
                     if rewrite_range & other:
                         logger.debug(
                             overlap_error_format.format(
-                                transaction=transaction,
+                                transaction=t,
                                 range=tuple(rewrite_range),
                                 other=tuple(other),
                         ))
@@ -672,7 +681,7 @@ def _schedule_rewrites(
                     if rewrite_range & other:
                         logger.debug(
                             overlap_error_format.format(
-                                transaction=transaction,
+                                transaction=t,
                                 range=tuple(rewrite_range),
                                 other=tuple(other),
                         ))
@@ -682,7 +691,7 @@ def _schedule_rewrites(
                     break
 
             if not conflicting:
-                scheduled_rewrites.extend(((transaction, r) for r in rewrites))
+                scheduled_rewrites.extend(((t, r) for r in rewrites))
     if transaction_rewrites and (not scheduled_rewrites):
         logger.error("{} transactions found, but all were conflicting.", len(transaction_rewrites))
 
@@ -692,8 +701,8 @@ def _schedule_rewrites(
 
 def _apply_rewrites(source: str, rewrites: Sequence[Tuple[Any, Callable]]) -> str:
     original_source = source
-    for (*_, fix_func_name), (rewrite_range, rewrite) in rewrites:
-        source = _do_rewrite(source, rewrite, fix_function_name=fix_func_name)
+    for transaction, (_, rewrite) in rewrites:
+        source = _do_rewrite(source, rewrite, fix_function_name=transaction.group_name)
 
     source = _substitute_original_strings(original_source, source)
     source = _substitute_original_fstrings(original_source, source)
