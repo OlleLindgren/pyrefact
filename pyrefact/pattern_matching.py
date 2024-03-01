@@ -31,7 +31,7 @@ def findall(pattern: str | ast.AST, source: str) -> Sequence[str]:
 def sub(pattern: str | ast.AST, repl: str, source: str, count: int = 0) -> str:
     count = count if count > 0 else float("inf")
 
-    @processing.fix
+    @processing.fix(max_iter=1)
     def fix_func(src: str):
         replacements = 0
         for item in processing.find_replace(src, pattern, repl):

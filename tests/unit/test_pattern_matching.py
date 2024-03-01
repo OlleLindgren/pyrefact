@@ -279,9 +279,21 @@ if __name__ == "__main__":
 
         self.assertEqual(result, expected)
 
+    def test_for_recursion(self):
+        source = "x = y - z"
+        pattern = "{{some}} - {{other}}"
+        replacement = "{{other}} - {{some}}"
+        expected = "x = z - y"
+
+        result = pattern_matching.sub(pattern, replacement, source)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+
     def runTest(self):
         self.test_basic_code()
         self.test_complex_code()
+        self.test_for_recursion()
 
 
 class TestCompile(unittest.TestCase):
