@@ -61,7 +61,7 @@ Unlike emerging AI tools, pyrefact is entirely rule based and does not share you
 
 ### Pattern-matching
 
-Pyrefact supports pattern-matching analogous to Python's builtin `re` library:
+Pyrefact supports pattern-matching analogous to Python's builtin `re` library. The functions `finditer`, `findall`, `sub`, `subn`, `search`, `match`, `fullmatch` and `compile` are implemented:
 ```python
 >>> from pyrefact import pattern_matching
 >>> source = """
