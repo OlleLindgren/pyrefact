@@ -451,6 +451,48 @@ if __name__ == "__main__":
 
         self.assertEqual(result, expected)
 
+        # count=0 is the same as not passing count
+        result = pattern_matching.sub(pattern, replacement, source, count=0)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+
+        result = pattern_matching.sub(pattern, replacement, source, count=2)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+
+        result = pattern_matching.sub(pattern, replacement, source, count=100)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+
+        expected = """
+class Foo(bar):
+    '''Foo serves an important purpose.'''
+
+    x: int = 10 - 1
+    z: str = 2 ** "hello" - 3 ** 10
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+class Spam(eggs):
+    x: int = 10
+    z: int = 3223
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+if __name__ == "__main__":
+    x = 1
+        """
+
+        result = pattern_matching.sub(pattern, replacement, source, count=1)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+
     def test_for_recursion(self):
         source = "x = y - z"
         pattern = "{{some}} - {{other}}"
