@@ -206,6 +206,178 @@ class {{name}}({{base}}):
         self.test_complex_code()
 
 
+class TestMatch(unittest.TestCase):
+    def test_basic_code(self):
+        pattern = source = "x = 1"
+        m = pattern_matching.match(pattern, source)
+        self.assertIsInstance(m, core.Match)
+
+        expected = core.Match(
+            span=core.Range(start=0, end=5), source=source, groups=(core.parse(source).body[0],)
+        )
+
+        self.assertEqual(m.span, expected.span)
+        self.assertEqual(m.source, expected.source)
+        assert core.match_template(m.groups[0], expected.groups[0])
+        assert core.match_template(expected.groups[0], m.groups[0])
+
+        # Some tests of the Match type itself
+        # TODO move these to a separate test file/class/function or something
+        self.assertEqual(m.span.start, m.start)
+        self.assertEqual(m.span.end, m.end)
+        self.assertEqual(m.string, m.source[m.start : m.end])
+        self.assertEqual(m.lineno, 1)
+        self.assertEqual(m.col_offset, 0)
+        self.assertIs(m.root, m.groups[0])
+
+    def test_complex_code(self):
+        source = """
+class Foo(bar):
+    x: int = 10
+    z: str = "hello"
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+class Spam(eggs):
+    x: int = 10
+    z: int = 3223
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+if __name__ == "__main__":
+    x = 1
+        """
+        pattern = """
+class {{name}}({{base}}):
+    x: {{x_type}} = {{x_value}}
+    z: {{z_type}} = {{z_value}}
+
+    def __init__(self, y: int | str):
+        self.y = y
+        """
+        m = pattern_matching.match(pattern, source)
+        self.assertIsInstance(m, core.Match)
+
+        expected = core.Match(
+            span=core.Range(start=1, end=111), source=source, groups=(core.parse(source).body[0],)
+        )
+
+        self.assertEqual(m.span, expected.span)
+        self.assertEqual(m.source, expected.source)
+        assert core.match_template(m.groups[0], expected.groups[0])
+        assert core.match_template(expected.groups[0], m.groups[0])
+
+    def runTest(self):
+        self.test_basic_code()
+        self.test_complex_code()
+
+
+class TestFullMatch(unittest.TestCase):
+    def test_basic_code(self):
+        pattern = source = "x = 1"
+        m = pattern_matching.fullmatch(pattern, source)
+        self.assertIsInstance(m, core.Match)
+
+        expected = core.Match(
+            span=core.Range(start=0, end=5), source=source, groups=(core.parse(source).body[0],)
+        )
+
+        self.assertEqual(m.span, expected.span)
+        self.assertEqual(m.source, expected.source)
+        assert core.match_template(m.groups[0], expected.groups[0])
+        assert core.match_template(expected.groups[0], m.groups[0])
+
+        # Some tests of the Match type itself
+        # TODO move these to a separate test file/class/function or something
+        self.assertEqual(m.span.start, m.start)
+        self.assertEqual(m.span.end, m.end)
+        self.assertEqual(m.string, m.source[m.start : m.end])
+        self.assertEqual(m.lineno, 1)
+        self.assertEqual(m.col_offset, 0)
+        self.assertIs(m.root, m.groups[0])
+
+    def test_complex_code(self):
+        source = """
+class Foo(bar):
+    x: int = 10
+    z: str = "hello"
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+class Spam(eggs):
+    x: int = 10
+    z: int = 3223
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+if __name__ == "__main__":
+    x = 1
+        """
+        pattern = """
+class {{name}}({{base}}):
+    x: {{x_type}} = {{x_value}}
+    z: {{z_type}} = {{z_value}}
+
+    def __init__(self, y: int | str):
+        self.y = y
+        """
+        m = pattern_matching.fullmatch(pattern, source)
+        self.assertIs(m, None)
+
+        source = """
+class Foo(bar):
+    x: int = 10
+    z: str = "hello"
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+class Spam(eggs):
+    x: int = 10
+    z: int = 3223
+
+    def __init__(self, y: int | str):
+        self.y = y
+        """
+        pattern = """
+class {{name1}}({{base1}}):
+    x: {{x_type1}} = {{x_value1}}
+    z: {{z_type1}} = {{z_value1}}
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+class {{name2}}({{base2}}):
+    x: {{x_type2}} = {{x_value2}}
+    z: {{z_type2}} = {{z_value2}}
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+        """
+        m = pattern_matching.fullmatch(pattern, source)
+        self.assertIsInstance(m, core.Match)
+
+        expected = core.Match(
+            span=core.Range(start=1, end=222),
+            source=source,
+            groups=(core.parse(source),),
+        )
+
+        self.assertEqual(m.span, expected.span)
+        self.assertEqual(m.source, expected.source)
+        assert core.match_template(m.groups[0], expected.groups[0])
+        assert core.match_template(expected.groups[0], m.groups[0])
+
+    def runTest(self):
+        self.test_basic_code()
+        self.test_complex_code()
+
+
 class TestSub(unittest.TestCase):
     def test_basic_code(self):
         pattern = source = "x = 1"
@@ -702,6 +874,16 @@ def main() -> int:
         return 1
 
     test_result = TestSearch().run()
+    if not test_result.wasSuccessful():
+        test_result.printErrors()
+        return 1
+
+    test_result = TestMatch().run()
+    if not test_result.wasSuccessful():
+        test_result.printErrors()
+        return 1
+
+    test_result = TestFullMatch().run()
     if not test_result.wasSuccessful():
         test_result.printErrors()
         return 1

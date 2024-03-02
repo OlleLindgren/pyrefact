@@ -11,7 +11,7 @@ from typing import Iterable, Sequence
 from pyrefact import core, processing
 
 
-__all__ = ["compile", "findall", "finditer", "search", "sub"]
+__all__ = ["compile", "findall", "finditer", "search", "sub", "match", "fullmatch"]
 
 warnings.filterwarnings(
     "ignore",
@@ -46,6 +46,46 @@ def sub(pattern: str | ast.AST, repl: str, source: str, count: int = 0) -> str:
 
 def search(pattern: str | ast.AST, source: str) -> core.Match | None:
     return next(finditer(pattern, source), None)
+
+
+def match(pattern: str | ast.AST, source: str) -> core.Match | None:
+    """Match against the start of the module."""
+    root = ast.parse(source)
+    if not root.body:
+        return None
+
+    for rng, _, groups in processing.find_replace(source, pattern, "", yield_match=True, root=root):
+        m = core.Match(rng, source, groups)
+
+        module_body_ranges = [core.get_charnos(node, source) for node in root.body]
+        module_body_range = core.Range(
+            start=min(rng.start for rng in module_body_ranges),
+            end=max(rng.end for rng in module_body_ranges),
+        )
+        if m.span.start == module_body_range.start:
+            return m
+
+    return None
+
+
+def fullmatch(pattern: str | ast.AST, source: str) -> core.Match | None:
+    """Match against the entire module."""
+    root = ast.parse(source)
+    if not root.body:
+        return None
+
+    for rng, _, groups in processing.find_replace(source, pattern, "", yield_match=True, root=root):
+        m = core.Match(rng, source, groups)
+
+        module_body_ranges = [core.get_charnos(node, source) for node in root.body]
+        module_body_range = core.Range(
+            start=min(rng.start for rng in module_body_ranges),
+            end=max(rng.end for rng in module_body_ranges),
+        )
+        if m.span == module_body_range:
+            return m
+
+    return None
 
 
 compile = core.compile_template  # pylint: disable=redefined-builtin,unused-variable

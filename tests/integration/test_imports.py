@@ -16,6 +16,8 @@ class TestImports(unittest.TestCase):
         assert callable(pyrefact.findall)
         assert callable(pyrefact.finditer)
         assert callable(pyrefact.search)
+        assert callable(pyrefact.match)
+        assert callable(pyrefact.fullmatch)
         assert callable(pyrefact.sub)
 
     def runTest(self):
