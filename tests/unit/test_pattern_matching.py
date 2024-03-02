@@ -378,6 +378,145 @@ class {{name2}}({{base2}}):
         self.test_complex_code()
 
 
+class TestSubn(unittest.TestCase):
+    def test_basic_code(self):
+        pattern = source = "x = 1"
+        replacement = "x = 2"
+        result, count = pattern_matching.subn(pattern, replacement, source)
+        self.assertIsInstance(result, str)
+        self.assertEqual(result, replacement)
+        self.assertEqual(count, 1)
+
+    def test_complex_code(self):
+        source = """
+class Foo(bar):
+    x: int = 10
+    z: str = "hello"
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+class Spam(eggs):
+    x: int = 10
+    z: int = 3223
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+if __name__ == "__main__":
+    x = 1
+        """
+        pattern = """
+class {{name}}({{base}}):
+    x: {{x_type}} = {{x_value}}
+    z: {{z_type}} = {{z_value}}
+
+    def __init__(self, y: int | str):
+        self.y = y
+        """
+        replacement = """
+class {{name}}({{base}}):
+    '''{{name}} serves an important purpose.'''
+
+    x: {{x_type}} = {{x_value}} - 1
+    z: {{z_type}} = 2 ** {{z_value}} - 3 ** {{x_value}}
+
+    def __init__(self, y: int | str):
+        self.y = y
+        """
+        expected = """
+class Foo(bar):
+    '''Foo serves an important purpose.'''
+
+    x: int = 10 - 1
+    z: str = 2 ** "hello" - 3 ** 10
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+class Spam(eggs):
+    '''Spam serves an important purpose.'''
+
+    x: int = 10 - 1
+    z: int = 2 ** 3223 - 3 ** 10
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+if __name__ == "__main__":
+    x = 1
+        """
+
+        result, count = pattern_matching.subn(pattern, replacement, source)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+        self.assertEqual(count, 2)
+
+        # count=0 is the same as not passing count
+        result, count = pattern_matching.subn(pattern, replacement, source, count=0)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+        self.assertEqual(count, 2)
+
+        result, count = pattern_matching.subn(pattern, replacement, source, count=2)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+        self.assertEqual(count, 2)
+
+        result, count = pattern_matching.subn(pattern, replacement, source, count=3)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+        self.assertEqual(count, 2)
+
+        expected = """
+class Foo(bar):
+    '''Foo serves an important purpose.'''
+
+    x: int = 10 - 1
+    z: str = 2 ** "hello" - 3 ** 10
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+class Spam(eggs):
+    x: int = 10
+    z: int = 3223
+
+    def __init__(self, y: int | str):
+        self.y = y
+
+if __name__ == "__main__":
+    x = 1
+        """
+
+        result, count = pattern_matching.subn(pattern, replacement, source, count=1)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+        self.assertEqual(count, 1)
+
+    def test_for_recursion(self):
+        source = "x = y - z"
+        pattern = "{{some}} - {{other}}"
+        replacement = "{{other}} - {{some}}"
+        expected = "x = z - y"
+
+        result, count = pattern_matching.subn(pattern, replacement, source)
+        self.assertIsInstance(result, str)
+
+        self.assertEqual(result, expected)
+        self.assertEqual(count, 1)
+
+    def runTest(self):
+        self.test_basic_code()
+        self.test_complex_code()
+        self.test_for_recursion()
+
+
 class TestSub(unittest.TestCase):
     def test_basic_code(self):
         pattern = source = "x = 1"
@@ -931,6 +1070,11 @@ def main() -> int:
         return 1
 
     test_result = TestSub().run()
+    if not test_result.wasSuccessful():
+        test_result.printErrors()
+        return 1
+
+    test_result = TestSubn().run()
     if not test_result.wasSuccessful():
         test_result.printErrors()
         return 1

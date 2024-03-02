@@ -6,12 +6,12 @@ import ast
 import sys
 import warnings
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, Tuple
 
 from pyrefact import core, processing
 
 
-__all__ = ["compile", "findall", "finditer", "search", "sub", "match", "fullmatch"]
+__all__ = ["compile", "findall", "finditer", "search", "sub", "subn", "match", "fullmatch"]
 
 warnings.filterwarnings(
     "ignore",
@@ -28,12 +28,13 @@ def findall(pattern: str | ast.AST, source: str) -> Sequence[str]:
     return [m.string for m in finditer(pattern, source)]
 
 
-def sub(pattern: str | ast.AST, repl: str, source: str, count: int = 0) -> str:
+def subn(pattern: str | ast.AST, repl: str, source: str, count: int = 0) -> Tuple[str, int]:
     count = count if count > 0 else float("inf")
+    replacements = 0
 
     @processing.fix(max_iter=1)
     def fix_func(src: str):
-        replacements = 0
+        nonlocal replacements
         for item in processing.find_replace(src, pattern, repl):
             if replacements >= count:
                 break
@@ -41,7 +42,14 @@ def sub(pattern: str | ast.AST, repl: str, source: str, count: int = 0) -> str:
             yield item
             replacements += 1
 
-    return fix_func(source)
+    new_source = fix_func(source)
+
+    return new_source, replacements
+
+
+def sub(pattern: str | ast.AST, repl: str, source: str, count: int = 0) -> str:
+    new_source, _ = subn(pattern, repl, source, count=count)
+    return new_source
 
 
 def search(pattern: str | ast.AST, source: str) -> core.Match | None:
