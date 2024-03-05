@@ -1,8 +1,6 @@
 # pyrefact
 
-Pyrefact does advanced python refactoring, with the goal of simplifying complicated code, deleting dead code, and improving performance.
-
-Unlike emerging AI tools, pyrefact is entirely rule based and does not share your code with any third parties. Pyrefact can however break your code in some cases, and is not suitable for CI or other automated workflows.
+Pyrefact does advanced python refactoring, with the goal of simplifying complicated code, deleting dead code, and improving performance. Pyrefact is entirely rule-based.
 
 ## Features
 
