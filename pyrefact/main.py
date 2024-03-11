@@ -121,6 +121,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.implicit_defaultdict(source)
     source = fixes.simplify_redundant_lambda(source)
     source = fixes.remove_redundant_comprehensions(source)
+    source = fixes.remove_redundant_boolop_values(source)
     source = symbolic_math.simplify_boolean_expressions(source)
     source = symbolic_math.simplify_constrained_range(source)
     source = symbolic_math.simplify_boolean_expressions_symmath(source)

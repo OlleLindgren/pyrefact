@@ -3741,3 +3741,39 @@ def fix_raise_missing_from(source: str) -> str:
         raise {{something}} from error
     """
     yield from processing.find_replace(source, find, replace)
+
+
+@processing.fix
+def remove_redundant_boolop_values(source: str) -> str:
+
+    root = core.parse(source)
+
+    for node in core.walk(root, ast.BoolOp(op=(ast.Or, ast.And))):
+        values = []
+        for value in node.values:
+            try:
+                deterministic_value = core.literal_value(value)
+            except ValueError:
+                values.append(value)
+            else:
+                if isinstance(node.op, ast.Or) and deterministic_value:
+                    yield node, value
+                    break
+
+                if isinstance(node.op, ast.And) and not deterministic_value:
+                    yield node, value
+                    break
+
+                # Otherwise implicitly don't add it to the list of values, as
+                # it won't affect the result of the operation
+
+        else:
+            if len(values) == 1:
+                yield node, values[0]
+            elif 2 <= len(values) < len(node.values):
+                new_node = ast.copy_location(ast.BoolOp(op=node.op, values=values), node)
+                yield node, new_node
+            elif len(values) == 0:
+                yield node, node.values[-1]
+
+    return source
