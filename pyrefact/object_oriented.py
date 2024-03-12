@@ -212,3 +212,41 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
             yield None, funcdef_static, transaction
 
             transaction += 1
+
+
+@processing.fix
+def fix_unconventional_class_definitions(source: str) -> str:
+
+    template = """
+    class {{ClassName}}:
+        {{...+}}
+
+    {{ClassName}}.{{attr}} = {{value}}
+    """
+    template = core.compile_template(template)
+    template[0].bases = list
+    template[0].decorator_list = list
+
+    transaction = 0
+    root = core.parse(source)
+    for (classdef, *_), *assign_matches in core.walk_sequence(root, *template, expand_last=True):
+        transaction += 1
+        new_assigns = []
+        for assign, *_ in assign_matches:
+            new_assign = ast.Assign(targets=[ast.Name(id=assign.targets[0].attr)], value=assign.value)
+            new_assign = ast.copy_location(new_assign, assign)
+            new_assign.col_offset = classdef.body[0].col_offset
+            new_assigns.append(new_assign)
+
+            yield assign, None, transaction
+
+        new_classdef = ast.ClassDef(
+            name=classdef.name,
+            bases=classdef.bases,
+            keywords=classdef.keywords,
+            body=classdef.body + new_assigns,
+            decorator_list=classdef.decorator_list,
+        )
+        new_classdef = ast.copy_location(new_classdef, classdef)
+
+        yield classdef, new_classdef, transaction
