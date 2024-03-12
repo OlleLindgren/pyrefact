@@ -40,9 +40,9 @@ jobs:
         python ./tests/main.py
     - name: Running on self with --safe, -s, --preserve . and variants thereof
       run: |
-        pyrefact . --safe
+        pyrefact . --safe --n_cores 1
         python -m pyrefact . -s
-        python -m pyrefact . --preserve .
+        python -m pyrefact . --preserve . --n_cores 10
         pyrefact . -p .
         pyrefact . --safe --preserve .
         python -m pyrefact . -sp .
