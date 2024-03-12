@@ -11,12 +11,13 @@ import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import Collection, Iterable, Sequence
+from typing import Collection, Iterable, Mapping, Sequence
 
 import rmspace
 
 from pyrefact import abstractions, fixes
 from pyrefact import logs as logger
+import multiprocessing as mp
 from pyrefact import (
     core,
     formatting,
@@ -49,6 +50,9 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--verbose", "-v", help="Set logging threshold to DEBUG", action="store_true"
+    )
+    parser.add_argument(
+        "--n_cores", help="Number of cores to use", type=int, default=mp.cpu_count()
     )
     return parser.parse_args(args)
 
@@ -246,7 +250,7 @@ def format_code(
 
 
 def format_file(
-    filename: Path, *, preserve: Collection[str] = frozenset(), safe: bool = False
+    filename: Path, preserve: Collection[str] = frozenset(), safe: bool = False
 ) -> int:
     """Fix a file.
 
@@ -256,6 +260,7 @@ def format_file(
     Returns:
         bool: True if any changes were made
     """
+    logger.info("Analyzing {filename}...", filename=filename)
     filename = Path(filename).resolve().absolute()
     with open(filename, "r", encoding="utf-8") as stream:
         initial_content = stream.read()
@@ -272,6 +277,63 @@ def format_file(
         return True
 
     return 0
+
+
+def _format_files_concurrently(
+    folder_contents: Mapping[Path, Collection[Path]],
+    used_names: Mapping[str, Collection[str]],
+    *,
+    n_cores: int,
+    max_passes: int,
+    safe: bool,
+) -> None:
+    module_changes_pass_counts = {
+        folder: (True, max_passes)
+        for folder in folder_contents
+    }
+    with mp.Pool(n_cores) as pool:
+        for pass_number in range(1, max_passes + 1):
+            files_to_format = set()
+            for folder, filenames in folder_contents.items():
+                changes, passes_left = module_changes_pass_counts[folder]
+                if changes and passes_left > 0:
+                    files_to_format.update(filenames)
+
+            if not files_to_format:
+                break
+
+            files_to_format = sorted(files_to_format)
+
+            filename_preserve = {
+                filename: frozenset().union(*(
+                    variables
+                    for name, variables in used_names.items()
+                    if name != _namespace_name(filename)
+                ))
+                for filename in files_to_format
+            }
+
+            results = pool.starmap(
+                format_file,
+                (
+                    (filename, filename_preserve[filename], safe)
+                    for filename in files_to_format
+                )
+            )
+            filename_changes = dict(zip(files_to_format, results))
+            for folder, filenames in folder_contents.items():
+                _, passes_left = module_changes_pass_counts[folder]
+                changes = any(filename_changes.get(filename, False) for filename in filenames)
+
+                module_changes_pass_counts[folder] = (changes, passes_left - 1)
+
+            logger.debug(
+                "\nPass {pass_number} / {max_passes} completed, {converged_modules} / {total_modules} modules converged.\n",
+                pass_number=pass_number,
+                max_passes=max_passes,
+                converged_modules=sum(1 for changes, _ in module_changes_pass_counts.values() if not changes),
+                total_modules=len(folder_contents),
+            )
 
 
 def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:
@@ -342,31 +404,19 @@ def main(args: Sequence[str] | None = None) -> int:
         filename = filename.absolute()
         folder_contents[filename.parent].append(filename)
 
-    max_passes = 1 if args.safe else MAX_MODULE_PASSES
-    for folder, filenames in folder_contents.items():
-        module_passes = 0
-        for module_passes in range(1, 1 + max_passes):
-            changes = False
-            for filename in filenames:
-                preserve = set()
-                for name, variables in used_names.items():
-                    if name != _namespace_name(filename):
-                        preserve.update(variables)
-                logger.info("Analyzing {filename}...", filename=filename)
-                changes |= format_file(filename, preserve=frozenset(preserve), safe=args.safe)
-
-            if not changes:
-                break
-
-        logger.debug(
-            "\nPyrefact made {module_passes} passes on {folder}.\n",
-            module_passes=module_passes,
-            folder=folder,
-        )
-
     if sum(len(filenames) for filenames in folder_contents.values()) == 0:
         logger.info("No files provided")
         return 1
+
+    max_passes = 1 if args.safe else MAX_MODULE_PASSES
+
+    _format_files_concurrently(
+        folder_contents,
+        used_names,
+        n_cores=args.n_cores,
+        max_passes=max_passes,
+        safe=args.safe,
+    )
 
     return 0
 
