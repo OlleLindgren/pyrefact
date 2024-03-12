@@ -1381,9 +1381,9 @@ def format_template(source: str, template_match: NamedTuple, **callables) -> str
 def parse_line_length_from_pyproject_toml() -> int:
     if constants.PYTHON_VERSION >= (3, 11):
         # tomllib is new in 3.11
-        from tomllib import load  # pylint: disable=import-error
+        from tomllib import load
     else:
-        from tomli import load  # pylint: disable=import-error
+        from tomli import load
 
     pyproject_toml_files = [
         path / "pyproject.toml"

@@ -96,7 +96,7 @@ def fullmatch(pattern: str | ast.AST, source: str) -> core.Match | None:
     return None
 
 
-compile = core.compile_template  # pylint: disable=redefined-builtin,unused-variable
+compile = core.compile_template
 
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
