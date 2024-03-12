@@ -714,7 +714,7 @@ def _schedule_rewrites(
     if transaction_rewrites and (not scheduled_rewrites):
         logger.error("{} transactions found, but all were conflicting.", len(transaction_rewrites))
 
-    scheduled_rewrites.sort(key=lambda tup: (tup[1][0], tup[0]), reverse=True)
+    scheduled_rewrites.sort(key=lambda tup: (tup[1][0], str(tup[1][1]), tup[0]), reverse=True)
     return scheduled_rewrites
 
 
