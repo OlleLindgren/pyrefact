@@ -28,7 +28,7 @@ pip install -e ".[dev]"  # Also installs dev dependencies
 To run the tests that go into the automated CI, just run:
 
 ```bash
-pylint -E ./pyrefact
+ruff check ./pyrefact
 ./tests/main.py
 ./tests/numpy.sh
 ```
