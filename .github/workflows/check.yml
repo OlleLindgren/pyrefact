@@ -3,7 +3,7 @@ name: Tests
 on: [push, pull_request]
 
 jobs:
-  pylint-errors-only:
+  ruff-lint:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -15,12 +15,12 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -e .[dev]
-    - name: Run pylint
+    - name: Run ruff lint
       run: |
-        pylint -E ./pyrefact
+        ruff check ./pyrefact
 
   check:
-    needs: [pylint-errors-only]
+    needs: [ruff-lint]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -55,7 +55,7 @@ jobs:
         python ./tests/main.py
 
   check-macos:
-    needs: [pylint-errors-only]
+    needs: [ruff-lint]
     runs-on: macos-latest
     strategy:
       matrix:
@@ -78,7 +78,7 @@ jobs:
       run: python ./tests/main.py
 
   check-windows:
-    needs: [pylint-errors-only]
+    needs: [ruff-lint]
     runs-on: macos-latest
     strategy:
       matrix:
@@ -101,7 +101,7 @@ jobs:
       run: python ./tests/main.py
 
   check-slow:
-    needs: [pylint-errors-only]
+    needs: [ruff-lint]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -122,7 +122,7 @@ jobs:
 
   deploy:
     environment: deploy
-    needs: [pylint-errors-only, check, check-macos, check-windows]
+    needs: [ruff-lint, check, check-macos, check-windows]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:

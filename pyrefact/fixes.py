@@ -1379,7 +1379,7 @@ def remove_redundant_comprehensions(source: str) -> str:
         "{{{key}}: {{value}} for {{key}}, {{value}} in {{iterable}}}",
     ))
     replace = "{{funcname(root)}}({{iterable}})"
-    funcname = lambda template_match_tuple: comprehension_wrapper_funcs[type(template_match_tuple)]
+    funcname = lambda template_match_tuple: comprehension_wrapper_funcs[type(template_match_tuple)]  # noqa: E731
 
     yield from processing.find_replace(source, find, replace, funcname=funcname)
 
@@ -2420,7 +2420,7 @@ def merge_chained_comps(source: str) -> str:
     )],)
 
     for template_match in core.walk_wildcard(root, template):
-        if type(template_match.root) is not type(template_match.root.generators[0].iter):
+        if type(template_match.root) is not type(template_match.root.generators[0].iter):  # noqa: E721
             continue
         if not isinstance(template_match.root, (ast.SetComp, ast.GeneratorExp, ast.ListComp)):
             continue

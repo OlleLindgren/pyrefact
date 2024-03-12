@@ -400,8 +400,8 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
 
     if isinstance(old, core.Range):
         # Prevent whitespace-only changes from being applied
-        new_code_lines = [l.rstrip() for l in new_code.splitlines() if l.strip()]
-        code_lines = [l.rstrip() for l in code.splitlines() if l.strip()]
+        new_code_lines = [line.rstrip() for line in new_code.splitlines() if line.strip()]
+        code_lines = [line.rstrip() for line in code.splitlines() if line.strip()]
         if new_code_lines == code_lines:
             return source
 
@@ -421,7 +421,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
                 candidate = (
                     source[: old.start]
                     + new_code_lines[0]
-                    + "".join(" " * extra_indent + l for l in new_code_lines[1:])
+                    + "".join(" " * extra_indent + line for line in new_code_lines[1:])
                     + source[old.end :]
                 )
                 if core.is_valid_python(candidate):
