@@ -680,7 +680,7 @@ def _schedule_rewrites(
 
             rewrites = transaction_rewrites[t]
             rewrites = sorted(
-                ((_get_charnos(rewrite, source), rewrite) for rewrite in rewrites),
+                {(_get_charnos(rewrite, source), rewrite) for rewrite in rewrites},
                 key=lambda tup: tup[0],
                 reverse=True,
             )
