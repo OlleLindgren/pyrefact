@@ -1,1 +1,2 @@
-from c import x
+from c import *
+from e import *

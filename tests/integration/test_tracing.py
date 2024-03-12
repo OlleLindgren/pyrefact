@@ -70,12 +70,21 @@ class TestTraceImports(unittest.TestCase):
 
         result = tracing.trace_origin("x", b_py.read_text())
         assert isinstance(result, tracing._TraceResult)
-        assert result.source == "from c import x"
+        assert result.source == "from c import *"
         assert result.lineno == 1
-        assert core.match_template(result.ast, ast.ImportFrom(module="c", names=[ast.alias(name="x", asname=None)], level=0))
+        assert core.match_template(result.ast, ast.ImportFrom(module="c", names=[ast.alias(name="*", asname=None)], level=0))
 
         traced_source_file = tracing._trace_module_source_file(result.ast.module)
         assert traced_source_file == str(c_py)
+
+        result = tracing.trace_origin("ww", b_py.read_text())
+        assert isinstance(result, tracing._TraceResult)
+        assert result.source == "from e import *"
+        assert result.lineno == 2
+        assert core.match_template(result.ast, ast.ImportFrom(module="e", names=[ast.alias(name="*", asname=None)], level=0))
+
+        traced_source_file = tracing._trace_module_source_file(result.ast.module)
+        assert traced_source_file == str(e_py)
 
         result = tracing.trace_origin("x", c_py.read_text())
         assert isinstance(result, tracing._TraceResult)
