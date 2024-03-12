@@ -374,6 +374,27 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
 
     elif isinstance(new, ast.AST):
         new_code = core.unparse(new)
+
+        # Add trailing newline to new_code, if it is an AST type that corresponds to a line of code
+        standalone_types = (
+            ast.Expr,
+            ast.Assign,
+            ast.If,
+            ast.For,
+            ast.While,
+            ast.Try,
+            ast.Import,
+            ast.ImportFrom,
+            ast.FunctionDef,
+            ast.AsyncFunctionDef,
+            ast.ClassDef,
+            ast.AsyncFor,
+            ast.AsyncWith,
+            ast.With,
+        )
+        if new_code and not new_code.endswith("\n") and isinstance(new, standalone_types):
+            new_code += "\n"
+
     else:
         raise TypeError(f"Invalid replacement type: {type(new)}")
 
