@@ -312,6 +312,7 @@ def _get_constant_insertion_lineno(scope: ast.AST) -> int:
 
 
 def create_abstractions(source: str) -> str:
+    """Create abstracted functions. Currently disabled."""
     root = core.parse(source)
     global_names = (
         _scoped_dependencies(root)

@@ -213,7 +213,6 @@ def format_code(
 
         content_history.add(source)
 
-    source = abstractions.create_abstractions(source)
     source = abstractions.overused_constant(source, root_is_static=minimum_indent == 0)
     source = fixes.simplify_assign_immediate_return(source)
 
