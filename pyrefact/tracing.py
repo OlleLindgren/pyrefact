@@ -5,6 +5,7 @@ import collections
 import functools
 import importlib
 import sys
+import threading
 from pathlib import Path
 from typing import Iterable, NamedTuple, Set, Sequence, Tuple
 
@@ -170,22 +171,27 @@ class _TraceResult(NamedTuple):
     ast: ast.AST
 
 
+# To prevent concurrent modification of sys.path
+SYS_PATH_LOCK = threading.Lock()
+
+
 def _trace_module_source_file(module: str) -> str | None:
-    try:
-        sys.path.append(str(Path.cwd()))
-
+    with SYS_PATH_LOCK:
         try:
-            module_spec = importlib.util.find_spec(module)
-        except ImportError:
-            return None
+            sys.path.append(str(Path.cwd()))
 
-        if module_spec is None:
-            return None
+            try:
+                module_spec = importlib.util.find_spec(module)
+            except ImportError:
+                return None
 
-        return module_spec.origin
+            if module_spec is None:
+                return None
 
-    finally:
-        sys.path.pop()
+            return module_spec.origin
+
+        finally:
+            sys.path.pop()
 
 
 @functools.lru_cache(maxsize=100_000)
