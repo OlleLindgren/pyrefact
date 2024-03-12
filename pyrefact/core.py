@@ -383,8 +383,16 @@ def parse(source_code: str) -> ast.Module:
         return ast.parse(source_code)
     except SyntaxError as error:
         stack_trace = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        source_code_lines = source_code.splitlines(keepends=True)
+        error_lines = [
+            f"{lineno:<4}{'->' if lineno==error.lineno else ' |'} {line}"
+            for lineno, line in enumerate(source_code_lines, start=1)
+        ]
+        start = max(0, error.lineno - 50)
+        end = min(len(error_lines), error.lineno + 50)
+        error_code_segment = "".join(error_lines[start:end])
         logger.error(
-            "Failed to parse source with error:\n{}\n\n\nCode:\n\n{}", stack_trace, source_code
+            "Failed to parse source with error:\n{}\n\n\nCode:\n\n{}", stack_trace, error_code_segment
         )
         raise error
 
