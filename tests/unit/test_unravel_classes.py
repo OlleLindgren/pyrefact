@@ -127,11 +127,11 @@ class Spam:
 
 "Very important string statement"
 
-def _some_static_function(x, y) -> int:
-    return 2 + x + y
-
 def _some_other_static_function():
     print(3)
+
+def _some_static_function(x, y) -> int:
+    return 2 + x + y
 
 class Foo:
     def __init__(self):
