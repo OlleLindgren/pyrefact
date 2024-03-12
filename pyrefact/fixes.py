@@ -3748,32 +3748,49 @@ def remove_redundant_boolop_values(source: str) -> str:
 
     root = core.parse(source)
 
+    unknown = object()
+    falsy = object()
+    truthy = object()
+
     for node in core.walk(root, ast.BoolOp(op=(ast.Or, ast.And))):
-        values = []
+        mask = []
         for value in node.values:
             try:
                 deterministic_value = core.literal_value(value)
             except ValueError:
-                values.append(value)
+                mask.append(unknown)
             else:
-                if isinstance(node.op, ast.Or) and deterministic_value:
-                    yield node, value
-                    break
+                mask.append(truthy if deterministic_value else falsy)
 
-                if isinstance(node.op, ast.And) and not deterministic_value:
-                    yield node, value
-                    break
+        redundant = [False for _ in mask]
 
-                # Otherwise implicitly don't add it to the list of values, as
-                # it won't affect the result of the operation
+        for i, (truthyness, next_truthyness) in enumerate(zip(mask[:-1], mask[1:])):
+            if truthyness is next_truthyness is truthy:
+                if isinstance(node.op, ast.Or):
+                    redundant[i + 1] = True
+                if isinstance(node.op, ast.And):
+                    redundant[i] = True
 
-        else:
-            if len(values) == 1:
-                yield node, values[0]
-            elif 2 <= len(values) < len(node.values):
-                new_node = ast.copy_location(ast.BoolOp(op=node.op, values=values), node)
-                yield node, new_node
-            elif len(values) == 0:
-                yield node, node.values[-1]
+            if truthyness is next_truthyness is falsy:
+                if isinstance(node.op, ast.Or):
+                    redundant[i] = True
+                if isinstance(node.op, ast.And):
+                    redundant[i + 1] = True
 
-    return source
+            if truthyness is falsy and isinstance(node.op, ast.And):
+                redundant[i + 1:] = [True] * (len(mask) - i - 1)
+                break
+
+            if truthyness is falsy and next_truthyness is not falsy and isinstance(node.op, ast.Or):
+                redundant[i] = True
+
+            if truthyness is truthy and next_truthyness is not truthy and isinstance(node.op, ast.And):
+                redundant[i] = True
+
+        values = [value for value, is_redundant in zip(node.values, redundant) if not is_redundant]
+        if len(values) == 1:
+            yield node, values[0]
+        elif len(values) < len(node.values):
+            new_node = ast.BoolOp(op=node.op, values=values)
+            new_node = ast.copy_location(new_node, node)
+            yield node, new_node

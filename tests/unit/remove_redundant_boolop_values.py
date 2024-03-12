@@ -36,7 +36,7 @@ def main() -> int:
 print(None or os.getcwd() or False)
     """,
         """
-print(os.getcwd())
+print(os.getcwd() or False)
     """,
         ),
         (
@@ -68,7 +68,7 @@ print(None)
 print(os.getcwd() and False)
     """,
         """
-print(False)
+print(os.getcwd() and False)
     """,
         ),
         (
