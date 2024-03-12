@@ -262,7 +262,7 @@ def format_file(
     Returns:
         bool: True if any changes were made
     """
-    logger.info("Analyzing {filename}...", filename=filename)
+    logger.debug("Analyzing {filename}...", filename=filename)
     filename = Path(filename).resolve().absolute()
     with open(filename, "r", encoding="utf-8") as stream:
         initial_content = stream.read()
