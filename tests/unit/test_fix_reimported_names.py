@@ -45,8 +45,8 @@ from d import sys
         """,
             """
 from d import x as k
-import sys
 from d import y as z
+import sys
         """,
         ),
         (
@@ -58,8 +58,8 @@ from e import hh
         """,
             """
 from d import x as k
-import sys
 from d import y as z
+import sys
 from e import hh
         """,
         ),
