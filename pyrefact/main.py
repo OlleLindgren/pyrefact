@@ -35,7 +35,7 @@ MAX_MODULE_PASSES = 5
 MAX_FILE_PASSES = 25
 
 
-__all__ = ["format_code", "format_file", "main"]
+__all__ = ["format_code", "format_file", "format_files", "main"]
 
 
 def _parse_args(args: Sequence[str]) -> argparse.Namespace:
@@ -281,14 +281,35 @@ def format_file(
     return 0
 
 
-def _format_files_concurrently(
-    folder_contents: Mapping[Path, Collection[Path]],
-    used_names: Mapping[str, Collection[str]],
+def format_files(
+    filenames,
     *,
-    n_cores: int,
-    max_passes: int,
-    safe: bool,
-) -> None:
+    preserved_filenames: Collection[Path] = frozenset(),
+    n_cores: int = mp.cpu_count(),
+    max_passes: int = 1,
+    safe: bool = False,
+) -> bool:
+    """Fix lots of files concurrently.
+
+    Args:
+        filenames (Path): Files to fix
+
+    Keyword Args:
+        preserved_filenames (Collection[Path]): Files that depend on the files being fixed
+        n_cores (int): Number of CPU cores to use
+        max_passes (int): Maximum number of passes to make over the files
+        safe (bool): Don't delete or rename anything at the module level
+
+    Returns:
+        bool: True if any changes were made
+    """
+    used_names = _used_names_in_files(preserved_filenames)
+
+    folder_contents = collections.defaultdict(list)
+    for filename in map(Path, sorted(filenames)):
+        filename = filename.absolute()
+        folder_contents[filename.parent].append(filename)
+
     module_changes_pass_counts = {
         folder: (True, max_passes)
         for folder in folder_contents
@@ -296,10 +317,10 @@ def _format_files_concurrently(
     with mp.Pool(n_cores) as pool:
         for pass_number in range(1, max_passes + 1):
             files_to_format = set()
-            for folder, filenames in folder_contents.items():
+            for folder, files_in_folder in folder_contents.items():
                 changes, passes_left = module_changes_pass_counts[folder]
                 if changes and passes_left > 0:
-                    files_to_format.update(filenames)
+                    files_to_format.update(files_in_folder)
 
             if not files_to_format:
                 break
@@ -323,9 +344,9 @@ def _format_files_concurrently(
                 )
             )
             filename_changes = dict(zip(files_to_format, results))
-            for folder, filenames in folder_contents.items():
+            for folder, files_in_folder in folder_contents.items():
                 _, passes_left = module_changes_pass_counts[folder]
-                changes = any(filename_changes.get(filename, False) for filename in filenames)
+                changes = any(filename_changes.get(filename, False) for filename in files_in_folder)
 
                 module_changes_pass_counts[folder] = (changes, passes_left - 1)
 
@@ -336,6 +357,8 @@ def _format_files_concurrently(
                 converged_modules=sum(1 for changes, _ in module_changes_pass_counts.values() if not changes),
                 total_modules=len(folder_contents),
             )
+
+    return any(changes for changes, _ in module_changes_pass_counts.values())
 
 
 def _iter_python_files(paths: Iterable[Path]) -> Iterable[Path]:
@@ -354,6 +377,35 @@ def _namespace_name(filename: Path) -> str:
     return str(filename).replace(os.path.sep, ".")
 
 
+def _used_names_in_file(filename: Path) -> Collection[str]:
+    with open(filename, "r", encoding="utf-8") as stream:
+        source = stream.read()
+
+    ast_root = core.parse(source)
+    imported_names = tracing.get_imported_names(ast_root)
+
+    names = []
+    for node in core.walk(ast_root, (ast.Name, ast.Attribute)):
+        if isinstance(node, ast.Name) and node.id in imported_names:
+            names.append(node.id)
+
+        elif isinstance(node, ast.Attribute):
+            # Attributes and class methods are hard to trace (it basically requires
+            # type checking), so we always add them to preserve.
+            names.append(node.attr)
+            if isinstance(node.value, ast.Name) and node.value.id in imported_names:
+                names.append(node.value.id)
+
+    return frozenset(names)
+
+
+def _used_names_in_files(filenames: Iterable[Path]) -> Mapping[str, Collection[str]]:
+    return {
+        _namespace_name(filename): _used_names_in_file(filename)
+        for filename in sorted(filenames)
+    }
+
+
 def main(args: Sequence[str] | None = None) -> int:
     """Parse command-line arguments and run pyrefact on provided files.
 
@@ -370,28 +422,12 @@ def main(args: Sequence[str] | None = None) -> int:
 
     logger.set_level(logging.DEBUG if args.verbose else logging.INFO)
 
-    used_names = collections.defaultdict(set)
-    for filename in _iter_python_files(args.preserve):
-        with open(filename, "r", encoding="utf-8") as stream:
-            source = stream.read()
-        ast_root = core.parse(source)
-        imported_names = tracing.get_imported_names(ast_root)
-        for node in core.walk(ast_root, (ast.Name, ast.Attribute)):
-            if isinstance(node, ast.Name) and node.id in imported_names:
-                used_names[_namespace_name(filename)].add(node.id)
-            elif isinstance(node, ast.Attribute):
-
-                # Attributes and class methods are hard to trace (it basically requires
-                # type checking), so we always add them to preserve.
-                used_names[_namespace_name(filename)].add(node.attr)
-                if isinstance(node.value, ast.Name) and node.value.id in imported_names:
-                    used_names[_namespace_name(filename)].add(node.value.id)
-
     if args.from_stdin:
         logger.set_level(100)  # Higher than critical
         source = sys.stdin.read()
         temp_stdout = io.StringIO()
         sys_stdout = sys.stdout
+        used_names = _used_names_in_files(_iter_python_files(args.preserve))
         preserve = set.union(*used_names.values()) if used_names else set()
         try:
             sys.stdout = temp_stdout
@@ -401,22 +437,18 @@ def main(args: Sequence[str] | None = None) -> int:
         print(source)
         return 0
 
-    folder_contents = collections.defaultdict(list)
-    for filename in _iter_python_files(args.paths):
-        filename = filename.absolute()
-        folder_contents[filename.parent].append(filename)
+    filenames = tuple(_iter_python_files(args.paths))
+    preserved_filenames = frozenset(_iter_python_files(args.preserve))
 
-    if sum(len(filenames) for filenames in folder_contents.values()) == 0:
+    if not filenames:
         logger.info("No files provided")
         return 1
 
-    max_passes = 1 if args.safe else MAX_MODULE_PASSES
-
-    _format_files_concurrently(
-        folder_contents,
-        used_names,
+    format_files(
+        filenames,
+        preserved_filenames=preserved_filenames,
         n_cores=args.n_cores,
-        max_passes=max_passes,
+        max_passes=1 if args.safe else MAX_MODULE_PASSES,
         safe=args.safe,
     )
 

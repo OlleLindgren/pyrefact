@@ -10,6 +10,7 @@ class TestImports(unittest.TestCase):
         assert callable(pyrefact.main)
         assert callable(pyrefact.format_code)
         assert callable(pyrefact.format_file)
+        assert callable(pyrefact.format_files)
 
         # pyrefact.pattern_matching
         assert callable(pyrefact.compile)
