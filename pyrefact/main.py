@@ -406,7 +406,7 @@ def _used_names_in_files(filenames: Iterable[Path]) -> Mapping[str, Collection[s
     }
 
 
-def main(args: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Parse command-line arguments and run pyrefact on provided files.
 
     Args:
@@ -416,9 +416,9 @@ def main(args: Sequence[str] | None = None) -> int:
         int: 0 if successful.
 
     """
-    if args is None:
-        args = sys.argv[1:]
-    args = _parse_args(args)
+    if argv is None:
+        argv = sys.argv[1:]
+    args = _parse_args(argv)
 
     logger.set_level(logging.DEBUG if args.verbose else logging.INFO)
 

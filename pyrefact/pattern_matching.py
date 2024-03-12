@@ -126,8 +126,12 @@ def _recursively_find_files(path: Path) -> Iterable[Path]:
         yield from path.rglob("*.py")
 
 
-def main(args: Sequence[str]) -> int:
-    args = _parse_args(args)
+def main(argv: Sequence[str] = None) -> int:
+    """Entrypoint for `python -m pyrefact.pattern_matching`."""
+    if argv is None:
+        argv = sys.argv[1:]
+
+    args = _parse_args(argv)
     filenames = sorted(
         {filename for path in args.path for filename in _recursively_find_files(path)}
     )
@@ -151,6 +155,16 @@ def main(args: Sequence[str]) -> int:
             return 1
 
     return 0
+
+
+def pyrefind_main() -> int:
+    """Entrypoint for the `pyrefind` command."""
+    return main(["find"] + sys.argv[1:])
+
+
+def pyreplace_main() -> int:
+    """Entrypoint for the `pyreplace` command."""
+    return main(["replace"] + sys.argv[1:])
 
 
 if __name__ == "__main__":

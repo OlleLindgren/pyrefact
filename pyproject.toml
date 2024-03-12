@@ -30,6 +30,8 @@ repository="https://github.com/OlleLindgren/pyrefact"
 
 [project.scripts]
 pyrefact = "pyrefact.__main__:main"
+pyrefind = "pyrefact.pattern_matching:pyrefind_main"
+pyreplace = "pyrefact.pattern_matching:pyreplace_main"
 
 [tool.setuptools.packages.find]
 include = ["pyrefact*"]
