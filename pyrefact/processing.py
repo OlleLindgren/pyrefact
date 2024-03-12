@@ -723,6 +723,9 @@ def _apply_rewrites(source: str, rewrites: Sequence[Tuple[Any, Callable]]) -> st
     for transaction, (_, rewrite) in rewrites:
         new_source = _do_rewrite(new_source, rewrite, fix_function_name=transaction.group_name)
 
+    if not core.is_valid_python(new_source):
+        return source
+
     new_source = _substitute_original_strings(original_source, new_source)
     new_source = _substitute_original_fstrings(original_source, new_source)
 
