@@ -95,9 +95,20 @@ class TestTraceImports(unittest.TestCase):
         traced_source_file = tracing._trace_module_source_file(result.ast.module)
         assert traced_source_file == str(d_py)
 
+    def runTest(self):
+        self.test_basic_trace()
+        self.test_cross_file_trace()
+        self.test_nested_cross_file_trace()
+
 
 def main() -> int:
-    unittest.main()
+    test_result = TestTraceImports().run()
+
+    if not test_result.wasSuccessful():
+        print("FAILED")
+        return 1
+
+    print("PASSED")
     return 0
 
 
