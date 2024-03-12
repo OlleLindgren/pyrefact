@@ -414,6 +414,8 @@ def fix_reimported_names(source: str) -> str:
     if import_insert_lineno == -1:
         return source  # No imports, nothing to do
 
+    transaction = 0
+
     for node in core.walk(root, ast.ImportFrom):
         if node.module in constants.PYTHON_311_STDLIB:
             continue
@@ -449,11 +451,14 @@ def fix_reimported_names(source: str) -> str:
                 if isinstance(module_import_node, ast.ImportFrom):
                     # Remove this alias from node.names
                     # Add this alias to things that should be imported from module_import_node.module
-                    original_name = next(
-                        alias.name
-                        for alias in module_import_node.names
-                        if alias.asname == name or (alias.asname is None and alias.name == name)
-                    )
+                    if len(module_import_node.names) == 1 and module_import_node.names[0] == "*":
+                        original_name = name
+                    else:
+                        original_name = next(
+                            alias.name
+                            for alias in module_import_node.names
+                            if alias.asname == name or (alias.asname is None and alias.name == name)
+                        )
                     if asname == original_name:
                         new_alias = ast.alias(name=original_name, asname=None)
                     else:
@@ -474,7 +479,7 @@ def fix_reimported_names(source: str) -> str:
                     else:
                         new_alias = ast.alias(name=original_name, asname=asname)
 
-                    yield None, ast.Import(names=[new_alias], lineno=import_insert_lineno)
+                    yield None, ast.Import(names=[new_alias], lineno=import_insert_lineno), transaction
                 else:
                     node_names.append(alias)
             else:
@@ -482,9 +487,9 @@ def fix_reimported_names(source: str) -> str:
 
         if node_names != node.names:
             if node_names:
-                yield node, ast.ImportFrom(module=node.module, names=node_names, level=node.level)
+                yield node, ast.ImportFrom(module=node.module, names=node_names, level=node.level), transaction
             else:
-                yield node, None
+                yield node, None, transaction
 
     for module, aliases in module_from_imports.items():
         yield None, ast.ImportFrom(
@@ -492,4 +497,4 @@ def fix_reimported_names(source: str) -> str:
             names=sorted(aliases, key=lambda alias: alias.name),
             level=0,
             lineno=import_insert_lineno,
-        )
+        ), transaction
