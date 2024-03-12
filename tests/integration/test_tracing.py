@@ -57,6 +57,15 @@ class TestTraceImports(unittest.TestCase):
         traced_source_file = tracing._trace_module_source_file("e")
         assert traced_source_file == str(e_py)
 
+        result = tracing.trace_origin("hh", a_py.read_text())
+        assert isinstance(result, tracing._TraceResult)
+        assert result.source == "from e import hh"
+        assert result.lineno == 6
+        assert core.match_template(result.ast, ast.ImportFrom(module="e", names=[ast.alias(name="hh", asname=None)], level=0))
+
+        traced_source_file = tracing._trace_module_source_file("e")
+        assert traced_source_file == str(e_py)
+
     @staticmethod
     def test_nested_cross_file_trace():
         result = tracing.trace_origin("k", a_py.read_text())
@@ -85,6 +94,21 @@ class TestTraceImports(unittest.TestCase):
 
         traced_source_file = tracing._trace_module_source_file(result.ast.module)
         assert traced_source_file == str(e_py)
+
+        result = tracing.trace_origin("hh", b_py.read_text())
+        assert isinstance(result, tracing._TraceResult)
+        assert result.source == "from e import *"
+        assert result.lineno == 4
+        assert core.match_template(result.ast, ast.ImportFrom(module="e", names=[ast.alias(name="*", asname=None)], level=0))
+
+        traced_source_file = tracing._trace_module_source_file(result.ast.module)
+        assert traced_source_file == str(e_py)
+
+        result = tracing.trace_origin("hh", e_py.read_text())
+        assert isinstance(result, tracing._TraceResult)
+        assert result.source == "hh = aabb"
+        assert result.lineno == 5
+        assert core.match_template(result.ast, ast.Assign(targets=[ast.Name(id="hh")], value=ast.Name(id="aabb")))
 
         result = tracing.trace_origin("x", c_py.read_text())
         assert isinstance(result, tracing._TraceResult)

@@ -378,10 +378,8 @@ def fix_starred_imports(source: str) -> str:
     undefined_names = get_undefined_variables(source)
     for name in undefined_names:
         if trace_result := trace_origin(name, source):
-            *_, node = trace_result
-
-            if core.match_template(node, template):
-                starred_import_name_mapping[node].add(name)
+            if core.match_template(trace_result.ast, template):
+                starred_import_name_mapping[trace_result.ast].add(name)
 
     for node, names in starred_import_name_mapping.items():
         if names:
@@ -446,12 +444,14 @@ def fix_reimported_names(source: str) -> str:
             asname = alias.asname
             name = alias.name
 
+            referenced_name = asname if asname else name
+
             if trace_result := trace_origin(name, module_source, __all__=True):
                 *_, module_import_node = trace_result
                 if isinstance(module_import_node, ast.ImportFrom):
                     # Remove this alias from node.names
                     # Add this alias to things that should be imported from module_import_node.module
-                    if len(module_import_node.names) == 1 and module_import_node.names[0] == "*":
+                    if len(module_import_node.names) == 1 and module_import_node.names[0].name == "*":
                         original_name = name
                     else:
                         original_name = next(
@@ -459,10 +459,10 @@ def fix_reimported_names(source: str) -> str:
                             for alias in module_import_node.names
                             if alias.asname == name or (alias.asname is None and alias.name == name)
                         )
-                    if asname == original_name:
+                    if referenced_name == original_name:
                         new_alias = ast.alias(name=original_name, asname=None)
                     else:
-                        new_alias = ast.alias(name=original_name, asname=asname)
+                        new_alias = ast.alias(name=original_name, asname=referenced_name)
 
                     module_from_imports[module_import_node.module].add(new_alias)
 
@@ -474,10 +474,10 @@ def fix_reimported_names(source: str) -> str:
                         for alias in module_import_node.names
                         if alias.asname == name or (alias.asname is None and alias.name == name)
                     )
-                    if asname == original_name:
+                    if referenced_name == original_name:
                         new_alias = ast.alias(name=original_name, asname=None)
                     else:
-                        new_alias = ast.alias(name=original_name, asname=asname)
+                        new_alias = ast.alias(name=original_name, asname=referenced_name)
 
                     yield None, ast.Import(names=[new_alias], lineno=import_insert_lineno), transaction
                 else:
