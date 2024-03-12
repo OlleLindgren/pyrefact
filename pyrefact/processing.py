@@ -411,9 +411,6 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         valid = core.is_valid_python(new_source)
         _log_replacement(old, new, fix_function_name, valid)
 
-        if not valid:
-            return source
-
         return new_source
 
     lines = new_code.splitlines(keepends=True)
@@ -455,9 +452,6 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
     valid = core.is_valid_python(new_source)
     _log_replacement(old, new, fix_function_name, valid)
 
-    if not valid:
-        return source
-
     return new_source
 
 
@@ -472,11 +466,15 @@ def _replace_nodes(source: str, replacements: Mapping[ast.AST, ast.AST | str]) -
         ),
         reverse=True,
     )
+    new_source = source
     for old, new in rewrites:
         rewrite = _Rewrite(old, new)
-        source = _do_rewrite(source, rewrite)
+        new_source = _do_rewrite(new_source, rewrite)
 
-    return source
+    if not core.is_valid_python(new_source):
+        return source
+
+    return new_source
 
 
 def _insert_nodes(source: str, additions: Collection[ast.AST]) -> str:
@@ -669,7 +667,7 @@ def _schedule_rewrites(
             for i, (rewrite_range, rewrite) in enumerate(rewrites):
                 for _, (other, _) in rewrites[i + 1 :]:
                     if rewrite_range & other:
-                        logger.debug(
+                        logger.error(
                             overlap_error_format.format(
                                 transaction=t,
                                 range=tuple(rewrite_range),
@@ -679,7 +677,7 @@ def _schedule_rewrites(
                         break
                 for _, (other, _) in scheduled_rewrites:
                     if rewrite_range & other:
-                        logger.debug(
+                        logger.error(
                             overlap_error_format.format(
                                 transaction=t,
                                 range=tuple(rewrite_range),
@@ -700,14 +698,17 @@ def _schedule_rewrites(
 
 
 def _apply_rewrites(source: str, rewrites: Sequence[Tuple[Any, Callable]]) -> str:
-    original_source = source
+    original_source = new_source = source
     for transaction, (_, rewrite) in rewrites:
-        source = _do_rewrite(source, rewrite, fix_function_name=transaction.group_name)
+        new_source = _do_rewrite(new_source, rewrite, fix_function_name=transaction.group_name)
 
-    source = _substitute_original_strings(original_source, source)
-    source = _substitute_original_fstrings(original_source, source)
+    new_source = _substitute_original_strings(original_source, new_source)
+    new_source = _substitute_original_fstrings(original_source, new_source)
 
-    return source
+    if not core.is_valid_python(new_source):
+        return source
+
+    return new_source
 
 
 def fix(*maybe_func, max_iter: int = 5) -> Callable:
