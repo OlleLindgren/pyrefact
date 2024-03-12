@@ -8,6 +8,7 @@ import itertools
 import re
 import textwrap
 import traceback
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Collection, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, TypeVar, Union
 
@@ -56,7 +57,10 @@ def unparse(node: ast.AST | str) -> str:
     ),):
         source = source.rstrip()
 
-    line_length = max(60, 100 - getattr(node, "col_offset", 0))
+    line_length = max(
+        60,
+        parse_line_length_from_pyproject_toml() - getattr(node, "col_offset", 0),
+    )
     try:
         ast.parse(source)
     except (SyntaxError, ValueError):
@@ -1371,3 +1375,29 @@ def format_template(source: str, template_match: NamedTuple, **callables) -> str
         source = source.replace(callable_slot_text, callable_result)
 
     return source
+
+
+@functools.lru_cache(maxsize=1)
+def parse_line_length_from_pyproject_toml() -> int:
+    if constants.PYTHON_VERSION >= (3, 11):
+        # tomllib is new in 3.11
+        from tomllib import load
+    else:
+        from tomli import load
+
+    pyproject_toml_files = [
+        path / "pyproject.toml"
+        for path in (Path.cwd(), *Path.cwd().parents)
+        if (path / "pyproject.toml").is_file()
+    ]
+
+    for path in pyproject_toml_files:
+        with path.open("rb") as f:
+            data = load(f)
+
+        try:
+            return data["tool"]["pyrefact"]["line_length"]
+        except KeyError:
+            pass
+
+    return 100

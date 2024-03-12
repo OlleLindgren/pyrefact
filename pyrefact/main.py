@@ -54,6 +54,12 @@ def _parse_args(args: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--n_cores", help="Number of cores to use", type=int, default=mp.cpu_count()
     )
+    parser.add_argument(
+        "--line-length",
+        help="Maximum line length",
+        type=int,
+        default=core.parse_line_length_from_pyproject_toml(),
+    )
     return parser.parse_args(args)
 
 
@@ -153,6 +159,7 @@ def format_code(
     preserve: Collection[str] = frozenset(),
     safe: bool = False,
     keep_imports: bool = False,
+    max_line_length: int = core.parse_line_length_from_pyproject_toml(),
 ) -> str:
     if re.findall(r"# pyrefact: skip_file", source):
         return source
@@ -242,7 +249,7 @@ def format_code(
 
     source = fixes.sort_imports(source)
 
-    source = fixes.fix_line_lengths(source)
+    source = fixes.fix_line_lengths(source, max_line_length=max_line_length)
     source = rmspace.format_str(source)
 
     if minimum_indent > 0:
