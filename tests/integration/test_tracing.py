@@ -22,19 +22,19 @@ class TestTraceImports(unittest.TestCase):
         result = tracing.trace_origin("sys", d_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "import sys"
-        assert result.lineno == 4
+        assert result.lineno == 6
         assert core.match_template(result.ast, ast.Import(names=[ast.alias(name="sys", asname=None)]))
 
         result = tracing.trace_origin("x", d_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "x = 1"
-        assert result.lineno == 1
+        assert result.lineno == 3
         assert core.match_template(result.ast, ast.Assign(targets=[ast.Name(id="x")], value=ast.Constant(value=1)))
 
         result = tracing.trace_origin("y", d_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "y = 100"
-        assert result.lineno == 2
+        assert result.lineno == 4
         assert core.match_template(result.ast, ast.Assign(targets=[ast.Name(id="y")], value=ast.Constant(value=100)))
 
     @staticmethod
@@ -42,7 +42,7 @@ class TestTraceImports(unittest.TestCase):
         result = tracing.trace_origin("x", c_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "from d import x, y as z"
-        assert result.lineno == 1
+        assert result.lineno == 3
         assert core.match_template(result.ast, ast.ImportFrom(module="d", names=[ast.alias(name="x", asname=None), ast.alias(name="y", asname="z")], level=0))
 
         traced_source_file = tracing._trace_module_source_file(result.ast.module)
@@ -51,7 +51,7 @@ class TestTraceImports(unittest.TestCase):
         result = tracing.trace_origin("e", d_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "import e"
-        assert result.lineno == 6
+        assert result.lineno == 8
         assert core.match_template(result.ast, ast.Import(names=[ast.alias(name="e", asname=None)]))
 
         traced_source_file = tracing._trace_module_source_file("e")
@@ -62,7 +62,7 @@ class TestTraceImports(unittest.TestCase):
         result = tracing.trace_origin("k", a_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "from b import x as k"
-        assert result.lineno == 2
+        assert result.lineno == 4
         assert core.match_template(result.ast, ast.ImportFrom(module="b", names=[ast.alias(name="x", asname="k")], level=0))
 
         traced_source_file = tracing._trace_module_source_file(result.ast.module)
@@ -71,7 +71,7 @@ class TestTraceImports(unittest.TestCase):
         result = tracing.trace_origin("x", b_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "from c import *"
-        assert result.lineno == 1
+        assert result.lineno == 3
         assert core.match_template(result.ast, ast.ImportFrom(module="c", names=[ast.alias(name="*", asname=None)], level=0))
 
         traced_source_file = tracing._trace_module_source_file(result.ast.module)
@@ -80,7 +80,7 @@ class TestTraceImports(unittest.TestCase):
         result = tracing.trace_origin("ww", b_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "from e import *"
-        assert result.lineno == 2
+        assert result.lineno == 4
         assert core.match_template(result.ast, ast.ImportFrom(module="e", names=[ast.alias(name="*", asname=None)], level=0))
 
         traced_source_file = tracing._trace_module_source_file(result.ast.module)
@@ -89,7 +89,7 @@ class TestTraceImports(unittest.TestCase):
         result = tracing.trace_origin("x", c_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "from d import x, y as z"
-        assert result.lineno == 1
+        assert result.lineno == 3
         assert core.match_template(result.ast, ast.ImportFrom(module="d", names=[ast.alias(name="x", asname=None), ast.alias(name="y", asname="z")], level=0))
 
         traced_source_file = tracing._trace_module_source_file(result.ast.module)
