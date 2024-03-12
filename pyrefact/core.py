@@ -15,7 +15,10 @@ from pyrefact import constants, formatting, logs as logger
 
 
 Template = TypeVar("Template", bound=Union[ast.AST, type, Collection[Union[ast.AST, type]]])
-DEFAULT_IGNORE = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset"))
+
+# "kind" is needed on PyPy, but not on CPython. This is because ast.Constant types will have
+# a kind=None set by default on CPython, but not on PyPy. (pypy3.10-7.3.12)
+DEFAULT_IGNORE = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset", "kind"))
 
 __all__ = [
     "Wildcard",
