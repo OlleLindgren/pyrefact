@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import builtins
 import collections
 import dataclasses
 import functools
@@ -700,6 +701,10 @@ def has_side_effect(node: ast.AST, safe_callable_whitelist: Collection[str] = fr
         )
 
     if isinstance(node, ast.Call):
+        # like e.g. "".join()
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Constant):
+            safe_callable_whitelist = safe_callable_whitelist | {node.func.attr}
+
         return (
             not all(
                 child.id in safe_callable_whitelist or child.id == "_"
@@ -908,7 +913,7 @@ def get_code(node: ast.AST | Range, source: str) -> str:
 
 
 def literal_value(node: ast.AST) -> bool:
-    if has_side_effect(node):
+    if has_side_effect(node, safe_callable_whitelist=constants.BUILTIN_FUNCTIONS):
         raise ValueError("Cannot find a deterministic value for a node with a side effect")
 
     if match_template(
@@ -950,6 +955,20 @@ def literal_value(node: ast.AST) -> bool:
                     return result
 
             return result
+
+    # For e.g. "".join(("1", "2"))
+    if match_template(
+        node,
+        ast.Call(func=ast.Attribute(value=ast.Constant), keywords=[])
+    ):
+        node_value = literal_value(node.func.value)
+        args = [literal_value(arg) for arg in node.args]
+        return getattr(node_value, node.func.attr)(*args)
+
+    if isinstance(node, ast.Call):
+        if isinstance(node.func, ast.Name) and node.func.id in constants.BUILTIN_FUNCTIONS:
+            args = [literal_value(arg) for arg in node.args]
+            return getattr(builtins, node.func.id)(*args)
 
     return ast.literal_eval(node)
 
