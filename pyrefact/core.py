@@ -1400,9 +1400,9 @@ def format_template(source: str, template_match: NamedTuple, **callables) -> str
 def parse_line_length_from_pyproject_toml() -> int:
     if constants.PYTHON_VERSION >= (3, 11):
         # tomllib is new in 3.11
-        from tomllib import load
+        from tomllib import load  # pyrefact: ignore
     else:
-        from tomli import load
+        from tomli import load  # pyrefact: ignore
 
     pyproject_toml_files = [
         path / "pyproject.toml"

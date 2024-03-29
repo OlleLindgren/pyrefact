@@ -88,6 +88,20 @@ class _Rewrite(NamedTuple):
         return hash((old_hash, new_hash))
 
 
+def _has_ignore_comment(source: str, rng: core.Range) -> bool:
+    pattern = re.compile(r"#\s*pyrefact\s*:\s*(skip_file|ignore)")
+
+    character_count = 0
+    for line in source.splitlines(keepends=True):
+        line_start = character_count
+        line_end = character_count = line_start + len(line)
+
+        if rng & core.Range(line_start, line_end) and pattern.search(line):
+            return True
+
+    return False
+
+
 def _substitute_original_strings(original_source: str, new_source: str) -> str:
     """Ensure consistent string formattings in new and old source.
 
@@ -399,6 +413,11 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         raise TypeError(f"Invalid replacement type: {type(new)}")
 
     if isinstance(old, core.Range):
+        # Prevent changes being applied if `# pyrefact: skip_file` or `pyrefact: ignore` comment
+
+        if _has_ignore_comment(source, old):
+            return source
+
         # Prevent whitespace-only changes from being applied
         new_code_lines = [line.rstrip() for line in new_code.splitlines() if line.strip()]
         code_lines = [line.rstrip() for line in code.splitlines() if line.strip()]
@@ -456,6 +475,9 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         f"{' ' * indents[i]}{code}".rstrip() + ("\n" if code.endswith("\n") else "")
         for i, code in enumerate(lines)
     )
+
+    if _has_ignore_comment(source, core.Range(start, end)):
+        return source
 
     candidate = source[:start] + new_code + source[end:]
 
@@ -684,6 +706,10 @@ def _schedule_rewrites(
                 key=lambda tup: tup[0],
                 reverse=True,
             )
+            if any(_has_ignore_comment(source, rng) for rng, _ in rewrites):
+                logger.debug("Ignoring transaction {transaction} due to ignore comment.", transaction=t)
+                continue
+
             conflicting = False
             for i, (rewrite_range, rewrite) in enumerate(rewrites):
                 for _, (other, _) in rewrites[i + 1 :]:
@@ -711,6 +737,7 @@ def _schedule_rewrites(
 
             if not conflicting:
                 scheduled_rewrites.extend(((t, r) for r in rewrites))
+
     if transaction_rewrites and (not scheduled_rewrites):
         logger.error("{} transactions found, but all were conflicting.", len(transaction_rewrites))
 
