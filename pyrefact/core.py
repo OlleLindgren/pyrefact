@@ -43,19 +43,7 @@ def unparse(node: ast.AST | str) -> str:
 
     source = astunparse.unparse(node)
 
-    if not isinstance(
-        node,
-        (
-            ast.FunctionDef,
-            ast.ClassDef,
-            ast.AsyncFunctionDef,
-            ast.Expr,
-            ast.Assign,
-            ast.AnnAssign,
-            ast.AugAssign,
-            ast.If,
-            ast.IfExp,
-    ),):
+    if not isinstance(node, ast.stmt):
         source = source.rstrip()
 
     line_length = max(
@@ -881,15 +869,6 @@ def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> 
     if keep_first_indent:
         whitespace = max(re.findall(r" *\Z$", source[:start_charno]), key=len)
         start_charno -= len(whitespace)
-
-    if (
-        constants.PYTHON_VERSION < (3, 9)
-        and not is_valid_python(source[start_charno:end_charno])
-        and not code.startswith(" ")
-        and not match_template(node, ast.AST(body=list))
-    ):
-        start_charno += 2
-        end_charno += 2
 
     return Range(start_charno, end_charno)
 
