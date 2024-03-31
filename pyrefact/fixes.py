@@ -1574,32 +1574,74 @@ def _unused_loop_variable_names(root: ast.AST) -> Iterable[str]:
 def replace_nested_loops_with_set_list_comp(source: str) -> str:
 
     root = core.parse(source)
-    try:
-        new_loop_variable_name = next(_unused_loop_variable_names(root))
-    except StopIteration:
-        return
+    unused_variable_name_iterator = _unused_loop_variable_names(root)
 
-    # Bare loop
-    find = """
-    for {{variable}} in {{loop_expression}}:
-        {{inner_container}} = {{expression}}
-        {{outer_container_add_to}}({{inner_container}})
-    """
-    find = core.compile_template(
-        find,
-        outer_container_add_to=ast.Attribute(attr=("extend", "update")),
+    container = core.Wildcard("container", ast.Name)
+    expression = core.Wildcard("expression", ast.AST)
+    outer_container_add_to = core.Wildcard("outer_container_add_to", ast.Attribute(attr=("extend", "update")))
+
+    assign_expression_to_container = ast.Assign(targets=[container], value=expression)
+    add_container_to_outer_container = ast.Expr(value=ast.Call(func=outer_container_add_to, args=[container], keywords=[]))
+    add_expression_to_outer_container = ast.Expr(value=ast.Call(func=outer_container_add_to, args=[expression], keywords=[]))
+
+    leaf_template = (
+        [assign_expression_to_container, add_container_to_outer_container],
+        [add_expression_to_outer_container],
     )
-    replace = """
-    {{outer_container_add_to}}(
-        {{new_loop_variable_name}}
-        for {{variable}} in {{loop_expression}}
-        for {{new_loop_variable_name}} in {{expression}}
-    )
-    """
-    replace = replace.replace("{{new_loop_variable_name}}", new_loop_variable_name)
 
-    yield from processing.find_replace(source, find, replace, root=root)
+    transaction = 1
+    for node in core.walk(root, (ast.For, ast.AsyncFor)):
+        outermost_for = node
+        generators = [
+            ast.comprehension(
+                target=node.target,
+                iter=node.iter,
+                ifs=[],
+                is_async=int(isinstance(node, ast.AsyncFor)),
+            )
+        ]
+        while core.match_template(node.body, [(ast.For, ast.If, ast.AsyncFor)]):
+            node = node.body[0]
+            if isinstance(node, (ast.For, ast.AsyncFor)):
+                generators.append(
+                    ast.comprehension(
+                        target=node.target,
+                        iter=node.iter,
+                        ifs=[],
+                        is_async=int(isinstance(node, ast.AsyncFor)),
+                    )
+                )
+            else:
+                generators[-1].ifs.append(node.test)
 
+        if m := core.match_template(node.body, leaf_template):
+            call_node = node.body[-1]
+
+            try:
+                new_loop_variable_name = next(unused_variable_name_iterator)
+            except StopIteration:
+                return
+
+            elt = ast.Name(id=new_loop_variable_name)
+            generators.append(
+                ast.comprehension(
+                    target=ast.Name(id=new_loop_variable_name),
+                    iter=m.expression,
+                    ifs=[],
+                    is_async=0,
+                )
+            )
+            new_comprehension = ast.GeneratorExp(
+                elt=elt, generators=generators, is_async=0
+            )
+            call_node = ast.Call(
+                func=m.outer_container_add_to,
+                args=[new_comprehension],
+                keywords=call_node.value.keywords,
+            )
+
+            yield outermost_for, call_node, transaction
+            transaction += 1
 
 @processing.fix
 def replace_redundant_starred(source: str) -> str:
