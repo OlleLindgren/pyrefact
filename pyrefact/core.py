@@ -868,10 +868,10 @@ def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> 
     end_charno = line_start_charnos[node_position.end_lineno - 1] + node_position.end_col_offset
 
     code = source[start_charno:end_charno]
-    if code[0] == " ":
+    if code and code[0] == " ":
         whitespace = max(re.findall(r"\A^ *", code), key=len)
         start_charno += len(whitespace)
-    if code[-1] == " ":
+    if code and code[-1] == " ":
         whitespace = max(re.findall(r" *\Z$", code), key=len)
         end_charno -= len(whitespace)
     if source[start_charno - 1] == "@" and isinstance(
