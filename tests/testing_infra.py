@@ -22,7 +22,7 @@ def _create_diff_view(processed_content: str, expected_content: str) -> str:
     exp_lines = expected_content.splitlines() or [""]
     length = max(max(map(len, proc_lines)), max(map(len, exp_lines)))
     diff_view = [
-        f"{p.ljust(length, ' ')} {'=' if p==e else '!'} {e.ljust(length, ' ')}\n"
+        f"{p.ljust(length, ' ')} {'=' if p==e else '!'} {e}\n"
         for p, e in itertools.zip_longest(proc_lines, exp_lines, fillvalue="")
     ]
     return "".join(diff_view)
