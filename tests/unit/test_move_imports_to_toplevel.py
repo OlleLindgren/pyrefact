@@ -42,8 +42,8 @@ import sys
 import math
 
 sys.path.append(os.getcwd())
-from somewhere import something
 from somewhere import something_else
+from somewhere import something
 
 def function_call():
     return something_else()
@@ -74,8 +74,8 @@ def hoo():
     print(199)
         """,
             """
-import os
 from numpy import intp as c_intp
+import os
 from numpy import (
     integer, ndarray, dtype as _dtype, asarray, frombuffer
 )
@@ -87,7 +87,8 @@ def woo():
 def hoo():
     print(199)
         """,
-    ),)
+        ),
+    )
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.move_imports_to_toplevel(source)

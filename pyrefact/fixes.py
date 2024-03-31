@@ -918,6 +918,7 @@ def _get_package_names(node: ast.Import | ast.ImportFrom):
     return [alias.name for alias in node.names]
 
 
+@processing.fix
 def move_imports_to_toplevel(source: str) -> str:
     root = core.parse(source)
     toplevel_imports = set(core.filter_nodes(root.body, (ast.Import, ast.ImportFrom)))
@@ -992,9 +993,11 @@ def move_imports_to_toplevel(source: str) -> str:
 
     if removals or additions:
         logger.debug("Moving imports to toplevel")
-        source = processing.alter_code(source, root, removals=removals, additions=additions)
-
-    return source
+        transaction = 0
+        for a in additions:
+            yield None, a, transaction
+        for r in removals:
+            yield r, None, transaction
 
 
 def remove_duplicate_functions(source: str, preserve: Collection[str]) -> str:
