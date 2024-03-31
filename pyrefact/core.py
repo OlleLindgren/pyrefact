@@ -894,6 +894,20 @@ def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> 
     return Range(start_charno, end_charno)
 
 
+def has_ignore_comment(source: str, rng: Range) -> bool:
+    pattern = re.compile(r"#\s*pyrefact\s*:\s*(skip_file|ignore)")
+
+    character_count = 0
+    for line in source.splitlines(keepends=True):
+        line_start = character_count
+        line_end = character_count = line_start + len(line)
+
+        if rng & Range(line_start, line_end) and pattern.search(line):
+            return True
+
+    return False
+
+
 def get_code(node: ast.AST | Range, source: str) -> str:
     """Get python code from ast
 

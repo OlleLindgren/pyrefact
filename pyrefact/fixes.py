@@ -933,7 +933,9 @@ def move_imports_to_toplevel(source: str) -> str:
         if all(
             name in constants.PYTHON_311_STDLIB or name in toplevel_packages
             for name in _get_package_names(node)
-    )}
+        )
+        and not core.has_ignore_comment(source, core.get_charnos(node, source))
+    }
 
     if defs := set(
         core.filter_nodes(root.body, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))

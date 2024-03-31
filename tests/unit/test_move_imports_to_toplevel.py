@@ -10,7 +10,8 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = ((
+    test_cases = (
+        (
         """
 #!/usr/bin/env python3
 '''docstring'''
@@ -86,6 +87,40 @@ def woo():
     print(199)
 def hoo():
     print(199)
+        """,
+        ),
+        (
+        """
+import sys
+if sys.version_info >= (3, 11):
+    from tomllib import load  # pyrefact: ignore
+else:
+    from tomli import load  # pyrefact: ignore
+        """,
+        """
+import sys
+if sys.version_info >= (3, 11):
+    from tomllib import load  # pyrefact: ignore
+else:
+    from tomli import load  # pyrefact: ignore
+        """,
+        ),
+        (
+        """
+import sys
+if sys.version_info >= (3, 11):
+    import re
+    from tomllib import load  # pyrefact: ignore
+else:
+    from tomli import load  # pyrefact: ignore
+        """,
+        """
+import re
+import sys
+if sys.version_info >= (3, 11):
+    from tomllib import load  # pyrefact: ignore
+else:
+    from tomli import load  # pyrefact: ignore
         """,
         ),
     )

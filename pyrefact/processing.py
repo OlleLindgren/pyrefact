@@ -88,20 +88,6 @@ class _Rewrite(NamedTuple):
         return hash((old_hash, new_hash))
 
 
-def _has_ignore_comment(source: str, rng: core.Range) -> bool:
-    pattern = re.compile(r"#\s*pyrefact\s*:\s*(skip_file|ignore)")
-
-    character_count = 0
-    for line in source.splitlines(keepends=True):
-        line_start = character_count
-        line_end = character_count = line_start + len(line)
-
-        if rng & core.Range(line_start, line_end) and pattern.search(line):
-            return True
-
-    return False
-
-
 def _substitute_original_strings(original_source: str, new_source: str) -> str:
     """Ensure consistent string formattings in new and old source.
 
@@ -424,7 +410,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
     if isinstance(old, core.Range):
         # Prevent changes being applied if `# pyrefact: skip_file` or `pyrefact: ignore` comment
 
-        if _has_ignore_comment(source, old):
+        if core.has_ignore_comment(source, old):
             return source
 
         # Prevent whitespace-only changes from being applied
@@ -485,7 +471,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         for i, code in enumerate(lines)
     )
 
-    if _has_ignore_comment(source, core.Range(start, end)):
+    if core.has_ignore_comment(source, core.Range(start, end)):
         return source
 
     candidate = source[:start] + new_code + source[end:]
@@ -718,7 +704,7 @@ def _schedule_rewrites(
                 key=lambda tup: tup[0],
                 reverse=True,
             )
-            if any(_has_ignore_comment(source, rng) for rng, _ in rewrites):
+            if any(core.has_ignore_comment(source, rng) for rng, _ in rewrites):
                 logger.debug("Ignoring transaction {transaction} due to ignore comment.", transaction=t)
                 continue
 
