@@ -1151,7 +1151,19 @@ class _NameWildcardTransformer(ast.NodeTransformer):
 
     def visit_Attribute(self, node):
         new_attr = self.name_wildcard_mapping.get(node.attr, node.attr)
-        new_node = ast.Attribute(value=self.visit(node.value), attr=new_attr, ctx=node.ctx)
+        sentinel = object()
+        value = getattr(node, "value", sentinel)
+        ctx = getattr(node, "ctx", sentinel)
+        attr = getattr(node, "attr", sentinel)
+        kwargs = {}
+        if value is not sentinel:
+            kwargs["value"] = self.visit(value)
+        if ctx is not sentinel:
+            kwargs["ctx"] = ctx
+        if attr is not sentinel:
+            kwargs["attr"] = new_attr
+
+        new_node = ast.Attribute(**kwargs)
         return ast.copy_location(new_node, node)
 
     def visit_alias(self, node):
