@@ -71,7 +71,18 @@ f = [1, 2, 3]
 x.extend(foo, bar)
 x.extend((7, 22))
     """,
-    ),)
+        ),
+        (
+            """
+f = set()
+f.update(foo, bar)
+f.update((7, 22))
+    """,
+        """
+f = {*foo, *bar, 7, 22}
+    """,
+        ),
+    )
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.replace_collection_add_update_with_collection_literal(source)

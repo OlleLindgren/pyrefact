@@ -2997,7 +2997,7 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
     target_template = core.Wildcard("common_target", ast.Name(id=str), common=True)
     assign_template = core.compile_template(
         "{{common_target}} = {{other}}",
-        other=(ast.List, ast.Set, ast.ListComp, ast.SetComp),
+        other=(ast.List, ast.Set, ast.ListComp, ast.SetComp, ast.Call(func=ast.Name(id="set"))),
         common_target=target_template,
     )
     modify_template = ast.Expr(
@@ -3041,6 +3041,18 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
                 replacement = ast.List(elts=elts)
             else:
                 replacement = ast.Set(elts=elts)
+
+            yield assigned_value, replacement, transaction
+            for m in matches:
+                yield m.root, None, transaction
+
+        elif core.match_template(assigned_value, ast.Call(func=ast.Name(id="set"))):
+            if assigned_value.args:
+                elts = [ast.Starred(value=assigned_value.args[0])] + other_elts
+            else:
+                elts = other_elts
+
+            replacement = ast.Set(elts=elts)
 
             yield assigned_value, replacement, transaction
             for m in matches:
