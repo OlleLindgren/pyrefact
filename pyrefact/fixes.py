@@ -1560,6 +1560,46 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
             yield n2, None, transaction
 
 
+def _unused_loop_variable_names(root: ast.AST) -> Iterable[str]:
+    used_names = {node.id for node in core.walk(root, ast.Name)}
+
+    for name_length in range(3):
+        for new_name in itertools.product(string.ascii_lowercase, repeat=name_length):
+            new_name = "".join(new_name)
+            if new_name and new_name not in used_names:
+                yield new_name
+
+
+@processing.fix
+def replace_nested_loops_with_set_list_comp(source: str) -> str:
+
+    root = core.parse(source)
+    try:
+        new_loop_variable_name = next(_unused_loop_variable_names(root))
+    except StopIteration:
+        return
+
+    # Bare loop
+    find = """
+    for {{variable}} in {{loop_expression}}:
+        {{inner_container}} = {{expression}}
+        {{outer_container_add_to}}({{inner_container}})
+    """
+    find = core.compile_template(
+        find,
+        outer_container_add_to=ast.Attribute(attr=("extend", "update")),
+    )
+    replace = """
+    {{outer_container_add_to}}(
+        {{new_loop_variable_name}}
+        for {{variable}} in {{loop_expression}}
+        for {{new_loop_variable_name}} in {{expression}}
+    )
+    """
+    replace = replace.replace("{{new_loop_variable_name}}", new_loop_variable_name)
+
+    yield from processing.find_replace(source, find, replace, root=root)
+
 
 @processing.fix
 def replace_redundant_starred(source: str) -> str:

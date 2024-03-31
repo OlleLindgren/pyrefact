@@ -545,4 +545,20 @@ print(sum(x))
 print(sum((y for y in (1, 2, 3) if y <= 0)))
             """,
         ),
+        (
+        """
+l = []
+
+for _ in range(1001):
+    m = list(range(1001))
+    l.extend(m)
+
+s = sum(l)
+print(s)
+        """,
+        """
+S = 501000500
+print(S)
+        """
+        )
 )
