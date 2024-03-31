@@ -405,9 +405,18 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
             ast.AsyncFor,
             ast.AsyncWith,
             ast.With,
+            ast.Return,
+            ast.Continue,
+            ast.Break,
         )
         if new_code and not new_code.endswith("\n") and isinstance(new, standalone_types):
             new_code += "\n"
+            if isinstance(old, core.Range):
+                before = source[:old.end].expandtabs()
+                if before:
+                    last_line = before.splitlines()[-1]
+                    indent = len(last_line) - len(last_line.rstrip())
+                    new_code += " " * indent
 
     else:
         raise TypeError(f"Invalid replacement type: {type(new)}")
@@ -669,6 +678,9 @@ def _schedule_rewrites(
             before = core.get_charnos(before, source)
         elif before is None:
             before = core.get_charnos(after, source)
+
+            # In order to not replace anything, we need to make sure the range is empty.
+            before = core.Range(before.start, before.start)
 
         if after is None:
             after = ""

@@ -2356,7 +2356,9 @@ def _move_before_scope(
     removals = set(nodes)
     first_node = min(removals, key=lambda node: node.lineno)
     replacement = copy.copy(first_node)
-    replacement.lineno = scope.lineno - 1
+    replacement_lineno_length = replacement.end_lineno - replacement.lineno
+    replacement.lineno = scope.lineno
+    replacement.end_lineno = replacement.lineno + replacement_lineno_length
     replacement.col_offset = scope.col_offset
     additions = {replacement}
 
@@ -2376,8 +2378,10 @@ def _move_after_scope(
     return additions, removals
 
 
+@processing.fix
 def breakout_common_code_in_ifs(source: str) -> str:
     root = core.parse(source)
+    transaction = 0
     for node, body, orelse in _iter_explicit_if_elses(root):
         if core.get_code(node, source).startswith("elif"):
             continue
@@ -2390,10 +2394,12 @@ def breakout_common_code_in_ifs(source: str) -> str:
         has_namedexpr = any(core.walk(node.test, ast.NamedExpr))
         start_branches = [body[0], orelse[0]]
         end_branches = [body[-1], orelse[-1]]
+
         if not has_namedexpr and _is_same_code(*start_branches):
             additions, removals = _move_before_scope(node, start_branches)
         elif _is_same_code(*end_branches):
             additions, removals = _move_after_scope(node, end_branches)
+
         try:
             start_branches = list(_all_branches(body[0], orelse[0], expand_ifs_on="start"))
             end_branches = list(_all_branches(body[-1], orelse[-1], expand_ifs_on="end"))
@@ -2411,11 +2417,17 @@ def breakout_common_code_in_ifs(source: str) -> str:
                 count = len(end_nonblocking_branches)
                 if count >= 2 and _is_same_code(*end_nonblocking_branches):
                     additions, removals = _move_after_scope(node, end_nonblocking_branches)
+
         if core.match_template(list(additions), [ast.Pass]):
             continue
+
         if additions and removals:
-            source = processing.alter_code(source, root, additions=additions, removals=removals)
-            return breakout_common_code_in_ifs(source)
+            transaction += 1
+            for a in additions:
+                yield None, a, transaction
+            for r in removals:
+                yield r, None, transaction
+
     for node, body, orelse in _iter_implicit_if_elses(root):
         if core.get_code(node, source).startswith("elif"):
             continue
@@ -2429,6 +2441,7 @@ def breakout_common_code_in_ifs(source: str) -> str:
         start_branches = [body[0], orelse[0]]
         if not has_namedexpr and _is_same_code(*start_branches):
             additions, removals = _move_before_scope(node, start_branches)
+
         try:
             start_branches = list(_all_branches(body[0], orelse[0], expand_ifs_on="start"))
         except (ValueError, IndexError):
@@ -2436,12 +2449,16 @@ def breakout_common_code_in_ifs(source: str) -> str:
         else:
             if not has_namedexpr and _is_same_code(*start_branches):
                 additions, removals = _move_before_scope(node, start_branches)
+
         if core.match_template(list(additions), [ast.Pass]):
             continue
-        if additions or removals:
-            source = processing.alter_code(source, root, additions=additions, removals=removals)
-            return breakout_common_code_in_ifs(source)
-    return source
+
+        if additions and removals:
+            transaction += 1
+            for a in additions:
+                yield None, a, transaction
+            for r in removals:
+                yield r, None, transaction
 
 
 @processing.fix
