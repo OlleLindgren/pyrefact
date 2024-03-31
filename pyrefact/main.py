@@ -117,6 +117,7 @@ def _multi_run_fixes(source: str, preserve: Collection[str]) -> str:
     source = fixes.replace_setcomp_add_with_union(source)
     source = fixes.replace_listcomp_append_with_plus(source)
     source = fixes.replace_for_loops_with_dict_comp(source)
+    source = fixes.replace_redundant_starred(source)
     source = fixes.implicit_dict_keys_values_items(source)
     source = fixes.replace_dict_assign_with_dict_literal(source)
     source = fixes.replace_dict_update_with_dict_literal(source)

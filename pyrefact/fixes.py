@@ -5,6 +5,7 @@ import collections
 import copy
 import itertools
 import re
+import string
 import textwrap
 from pathlib import Path
 from typing import Collection, Iterable, List, Literal, Mapping, Sequence, Tuple
@@ -1557,6 +1558,25 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
             replacement = ast.BinOp(left=value, op=body_node.op, right=replacement)
             yield value, replacement, transaction
             yield n2, None, transaction
+
+
+
+@processing.fix
+def replace_redundant_starred(source: str) -> str:
+    root = core.parse(source)
+    value_template = core.Wildcard("value", (ast.ListComp, ast.GeneratorExp, ast.SetComp))
+
+    template = (ast.List(elts=[ast.Starred(value=value_template)]))
+    for node, value in core.walk_wildcard(root, template):
+        yield node, ast.Call(func=ast.Name(id="list"), args=[value], keywords=[])
+
+    template = (ast.Tuple(elts=[ast.Starred(value=value_template)]))
+    for node, value in core.walk_wildcard(root, template):
+        yield node, ast.Call(func=ast.Name(id="tuple"), args=[value], keywords=[])
+
+    template = (ast.Set(elts=[ast.Starred(value=value_template)]))
+    for node, value in core.walk_wildcard(root, template):
+        yield node, ast.Call(func=ast.Name(id="set"), args=[value], keywords=[])
 
 
 @processing.fix
