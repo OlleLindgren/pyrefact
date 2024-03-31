@@ -1386,6 +1386,79 @@ def remove_redundant_comprehensions(source: str) -> str:
 
 
 @processing.fix
+def merge_nested_comprehensions(source: str) -> str:
+    root = core.parse(source)
+
+    x_for_x_in_iter_template = ast.comprehension(
+        target=ast.Name,
+        iter=(
+            ast.SetComp(elt=ast.Name),
+            ast.ListComp(elt=ast.Name),
+            ast.GeneratorExp(elt=ast.Name),
+            ast.DictComp(key=ast.Name),
+        ),
+        ifs=[],
+        is_async=0,
+    )
+
+    class RenameTransformer(ast.NodeTransformer):
+        def __init__(self, name, new_name):
+            self.name = name
+            self.new_name = new_name
+
+        def visit_Name(self, node):
+            if node.id == self.name:
+                new_node = ast.Name(id=self.new_name, ctx=node.ctx)
+                return ast.copy_location(new_node, node)
+
+            return node
+
+    for node in core.walk(root, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+        new_generators = []
+        for comprehension in node.generators:
+            if core.match_template(comprehension, x_for_x_in_iter_template):
+                # Inside the inner comprehension, rename all references to the inner target
+                # to the outer target, that is being "extracted" from the inner comprehension
+                # by the outer comprehension. This means we rename iter.elt.id to target.id.
+                if isinstance(comprehension.iter, ast.DictComp):
+                    target_name_inner = comprehension.iter.key.id
+                else:
+                    target_name_inner = comprehension.iter.elt.id
+
+                if not core.match_template(comprehension.iter.generators[-1].target, ast.Name(id=target_name_inner)):
+                    new_generators.append(comprehension)
+                    continue
+
+                # Since sets and dicts have the effect of de-duplicating, we can merge them,
+                # but only with eachother and only if the target is the same as the inner target.
+                if (
+                    isinstance(comprehension.iter, (ast.SetComp, ast.DictComp))
+                    and not core.match_template(
+                        node,
+                        (
+                            ast.SetComp(elt=ast.Name(id=comprehension.target.id)),
+                            ast.DictComp(key=ast.Name(id=comprehension.target.id)),
+                ))):
+                    new_generators.append(comprehension)
+                    continue
+
+                tf = RenameTransformer(target_name_inner, comprehension.target.id)
+
+                new_generators.extend(tf.visit(comprehension.iter).generators)
+
+            else:
+                new_generators.append(comprehension)
+
+        if node.generators != new_generators:
+            if isinstance(node, ast.DictComp):
+                new_node = ast.DictComp(key=node.key, value=node.value, generators=new_generators)
+            else:
+                new_node = type(node)(elt=node.elt, generators=new_generators)
+
+            yield node, ast.copy_location(new_node, node)
+
+
+@processing.fix
 def replace_functions_with_literals(source: str) -> str:
     root = core.parse(source)
 

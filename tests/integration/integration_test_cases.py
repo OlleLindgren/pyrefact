@@ -560,5 +560,31 @@ print(s)
 S = 501000500
 print(S)
         """
-        )
+        ),
+        (
+        """
+q = set()
+for a in [x, y, 1, 2, 3]:
+    for x in (1, 2, 3):
+        if x * a > 3:
+            q.update(
+                b
+                for _ in range(11)
+                for b in frozenset(range(2, a, x))
+            )
+print(q)
+        """,
+        """
+Q = set()
+Q.update((
+    c
+    for a in [x, y, 1, 2, 3]
+    for x in (1, 2, 3)
+    if x * a > 3
+    for _ in range(11)
+    for c in frozenset(range(2, a, x))
+))
+print(Q)
+        """
+        ),
 )
