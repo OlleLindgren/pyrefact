@@ -174,6 +174,8 @@ def format_code(
     if not source.strip():
         return source
 
+    original_source = source
+
     if core.is_valid_python(source):
         minimum_indent = 0
     else:
@@ -257,6 +259,8 @@ def format_code(
 
     if minimum_indent > 0:
         source = textwrap.indent(source, " " * minimum_indent)
+
+    source, *_ = processing.minimize_whitespace_line_differences(original_source, source)
 
     return source
 

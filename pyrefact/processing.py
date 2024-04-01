@@ -320,7 +320,7 @@ def _sources_equivalent(source1: str, source2: ast.AST) -> bool:
     return _asts_equal(core.parse(source1), core.parse(source2))
 
 
-def _minimize_whitespace_line_differences(source: str, new_source: str) -> Tuple[str, str, str]:
+def minimize_whitespace_line_differences(source: str, new_source: str) -> Tuple[str, str, str]:
     old_lines = source.splitlines(keepends=True)
     new_lines = new_source.splitlines(keepends=True)
 
@@ -422,7 +422,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
                     choice = candidate
                     break
 
-        new_source, old, new = _minimize_whitespace_line_differences(source, choice)
+        new_source, old, new = minimize_whitespace_line_differences(source, choice)
         valid = core.is_valid_python(new_source)
         _log_replacement(old, new, fix_function_name, valid)
 
@@ -466,7 +466,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         if core.is_valid_python(pass_candidate):
             candidate = pass_candidate
 
-    new_source, old, new = _minimize_whitespace_line_differences(source, candidate)
+    new_source, old, new = minimize_whitespace_line_differences(source, candidate)
     valid = core.is_valid_python(new_source)
     _log_replacement(old, new, fix_function_name, valid)
 
