@@ -69,48 +69,48 @@ for q in sorted(values):
 values = range(50)
 w = [x for x in list(values)]
 print(w)
-    """,
+        """,
         """
 values = range(50)
 w = [x for x in values]
 print(w)
-    """,
+        """,
         ),
         (
             """
 values = range(50)
 w = [x for x in iter(values)]
 print(w)
-    """,
+        """,
         """
 values = range(50)
 w = [x for x in values]
 print(w)
-    """,
+        """,
         ),
         (
             """
 values = range(50)
 w = {x for x in list(values)}
 print(w)
-    """,
+        """,
         """
 values = range(50)
 w = {x for x in values}
 print(w)
-    """,
+        """,
         ),
         (
             """
 values = range(50)
 w = (x for x in list(values))
 print(w)
-    """,
+        """,
         """
 values = range(50)
 w = (x for x in values)
 print(w)
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

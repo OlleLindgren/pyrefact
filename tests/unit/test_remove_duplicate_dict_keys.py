@@ -14,10 +14,10 @@ def main() -> int:
     test_cases = ((
         """
 {1: 2, 99: 101, "s": 4, 1: 22, sum(range(11)): 9999, sum(range(11)): 9999}
-    """,
+        """,
         """
 {99: 101, "s": 4, 1: 22, sum(range(11)): 9999, sum(range(11)): 9999}
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

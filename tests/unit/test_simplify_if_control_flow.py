@@ -40,7 +40,7 @@ else:
 do_stuff(var_1)
 do_stuff(var_2 - var_1 ** 2)
 print(doing_other_stuff(var_1) - do_stuff(var_2 ** var_2))
-    """,
+        """,
         ),
         (  # Too little code would be simplified => do not replace this
             """
@@ -100,7 +100,7 @@ if var_1 > 1 / z:
     raise RuntimeError(f"Invalid value for {var_1}")
 
 print(random.randint(1 / z ** 2, -1 / (z + var_2 - var_1) ** 2))
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

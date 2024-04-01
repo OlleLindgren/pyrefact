@@ -10,76 +10,74 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
+    test_cases = ((
         """
 1 or 2 or 3
 0 or 4 or 5
-    """,
+        """,
         """
 1
 4
-    """,
+        """,
         ),
         (
-        """
+            """
 1 and 2 and 3
 0 and 4 and 5
-    """,
+        """,
         """
 3
 0
-    """,
+        """,
         ),
         (
-        """
+            """
 print(None or os.getcwd() or False)
-    """,
+        """,
         """
 print(os.getcwd() or False)
-    """,
+        """,
         ),
         (
-        """
+            """
 print(None or os.getcwd() or False or sys.path)
-    """,
+        """,
         """
 print(os.getcwd() or sys.path)
-    """,
+        """,
         ),
         (
-        """
+            """
 print(None and os.getcwd() and False)
-    """,
+        """,
         """
 print(None)
-    """,
+        """,
         ),
         (
-        """
+            """
 print(None and os.getcwd() and False and sys.path)
-    """,
+        """,
         """
 print(None)
-    """,
+        """,
         ),
         (
+            """
+print(os.getcwd() and False)
+        """,
         """
 print(os.getcwd() and False)
-    """,
-        """
-print(os.getcwd() and False)
-    """,
+        """,
         ),
         (
+            """
+print(os.getcwd() and sys.path)
+        """,
         """
 print(os.getcwd() and sys.path)
-    """,
-        """
-print(os.getcwd() and sys.path)
-    """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.remove_redundant_boolop_values(source)

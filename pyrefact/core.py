@@ -11,10 +11,22 @@ import textwrap
 import traceback
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Collection, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, TypeVar, Union
+from typing import (
+    Any,
+    Collection,
+    Iterable,
+    List,
+    Mapping,
+    NamedTuple,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
+
 
 from pyrefact import constants, formatting, logs as logger
-
 
 Template = TypeVar("Template", bound=Union[ast.AST, type, Collection[Union[ast.AST, type]]])
 
@@ -22,15 +34,7 @@ Template = TypeVar("Template", bound=Union[ast.AST, type, Collection[Union[ast.A
 # a kind=None set by default on CPython, but not on PyPy. (pypy3.10-7.3.12)
 DEFAULT_IGNORE = frozenset(("lineno", "end_lineno", "col_offset", "end_col_offset", "kind"))
 
-__all__ = [
-    "Wildcard",
-    "ZeroOrOne",
-    "ZeroOrMany",
-    "OneOrMany",
-    "match_template",
-    "Range",
-    "Match",
-]
+__all__ = ["Wildcard", "ZeroOrOne", "ZeroOrMany", "OneOrMany", "match_template", "Range", "Match"]
 
 
 def unparse(node: ast.AST | str) -> str:
@@ -46,10 +50,8 @@ def unparse(node: ast.AST | str) -> str:
     if not isinstance(node, ast.stmt):
         source = source.rstrip()
 
-    line_length = max(
-        60,
-        parse_line_length_from_pyproject_toml() - getattr(node, "col_offset", 0),
-    )
+    toml_line_length = parse_line_length_from_pyproject_toml() - getattr(node, "col_offset", 0)
+    line_length = max(60, toml_line_length)
     try:
         ast.parse(source)
     except (SyntaxError, ValueError):
@@ -172,7 +174,11 @@ def _match_tuple(node: ast.AST, template: Tuple[ast.AST, ...], ignore: Collectio
     return ()
 
 
-def _match_set(node: ast.AST, template: Set[ast.AST], ignore: Collection[str]) -> Tuple[ast.AST, ...]:
+def _match_set(
+    node: ast.AST,
+    template: Set[ast.AST],
+    ignore: Collection[str],
+) -> Tuple[ast.AST, ...]:
     if not isinstance(node, list):
         return ()
 
@@ -213,7 +219,11 @@ def _iter_template_permutations(template: List[Template], length: int) -> Iterab
         yield sum(([key[1]] * count for key, count in zip(keys, permutation)), [])
 
 
-def _match_list(nodes: ast.AST, template: List[ast.AST], ignore: Collection[str]) -> Tuple[ast.AST, ...]:
+def _match_list(
+    nodes: ast.AST,
+    template: List[ast.AST],
+    ignore: Collection[str],
+) -> Tuple[ast.AST, ...]:
     if not isinstance(nodes, list):
         return ()
 
@@ -245,7 +255,6 @@ def _match_list(nodes: ast.AST, template: List[ast.AST], ignore: Collection[str]
 
 
 def _match_wildcard(node: ast.AST, template: Wildcard, ignore: Collection[str]) -> Tuple:
-
     # Special case for ellipsis {{...}} pattern, which matches everything.
     if template.name == "Ellipsis_anything" and template.template is object:
         return (node,)
@@ -256,7 +265,9 @@ def _match_wildcard(node: ast.AST, template: Wildcard, ignore: Collection[str]) 
 
 
 def _match_template_vars(
-    node: ast.AST, template: ast.AST, ignore: Collection[str] = DEFAULT_IGNORE,
+    node: ast.AST,
+    template: ast.AST,
+    ignore: Collection[str] = DEFAULT_IGNORE,
 ) -> Tuple[ast.AST, ...]:
     t_vars = vars(template)
     n_vars = vars(node)
@@ -284,7 +295,9 @@ def _isinstance_cache(obj: object, types: type | Tuple[type, ...]) -> bool:
 
 
 def match_template(
-    node: ast.AST, template: Template, ignore: Collection[str] = DEFAULT_IGNORE,
+    node: ast.AST,
+    template: Template,
+    ignore: Collection[str] = DEFAULT_IGNORE,
 ) -> Tuple[ast.AST, ...]:
     """Match a node against a provided ast template.
 
@@ -388,7 +401,9 @@ def parse(source_code: str) -> ast.Module:
         end = min(len(error_lines), error.lineno + 50)
         error_code_segment = "".join(error_lines[start:end])
         logger.error(
-            "Failed to parse source with error:\n{}\n\n\nCode:\n\n{}", stack_trace, error_code_segment
+            "Failed to parse source with error:\n{}\n\n\nCode:\n\n{}",
+            stack_trace,
+            error_code_segment,
         )
         raise error
 
@@ -822,12 +837,7 @@ def _get_position(node: ast.AST) -> _Position:
     col_offset = getattr(node, "col_offset", 0)
     end_lineno = getattr(node, "end_lineno", lineno)
     end_col_offset = getattr(node, "end_col_offset", col_offset)
-    return _Position(
-        lineno,
-        col_offset,
-        end_lineno,
-        end_col_offset,
-    )
+    return _Position(lineno, col_offset, end_lineno, end_col_offset)
 
 
 def get_charnos(node: ast.AST, source: str, keep_first_indent: bool = False) -> Range:
@@ -950,10 +960,7 @@ def literal_value(node: ast.AST) -> bool:
             return result
 
     # For e.g. "".join(("1", "2"))
-    if match_template(
-        node,
-        ast.Call(func=ast.Attribute(value=ast.Constant), keywords=[])
-    ):
+    if match_template(node, ast.Call(func=ast.Attribute(value=ast.Constant), keywords=[])):
         node_value = literal_value(node.func.value)
         args = [literal_value(arg) for arg in node.args]
         return getattr(node_value, node.func.attr)(*args)
@@ -1183,12 +1190,7 @@ class _NameWildcardTransformer(ast.NodeTransformer):
             # both in the case where new_asname is None.
             if new_asname is None:
                 new_asname = object
-            new_node = type(new_name)(
-                template=ast.alias(
-                    name=new_name.template,
-                    asname=new_asname,
-                )
-            )
+            new_node = type(new_name)(template=ast.alias(name=new_name.template, asname=new_asname))
 
         else:
             new_node = ast.alias(name=new_name, asname=new_asname)
@@ -1198,11 +1200,7 @@ class _NameWildcardTransformer(ast.NodeTransformer):
     def visit_ImportFrom(self, node):
         new_module = self.name_wildcard_mapping.get(node.module, node.module)
         new_names = [self.visit(child) for child in node.names]
-        new_node = ast.ImportFrom(
-            module=new_module,
-            names=new_names,
-            level=node.level,
-        )
+        new_node = ast.ImportFrom(module=new_module, names=new_names, level=node.level)
         return ast.copy_location(new_node, node)
 
     def visit_ClassDef(self, node):

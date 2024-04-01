@@ -43,7 +43,7 @@ class Foo:
     @custom_decorator
     def i_have_many_decorators(cls):
         return 10
-            """,
+        """,
             """
 class Foo:
     def __init__(self):
@@ -77,7 +77,7 @@ class Foo:
     @custom_decorator
     def i_have_many_decorators():
         return 10
-            """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:
@@ -113,7 +113,7 @@ class Foo:
     @staticmethod
     def some_other_static_function():
         print(3)
-            """,
+        """,
             """
 def q() -> None:
     print(1)
@@ -136,10 +136,10 @@ def _some_static_function(x, y) -> int:
 class Foo:
     def __init__(self):
         self.x = 2
-            """,
-    ),
-    (
-        """
+        """,
+        ),
+        (
+            """
 class Foo(object):
     @staticmethod
     def h():
@@ -150,7 +150,7 @@ class Bar:
     def h():
         print(1)
         """,
-        """
+            """
 class Foo(object):
     @staticmethod
     def h():
@@ -160,9 +160,8 @@ def _h():
     print(1)
 class Bar:
     pass
-        """
-    )
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = object_oriented.move_staticmethod_static_scope(source, preserve=set())

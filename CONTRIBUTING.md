@@ -79,18 +79,18 @@ def main() -> int:
         (  # What it's intended to fix
             """
 import z as z
-            """,
+        """,
             """
 import z
-            """,
+        """,
         ),
         (  # What it should not touch
             """
 import foo as bar
-            """,
+        """,
             """
 import foo as bar
-            """,
+        """,
         ),
         (  # To test for conflicts, highlight limitations etc
             """
@@ -102,7 +102,7 @@ import heapq as heapq
 import math
 import numpy, math
 import math as numpy
-            """,
+        """,
             """
 import b
 import x as y
@@ -112,7 +112,7 @@ import heapq
 import math
 import numpy, math
 import math as numpy
-            """,
+        """,
         ),
     )
 

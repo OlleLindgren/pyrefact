@@ -10,62 +10,61 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
+    test_cases = ((
         """
 class Foo:
     pass
 
 Foo.x = 1
-    """,
+        """,
         """
 class Foo:
     pass
     x = 1
-    """,
+        """,
         ),
         (
-        """
+            """
 class Foo:
     pass
 
 Foo.x = (1, 2, 3)
-    """,
+        """,
         """
 class Foo:
     pass
     x = (1, 2, 3)
-    """,
+        """,
         ),
         (
+            """
+class Foo:
+    pass
+
+Bar.x = 1
+        """,
         """
 class Foo:
     pass
 
 Bar.x = 1
-    """,
-        """
-class Foo:
-    pass
-
-Bar.x = 1
-    """,
+        """,
         ),
         (
-        """
+            """
 class Foo(object):
     pass
 
 Foo.x = 1
-    """,
+        """,
         """
 class Foo(object):
     pass
     x = 1
-    """,
+        """,
         ),
         (
-        """
+            """
 @a
 @bunch
 @of
@@ -74,7 +73,7 @@ class Foo(object, list, set, tuple, []):
     pass
 
 Foo.x = 1
-    """,
+        """,
         """
 @a
 @bunch
@@ -83,26 +82,25 @@ Foo.x = 1
 class Foo(object, list, set, tuple, []):
     pass
     x = 1
-    """,
+        """,
         ),
         (
-        """
+            """
 class Foo:
     pass
 
 Foo.x = 1
 Foo.y = z
 Foo.z = func()
-    """,
+        """,
         """
 class Foo:
     pass
     x = 1
     y = z
     z = func()
-    """,
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = object_oriented.fix_unconventional_class_definitions(source)

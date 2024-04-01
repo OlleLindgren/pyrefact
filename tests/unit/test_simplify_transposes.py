@@ -15,24 +15,24 @@ def main() -> int:
 arr = [[1, 2, 3], [4, 5, 6]]
 assert list(zip(*arr)) == [[1, 4], [2, 5], [3, 6]]
 assert list(zip(*zip(*arr))) == [[1, 4], [2, 5], [3, 6]]
-    """,
+        """,
         """
 arr = [[1, 2, 3], [4, 5, 6]]
 assert list(zip(*arr)) == [[1, 4], [2, 5], [3, 6]]
 assert list(arr) == [[1, 4], [2, 5], [3, 6]]
-    """,
+        """,
         ),
         (
             """
 arr = np.array([[1, 2, 3], [4, 5, 6]])
 assert list(arr.T) == [[1, 4], [2, 5], [3, 6]]
 assert list(arr.T.T) == [[1, 2, 3], [4, 5, 6]]
-    """,
+        """,
         """
 arr = np.array([[1, 2, 3], [4, 5, 6]])
 assert list(arr.T) == [[1, 4], [2, 5], [3, 6]]
 assert list(arr) == [[1, 2, 3], [4, 5, 6]]
-    """,
+        """,
         ),
         (
             """
@@ -42,7 +42,7 @@ assert list(zip(*arr.T.T)) == [[1, 4], [2, 5], [3, 6]]
 assert list(zip(*zip(*arr))) == [[1, 2, 3], [4, 5, 6]]
 assert list(zip(*zip(*arr.T))) == [[1, 4], [2, 5], [3, 6]]
 assert list(zip(*zip(*arr.T.T))) == [[1, 2, 3], [4, 5, 6]]
-    """,
+        """,
         """
 arr = np.array([[1, 2, 3], [4, 5, 6]])
 assert list(arr) == [[1, 2, 3], [4, 5, 6]]
@@ -50,7 +50,7 @@ assert list(arr.T) == [[1, 4], [2, 5], [3, 6]]
 assert list(arr) == [[1, 2, 3], [4, 5, 6]]
 assert list(arr.T) == [[1, 4], [2, 5], [3, 6]]
 assert list(arr) == [[1, 2, 3], [4, 5, 6]]
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

@@ -378,7 +378,7 @@ def _do_rewrite(source: str, rewrite: _Rewrite, *, fix_function_name: str = "") 
         if new_code and isinstance(new, ast.stmt):
             new_code = new_code.rstrip() + "\n"
             if isinstance(old, core.Range):
-                before = source[:old.end].expandtabs()
+                before = source[: old.end].expandtabs()
                 if before:
                     last_line = before.splitlines()[-1]
                     indent = len(last_line) - len(last_line.rstrip())

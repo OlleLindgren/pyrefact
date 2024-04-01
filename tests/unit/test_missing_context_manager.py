@@ -17,7 +17,7 @@ import requests
 
 session = requests.Session()
 session.get("https://www.google.com")
-    """,
+        """,
         """
 import requests
 
@@ -31,7 +31,7 @@ x = open("path/to/file.py")
 print(x.read())
 
 x.close()
-    """,
+        """,
         """
 with open("path/to/file.py") as x:
     print(x.read())
@@ -69,7 +69,7 @@ def get_capacity():
             capacities = [{"id": row[0], "name": row[1]} for row in cursor.fetchall()]
 
             return jsonify(capacities)
-            """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

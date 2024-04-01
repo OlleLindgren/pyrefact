@@ -18,7 +18,7 @@ def f(x: int) -> int:
         return 10
     else:
         return 11 - x
-            """,
+        """,
             """
 def f(x: int) -> int:
     if x == 2:
@@ -36,7 +36,7 @@ def f(x: int) -> int:
         return x**x - 3
     else:
         return 11 - x
-            """,
+        """,
             """
 def f(x: int) -> int:
     if x == 2:
@@ -64,7 +64,7 @@ def f(x: int) -> int:
             return 0
     else:
         return 11 - x
-            """,
+        """,
             """
 def f(x: int) -> int:
     if x < 0:
@@ -90,7 +90,7 @@ for i in range(10):
         continue
     else:
         print(2)
-            """,
+        """,
             """
 for i in range(10):
     if i == 3:
@@ -108,7 +108,7 @@ for i in range(10):
             time.sleep(3)
     else:
         print(2)
-            """,
+        """,
             """
 for i in range(10):
     if i == 3:
@@ -129,7 +129,7 @@ for i in range(10):
             break
     else:
         print(2)
-            """,
+        """,
             """
 for i in range(10):
     if i == 3:
@@ -139,7 +139,7 @@ for i in range(10):
             break
     else:
         print(2)
-            """,
+        """,
         ),
         (
             """
@@ -153,7 +153,7 @@ def foo() -> bool:
             return False
         else:
             return True
-            """,
+        """,
             """
 def foo() -> bool:
     if x == 1:
@@ -176,7 +176,7 @@ def foo() -> bool:
         return False
     else:
         return True
-            """,
+        """,
             """
 def foo() -> bool:
     if x == 1:

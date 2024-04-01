@@ -578,7 +578,12 @@ def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset
 
     yielded = set()
     for name in _iter_unused_names(root):
-        if name.id not in preserve and name.id != "_" and name not in class_body_blacklist and name not in yielded:
+        if (
+            name.id not in preserve
+            and name.id != "_"
+            and name not in class_body_blacklist
+            and name not in yielded
+        ):
             yield name, ast.Name(id="_")
             yielded.add(name)
 
@@ -1385,7 +1390,9 @@ def remove_redundant_comprehensions(source: str) -> str:
         "{{{key}}: {{value}} for {{key}}, {{value}} in {{iterable}}}",
     ))
     replace = "{{funcname(root)}}({{iterable}})"
-    funcname = lambda template_match_tuple: comprehension_wrapper_funcs[type(template_match_tuple)]  # noqa: E731
+
+    def funcname(template_match_tuple):
+        return comprehension_wrapper_funcs[type(template_match_tuple)]
 
     yield from processing.find_replace(source, find, replace, funcname=funcname)
 
@@ -1650,17 +1657,29 @@ def _unused_loop_variable_names(root: ast.AST) -> Iterable[str]:
 
 @processing.fix
 def replace_nested_loops_with_set_list_comp(source: str) -> str:
-
     root = core.parse(source)
     unused_variable_name_iterator = _unused_loop_variable_names(root)
 
     container = core.Wildcard("container", ast.Name)
     expression = core.Wildcard("expression", ast.AST)
-    outer_container_add_to = core.Wildcard("outer_container_add_to", ast.Attribute(attr=("extend", "update")))
+    outer_container_add_to = core.Wildcard(
+        "outer_container_add_to",
+        ast.Attribute(attr=("extend", "update"))
+    )
 
     assign_expression_to_container = ast.Assign(targets=[container], value=expression)
-    add_container_to_outer_container = ast.Expr(value=ast.Call(func=outer_container_add_to, args=[container], keywords=[]))
-    add_expression_to_outer_container = ast.Expr(value=ast.Call(func=outer_container_add_to, args=[expression], keywords=[]))
+    add_container_to_outer_container = ast.Expr(
+        value=ast.Call(
+            func=outer_container_add_to,
+            args=[container],
+            keywords=[]),
+    )
+    add_expression_to_outer_container = ast.Expr(
+        value=ast.Call(
+            func=outer_container_add_to,
+            args=[expression],
+            keywords=[]),
+    )
 
     leaf_template = (
         [assign_expression_to_container, add_container_to_outer_container],
@@ -1676,8 +1695,7 @@ def replace_nested_loops_with_set_list_comp(source: str) -> str:
                 iter=node.iter,
                 ifs=[],
                 is_async=int(isinstance(node, ast.AsyncFor)),
-            )
-        ]
+        )]
         while core.match_template(node.body, [(ast.For, ast.If, ast.AsyncFor)]):
             node = node.body[0]
             if isinstance(node, (ast.For, ast.AsyncFor)):
@@ -1687,8 +1705,7 @@ def replace_nested_loops_with_set_list_comp(source: str) -> str:
                         iter=node.iter,
                         ifs=[],
                         is_async=int(isinstance(node, ast.AsyncFor)),
-                    )
-                )
+                ))
             else:
                 generators[-1].ifs.append(node.test)
 
@@ -1707,11 +1724,8 @@ def replace_nested_loops_with_set_list_comp(source: str) -> str:
                     iter=m.expression,
                     ifs=[],
                     is_async=0,
-                )
-            )
-            new_comprehension = ast.GeneratorExp(
-                elt=elt, generators=generators, is_async=0
-            )
+            ))
+            new_comprehension = ast.GeneratorExp(elt=elt, generators=generators, is_async=0)
             call_node = ast.Call(
                 func=m.outer_container_add_to,
                 args=[new_comprehension],
@@ -1721,20 +1735,21 @@ def replace_nested_loops_with_set_list_comp(source: str) -> str:
             yield outermost_for, call_node, transaction
             transaction += 1
 
+
 @processing.fix
 def replace_redundant_starred(source: str) -> str:
     root = core.parse(source)
     value_template = core.Wildcard("value", (ast.ListComp, ast.GeneratorExp, ast.SetComp))
 
-    template = (ast.List(elts=[ast.Starred(value=value_template)]))
+    template = ast.List(elts=[ast.Starred(value=value_template)])
     for node, value in core.walk_wildcard(root, template):
         yield node, ast.Call(func=ast.Name(id="list"), args=[value], keywords=[])
 
-    template = (ast.Tuple(elts=[ast.Starred(value=value_template)]))
+    template = ast.Tuple(elts=[ast.Starred(value=value_template)])
     for node, value in core.walk_wildcard(root, template):
         yield node, ast.Call(func=ast.Name(id="tuple"), args=[value], keywords=[])
 
-    template = (ast.Set(elts=[ast.Starred(value=value_template)]))
+    template = ast.Set(elts=[ast.Starred(value=value_template)])
     for node, value in core.walk_wildcard(root, template):
         yield node, ast.Call(func=ast.Name(id="set"), args=[value], keywords=[])
 
@@ -3954,7 +3969,6 @@ def fix_raise_missing_from(source: str) -> str:
 
 @processing.fix
 def remove_redundant_boolop_values(source: str) -> str:
-
     root = core.parse(source)
 
     unknown = object()
@@ -3987,7 +4001,7 @@ def remove_redundant_boolop_values(source: str) -> str:
                     redundant[i + 1] = True
 
             if truthyness is falsy and isinstance(node.op, ast.And):
-                redundant[i + 1:] = [True] * (len(mask) - i - 1)
+                redundant[i + 1 :] = [True] * (len(mask) - i - 1)
                 break
 
             if truthyness is falsy and next_truthyness is not falsy and isinstance(node.op, ast.Or):

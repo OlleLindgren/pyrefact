@@ -21,7 +21,7 @@ b = list((1, 2, 3, 99))
 c = set([1, 2, 3])
 d = iter((1, 2, 3, 5))
 aa = (1 for u in (1, 2, 3, 5))
-    """,
+        """,
         """
 u = []
 v = ()
@@ -31,7 +31,7 @@ b = [1, 2, 3, 99]
 c = {1, 2, 3}
 d = iter((1, 2, 3, 5))
 aa = (1 for u in (1, 2, 3, 5))
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

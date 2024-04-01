@@ -31,7 +31,7 @@ def f(x) -> int:
         return 100 - sum(x, 2, 3)
     else:
         return 13
-            """,
+        """,
         ),
         (
             """

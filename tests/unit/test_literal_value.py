@@ -114,6 +114,7 @@ class TestLiteralValue(unittest.TestCase):
         self.test_arithmetic()
         self.test_literal_calls()
 
+
 def main() -> int:
     # For use with ./tests/main.py, which looks for these main functions.
     # unittest.main() will do sys.exit() or something, it quits the whole

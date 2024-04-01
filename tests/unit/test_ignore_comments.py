@@ -88,8 +88,7 @@ print(0)
 if False:#            pyrefact      :skip_file   
     print(1)
         """,
-        ),
-    )
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = format_code(source)

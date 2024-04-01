@@ -196,7 +196,7 @@ for a in range(-1, 10):
         w.append(a ** 2 + q + k ** 2)
 y = sum(w)
 print(y)
-            """,
+        """,
         """
 Q = 3
 Y = 22 * Q + 583
@@ -212,7 +212,7 @@ for i in range(100):
     a -= i**3
 
 print(x)
-            """,
+        """,
         """
 X = 328350
 print(X)
@@ -227,7 +227,7 @@ for i in range(100):
     a -= i**3
 
 print(x, a)
-            """,
+        """,
         """
 X = 0
 A = 1
@@ -245,7 +245,7 @@ for i in range(100):
     x += i**2
 
 print(x)
-            """,
+        """,
         """
 X = [i**2 for i in range(100)]
 print(X)
@@ -274,7 +274,7 @@ u = np.array(
 ).T
 
 print(u)
-            """,
+        """,
         """
 import numpy as np
 
@@ -308,7 +308,7 @@ u = np.array(
 )
 
 print(u)
-            """,
+        """,
         """
 import numpy as np
 
@@ -332,7 +332,7 @@ for a_, b_ in zip(a, b):
     u += a_ * b_
 
 print(u)
-            """,
+        """,
         """
 import numpy as np
 
@@ -361,7 +361,7 @@ for ix, _ in df.iterrows():
 print(x)
 import pandas as pd
 import pandas as pd
-            """,
+        """,
         """
 import pandas as pd
 DF = pd.DataFrame([{"foo": 10 + i, "bar": 10 - i} for i in range(10)])
@@ -379,7 +379,7 @@ print(X)
         u += a_ * b_
 
     print(u)
-            """,
+        """,
         """
     a = np.random.random(100)
     b = np.random.random(100)
@@ -411,7 +411,7 @@ def f(x) -> int:
     return x
 
 print(f(11))
-            """,
+        """,
         """
 def _f(x) -> int:
     if x == 1:
@@ -428,7 +428,7 @@ def _f(x) -> int:
     return 14
 
 print(_f(11))
-            """,
+        """,
     ),
     (
         """
@@ -449,12 +449,12 @@ def f(x: int) -> int:
 print(f(12))
 while False:
     sys.exit(0)
-            """,
+        """,
         """
 def _f(x: int) -> int:
     return 8
 print(_f(12))
-            """,
+        """,
     ),
     (
         """
@@ -540,10 +540,10 @@ print(sum([a for a in range(6, 10) if a % 2 == 0]))
             """
 x = itertools.filterfalse(lambda y: y > 0, (1, 2, 3))
 print(sum(x))
-            """,
+        """,
             """
 print(sum((y for y in (1, 2, 3) if y <= 0)))
-            """,
+        """,
         ),
         (
         """

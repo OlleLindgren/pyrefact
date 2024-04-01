@@ -16,13 +16,13 @@ np.matmul(a.T, b.T).T
 np.matmul(a, b.T).T
 np.matmul(a.T, b).T
 np.matmul(a.T, b.T)
-    """,
+        """,
         """
 np.matmul(b, a)
 np.matmul(a, b.T).T
 np.matmul(a.T, b).T
 np.matmul(a.T, b.T)
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

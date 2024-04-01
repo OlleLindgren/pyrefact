@@ -11,32 +11,30 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
+    test_cases = ((
         """
 [*(x for x in iterator)]
         """,
         """
 list((x for x in iterator))
-        """
+        """,
         ),
         (
-        """
+            """
 (*(x for x in iterator),)
         """,
         """
 tuple((x for x in iterator))
-        """
+        """,
         ),
         (
-        """
+            """
 {*[x for x in iterator]}
         """,
         """
 set([x for x in iterator])
-        """
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.replace_redundant_starred(source)

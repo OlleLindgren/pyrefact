@@ -19,7 +19,7 @@ for i in range(10):
         """,
             """
 x = {i: 10 for i in range(10)}
-    """,
+        """,
         ),
         (
             """
@@ -28,10 +28,10 @@ for i in range(10):
     if i % 3 == 0:
         if i % 2 == 0:
             x[i] = 10
-            """,
+        """,
             """
 x = {i: 10 for i in range(10) if i % 3 == 0 and i % 2 == 0}
-    """,
+        """,
         ),
         (
             """
@@ -42,7 +42,7 @@ for i in range(10):
             x[i] = 10
         else:
             x[i] = 2
-            """,
+        """,
             """
 x = {}
 for i in range(10):
@@ -51,7 +51,7 @@ for i in range(10):
             x[i] = 10
         else:
             x[i] = 2
-            """,
+        """,
         ),
         (
             """
@@ -62,7 +62,7 @@ for i in range(10):
             x[i] = 10
     else:
         x[i] = 2
-            """,
+        """,
             """
 x = {}
 for i in range(10):
@@ -71,7 +71,7 @@ for i in range(10):
             x[i] = 10
     else:
         x[i] = 2
-            """,
+        """,
         ),
         (
             """
@@ -81,7 +81,7 @@ for i in range(10):
         """,
             """
 x = {i: 10 ** i - 1 for i in range(10)}
-    """,
+        """,
         ),
         (
             """
@@ -91,7 +91,7 @@ for i in range(10):
         """,
             """
 x = {**{1: 2}, **{i: 10 ** i - 1 for i in range(10)}}
-    """,
+        """,
         ),
         (
             """
@@ -101,7 +101,7 @@ for i in range(77, 22):
         """,
             """
 x = {**{i: 10 - 1 for i in range(33)}, **{i: 10 ** i - 1 for i in range(77, 22)}}
-    """,
+        """,
         ),
         (
             """
@@ -117,7 +117,7 @@ u = {i: 10 - 1 for i in range(33)}
 v = {i: 10 ** i - 1 for i in range(77, 22)}
 w = {11: 342, 'key': "value"}
 x = {**u, **v, **w, **{i: 10 ** i - 1 for i in range(2, 4)}}
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

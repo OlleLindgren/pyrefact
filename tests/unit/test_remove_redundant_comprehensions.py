@@ -20,7 +20,7 @@ d = (u for u in (1, 2, 3, 5))
 aa = (1 for u in (1, 2, 3, 5))
 ww = {x: y for x, y in zip((1, 2, 3), range(3)) if x > y > 1}
 ww = {x: y for y, x in zip((1, 2, 3), range(3))}
-    """,
+        """,
         """
 a = dict(zip(range(4), range(1, 5)))
 b = list((1, 2, 3, 99))
@@ -29,7 +29,7 @@ d = iter((1, 2, 3, 5))
 aa = (1 for u in (1, 2, 3, 5))
 ww = {x: y for x, y in zip((1, 2, 3), range(3)) if x > y > 1}
 ww = {x: y for y, x in zip((1, 2, 3), range(3))}
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

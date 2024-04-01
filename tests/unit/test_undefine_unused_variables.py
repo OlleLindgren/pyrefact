@@ -23,7 +23,7 @@ def some_python_code() -> None:
 
 STATIC_STUFF = 420
 _STATIC_PRIVATE_STUFF = 69
-    """,
+        """,
         """
 def some_python_code() -> None:
     3
@@ -36,7 +36,7 @@ def some_python_code() -> None:
 
 420
 69
-    """,
+        """,
         ),
         (  # x = 202 is not redundant, since we may not enter the loop and redefine it
             """
@@ -46,7 +46,7 @@ for i in range(10):
     x = i
     print(x)
 print(x)
-    """,
+        """,
         """
 101
 x = 202
@@ -54,7 +54,7 @@ for i in range(10):
     x = i
     print(x)
 print(x)
-    """,
+        """,
         ),
         (  # x = 202 is redundant, since it is only used in the loop where it is redefined
             """
@@ -66,7 +66,7 @@ for i in range(10):
 z = 200
 z = 200
 z = 200
-    """,
+        """,
         """
 101
 202
@@ -76,7 +76,7 @@ for i in range(10):
 200
 200
 200
-    """,
+        """,
         ),
         (
             """
@@ -135,14 +135,14 @@ for i in range(10):
     x = i - 1
     x = i
 print(x)
-    """,
+        """,
         """
 for i in range(10):
     i
     i - 1
     x = i
 print(x)
-    """,
+        """,
         ),
         (
             """
@@ -157,7 +157,7 @@ for i in range(10):
     if i % 2:
         x = 13
 print(x)
-    """,
+        """,
         """
 for i in range(10):
     i
@@ -170,7 +170,7 @@ for i in range(10):
     if i % 2:
         x = 13
 print(x)
-    """,
+        """,
         ),
         (  # x is referenced at the start of the loop, last set cannot be touched
             """
@@ -182,7 +182,7 @@ for i in range(10):
     x = i
     if i % 2:
         x = 13
-            """,
+        """,
             """
 x = 2
 for i in range(10):
@@ -192,7 +192,7 @@ for i in range(10):
     x = i
     if i % 2:
         x = 13
-            """,
+        """,
         ),
         (
             """
@@ -203,7 +203,7 @@ for i in range(10):
     if i % 2:
         x = 22
         x = 13
-            """,
+        """,
             """
 x = 2
 for i in range(10):
@@ -212,7 +212,7 @@ for i in range(10):
     if i % 2:
         22
         x = 13
-            """,
+        """,
         ),
         (
             """
@@ -225,7 +225,7 @@ for i in range(10):
     if i % 2:
         x = 22
         x = 13
-            """,
+        """,
             """
 x = 2
 for i in range(10):
@@ -236,7 +236,7 @@ for i in range(10):
     if i % 2:
         22
         x = 13
-            """,
+        """,
         ),
         (
             """
@@ -260,7 +260,7 @@ while x < 10:
     x = x + 1
     y += 1
 print(y)
-    """,
+        """,
         """
 x = 2
 y = 0
@@ -268,7 +268,7 @@ while x < 10:
     x = x + 1
     y += 1
 print(y)
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

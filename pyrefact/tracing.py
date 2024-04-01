@@ -7,7 +7,7 @@ import importlib
 import sys
 import threading
 from pathlib import Path
-from typing import Iterable, NamedTuple, Set, Sequence, Tuple
+from typing import Iterable, NamedTuple, Sequence, Set, Tuple
 
 from pyrefact import constants, core, parsing, processing
 
@@ -45,9 +45,7 @@ def get_imported_names(ast_tree: ast.Module) -> Set[str]:
     }
 
 
-def code_dependencies_outputs(
-    code: Sequence[ast.AST],
-) -> Tuple[Set[str], Set[str], Set[str]]:
+def code_dependencies_outputs(code: Sequence[ast.AST]) -> Tuple[Set[str], Set[str], Set[str]]:
     """Get required and created names in code.
 
     Args:
@@ -451,7 +449,10 @@ def fix_reimported_names(source: str) -> str:
                 if isinstance(module_import_node, ast.ImportFrom):
                     # Remove this alias from node.names
                     # Add this alias to things that should be imported from module_import_node.module
-                    if len(module_import_node.names) == 1 and module_import_node.names[0].name == "*":
+                    if (
+                        len(module_import_node.names) == 1
+                        and module_import_node.names[0].name == "*"
+                    ):
                         original_name = name
                     else:
                         original_name = next(
@@ -479,7 +480,8 @@ def fix_reimported_names(source: str) -> str:
                     else:
                         new_alias = ast.alias(name=original_name, asname=referenced_name)
 
-                    yield None, ast.Import(names=[new_alias], lineno=import_insert_lineno), transaction
+                    new_node = ast.Import(names=[new_alias], lineno=import_insert_lineno)
+                    yield None, new_node, transaction
                 else:
                     node_names.append(alias)
             else:
@@ -487,7 +489,8 @@ def fix_reimported_names(source: str) -> str:
 
         if node_names != node.names:
             if node_names:
-                yield node, ast.ImportFrom(module=node.module, names=node_names, level=node.level), transaction
+                new_node = ast.ImportFrom(module=node.module, names=node_names, level=node.level)
+                yield node, new_node, transaction
             else:
                 yield node, None, transaction
 

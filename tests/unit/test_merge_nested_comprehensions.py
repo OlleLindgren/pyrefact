@@ -13,7 +13,7 @@ import testing_infra
 def main() -> int:
     test_cases = (
         (  # GeneratorExp in SetComp
-        """
+            """
 {x for x in (y for y in range(10))}
         """,
         """
@@ -21,7 +21,7 @@ def main() -> int:
         """,
         ),
         (  # GeneratorExp in ListComp
-        """
+            """
 [x for x in (y for y in range(10))]
         """,
         """
@@ -29,7 +29,7 @@ def main() -> int:
         """,
         ),
         (  # GeneratorExp in DictComp
-        """
+            """
 {x: 1 for x in (y for y in range(10))}
         """,
         """
@@ -37,7 +37,7 @@ def main() -> int:
         """,
         ),
         (  # GeneratorExp in ListComp
-        """
+            """
 {x for x in [y for y in range(10)]}
         """,
         """
@@ -45,7 +45,7 @@ def main() -> int:
         """,
         ),
         (  # GeneratorExp in GeneratorExp
-        """
+            """
 (x for x in (y for y in range(10)))
         """,
         """
@@ -53,7 +53,7 @@ def main() -> int:
         """,
         ),
         (  # SetComp in SetComp
-        """
+            """
 {x for x in {y for y in range(10)}}
         """,
         """
@@ -61,7 +61,7 @@ def main() -> int:
         """,
         ),
         (  # SetComp in SetComp, wrong name
-        """
+            """
 {x for x in {h for y in range(10)}}
         """,
         """
@@ -69,7 +69,7 @@ def main() -> int:
         """,
         ),
         (  # SetComp in SetComp, non-trivial target
-        """
+            """
 {x for x in {y + 1 for y in range(10)}}
         """,
         """
@@ -77,7 +77,7 @@ def main() -> int:
         """,
         ),
         (  # SetComp in SetComp, non-trivial iter
-        """
+            """
 {x for x in {y + 1 for y, z in range(10)}}
         """,
         """
@@ -85,7 +85,7 @@ def main() -> int:
         """,
         ),
         (  # SetComp in ListComp
-        """
+            """
 [x for x in {y for y in range(10)}]
         """,
         """
@@ -93,7 +93,7 @@ def main() -> int:
         """,
         ),
         (  # SetComp in GeneratorExp
-        """
+            """
 (x for x in {y for y in range(10)})
         """,
         """
@@ -101,7 +101,7 @@ def main() -> int:
         """,
         ),
         (  # SetComp in DictComp
-        """
+            """
 {x: 99 for x in {y for y in range(10)}}
         """,
         """
@@ -109,7 +109,7 @@ def main() -> int:
         """,
         ),
         (  # DictComp in DictComp
-        """
+            """
 {x: 99 for x in {y: 3131 for y in range(10)}}
         """,
         """
@@ -117,7 +117,7 @@ def main() -> int:
         """,
         ),
         (  # DictComp in DictComp
-        """
+            """
 {x: 99 for x in {3131: y for y in range(10)}}
         """,
         """
@@ -125,14 +125,13 @@ def main() -> int:
         """,
         ),
         (  # DictComp in DictComp
-        """
+            """
 {x: 99 for x in {z: y for y in range(10)}}
         """,
         """
 {x: 99 for x in {z: y for y in range(10)}}
         """,
-        ),
-    )
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.merge_nested_comprehensions(source)

@@ -20,14 +20,14 @@ from logging import (
     critical   ,
     error, error, error as error)
 from logging import critical
-    """,
+        """,
         """
 from logging import critical
 from logging import critical, error, error, error, warning
 from logging import error, info, log
 from logging import info
 from logging import warning
-    """,
+        """,
         ),
         (
             """
@@ -36,14 +36,14 @@ from numpy import ndarray
 from logging import warning
 from numpy import array
 from logging import error as info, warning as error
-    """,
+        """,
         """
 from logging import error as info, warning as error
 from logging import info
 from logging import warning
 from numpy import array
 from numpy import ndarray
-    """,
+        """,
         ),
         (
             """
@@ -52,14 +52,14 @@ import logging
 import logging, numpy, pandas as pd, os as sys, os as os
 import pandas as pd, os, os, os
 import os
-    """,
+        """,
         """
 import logging
 import logging
 import os
 import logging, numpy, os, os as sys, pandas as pd
 import os, os, os, pandas as pd
-    """,
+        """,
         ),
         (
             """
@@ -78,7 +78,7 @@ from .. import utils
 from .. import utils1
 from .utils import *
 import re
-    """,
+        """,
         """
 from __future__ import absolute_import
 from __future__ import annotations
@@ -97,33 +97,33 @@ from .. import utils1
 from .. import utils2
 from . import utils
 from .utils import *
-    """,
+        """,
         ),
         (
             """
 import logging as logging
-    """,
+        """,
         """
 import logging
-    """,
+        """,
         ),
         (
             """
 from logging import info as info
-    """,
+        """,
         """
 from logging import info
-    """,
+        """,
         ),
         (
             """
 import logging as logging
 from logging import info as info
-    """,
+        """,
         """
 import logging
 from logging import info
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

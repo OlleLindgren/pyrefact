@@ -216,7 +216,6 @@ def move_staticmethod_static_scope(source: str, preserve: Collection[str]) -> st
 
 @processing.fix
 def fix_unconventional_class_definitions(source: str) -> str:
-
     template = """
     class {{ClassName}}:
         {{...+}}

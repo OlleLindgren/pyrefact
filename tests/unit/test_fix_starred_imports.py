@@ -23,7 +23,7 @@ print(getcwd())
         """,
         ),
         (
-        """
+            """
 from os import *
 from pathlib import *
 from sys import *
@@ -38,7 +38,7 @@ print(Path(getcwd()))
         """,
         ),
         (
-        """
+            """
 import time
 
 print(time.time())
@@ -50,7 +50,7 @@ print(time.time())
         """,
         ),
         (
-        """
+            """
 from time import *
 from os import *
 from pathlib import *
@@ -76,7 +76,7 @@ Last modified:     {datetime.datetime.utcfromtimestamp(stat(__file__).st_mtime)}
         """,
         ),
         (  # Thise are reimported from other files, but fix_reimported_names fixes that instead.
-        """
+            """
 from c import *
 from e import *
 
@@ -92,8 +92,7 @@ print(x)
 print(z)
 print(ww)
         """,
-        ),
-    )
+    ),)
 
     sys.path.append(str(Path(__file__).parents[1] / "integration" / "tracing_test_files"))
     for source, expected_abstraction in test_cases:

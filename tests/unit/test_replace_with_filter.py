@@ -15,7 +15,7 @@ def main() -> int:
 for x in range(10):
     if x:
         print(3)
-            """,
+        """,
             """
 for x in filter(None, range(10)):
     print(3)
@@ -38,7 +38,7 @@ for x in filter(f, range(10)):
 for x in range(10):
     if f(x):
         print(3)
-            """,
+        """,
             """
 for x in filter(f, range(10)):
     print(3)
@@ -51,14 +51,14 @@ for x in range(10):
         print(3)
     else:
         print(76)
-            """,
+        """,
             """
 for x in range(10):
     if f(x):
         print(3)
     else:
         print(76)
-            """,
+        """,
         ),
         (
             """
@@ -91,7 +91,7 @@ for x in range(10):
 for x in range(10):
     if f(x):
         print(x)
-            """,
+        """,
             """
 for x in filter(f, range(10)):
     print(x)
@@ -102,12 +102,12 @@ for x in filter(f, range(10)):
 for x in range(10):
     if not f(x):
         print(x)
-            """,
+        """,
             """
 for x in range(10):
     if not f(x):
         print(x)
-            """,
+        """,
         ),
         (  # Do not chain filter with filter
             """
@@ -128,12 +128,12 @@ for x in filter(bool, range(10)):
 for x in filter(int, range(10)):
     if f(x):
         print(x)
-            """,
+        """,
             """
 for x in filter(int, range(10)):
     if f(x):
         print(x)
-            """,
+        """,
         ),
         (  # Do not chain filter with filterfalse
             """
@@ -157,13 +157,13 @@ import itertools
 for x in itertools.filterfalse(int, range(10)):
     if f(x):
         print(x)
-            """,
+        """,
             """
 import itertools
 for x in itertools.filterfalse(int, range(10)):
     if f(x):
         print(x)
-            """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

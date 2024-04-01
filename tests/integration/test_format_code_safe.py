@@ -34,7 +34,7 @@ class Foo:
     @staticmethod
     def some_other_static_function():
         print(3)
-            """,
+        """,
             """
 def q() -> None:
     print(1)
@@ -56,7 +56,7 @@ class Foo:
     @staticmethod
     def some_other_static_function():
         print(3)
-            """,
+        """,
         ),
         (
             """
@@ -72,7 +72,7 @@ class Foo:
             y = x is not None
             z = y or not y
             print(3)
-            """,
+        """,
             """
 def asdf():
     print(3)
@@ -80,7 +80,7 @@ class Foo:
     @staticmethod
     def asdf():
         print(3)
-            """,
+        """,
         ),
         (
             """
@@ -92,7 +92,7 @@ class TestSomeStuff(unittest.TestCase):
         assert 1 == 3
     def test_nonsense(self):
         self.assertEqual(1, 3)
-            """,
+        """,
             """
 import unittest
 class TestSomeStuff(unittest.TestCase):
@@ -104,7 +104,7 @@ class TestSomeStuff(unittest.TestCase):
         assert False
     def test_nonsense(self):
         self.assertEqual(1, 3)
-            """,
+        """,
         ),
         (
             '''

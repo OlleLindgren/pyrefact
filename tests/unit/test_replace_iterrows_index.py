@@ -24,21 +24,21 @@ for x in df.index:
             """
 stuff = [x for x, _ in df.iterrows()]
 print(stuff[-1])
-    """,
+        """,
         """
 stuff = [x for x in df.index]
 print(stuff[-1])
-    """,
+        """,
         ),
         (
             """
 stuff = df.iterrows()
 print(sum(stuff))
-    """,
+        """,
         """
 stuff = df.iterrows()
 print(sum(stuff))
-    """,
+        """,
         ),
         (
             """
@@ -54,11 +54,11 @@ for x, i in df.iterrows():
             """
 stuff = [x for x, q in df.iterrows()]
 print(stuff[-1])
-    """,
+        """,
         """
 stuff = [x for x, q in df.iterrows()]
 print(stuff[-1])
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

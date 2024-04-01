@@ -22,7 +22,7 @@ b = np.random.random(n)
 c = sum([a_ *  b_ for a_, b_ in zip(a, b)])
 d = np.sum(a_ *  b_ for a_, b_ in zip(a, b))
 print(c, d)
-            """,
+        """,
             """
 import numpy as np
 
@@ -32,7 +32,7 @@ b = np.random.random(n)
 c = np.dot(a, b)
 d = np.dot(a, b)
 print(c, d)
-            """,
+        """,
         ),
         (
             """
@@ -45,7 +45,7 @@ b = np.random.random(n)
 
 c = _mysterious_function(a, b)
 print(c, np.dot(a, b))
-            """,
+        """,
             """
 n = 10
 def _mysterious_function(a: np.array, b: np.array):
@@ -56,7 +56,7 @@ b = np.random.random(n)
 
 c = _mysterious_function(a, b)
 print(c, np.dot(a, b))
-            """,
+        """,
         ),
         (
             """
@@ -81,7 +81,7 @@ u = np.array(
 ).T
 
 print(u)
-            """,
+        """,
             """
 import numpy as np
 

@@ -34,13 +34,13 @@ y = 10
 #     else:
 #         return -3
 
-    """,
+        """,
         """
 def f() -> int:
     return 2
 
 y = 10
-    """,
+        """,
         ),
         (
             """
@@ -52,14 +52,14 @@ y = 10
 # noqa
 # x: int = 100  # pylint: disable=invalid-name
 # noqa: abcdef
-    """,
+        """,
         """
 # pylint: disable=some-important-error
 # type: ignore
 # flake8: noqa
 # noqa
 # noqa: abcdef
-    """,
+        """,
         ),
         (
             """
@@ -70,7 +70,7 @@ def f() -> int:
 def h() -> int:
     return 2  # Normal comment
 # z = lambda: 3
-    """,
+        """,
         """
 def f() -> int:
     # Normal comment
@@ -93,14 +93,14 @@ def f() -> int:
 # This is not valid python
 # z = lambda: 3
 # lambda: 3
-    """,
+        """,
         """
 def f() -> int:
     # Normal comment
     return 2
 # Normal comment
 # This is not valid python
-    """,
+        """,
         ),
         (
             """
@@ -110,14 +110,14 @@ def f() -> int:
 # lambda: 1 if x > y else z < 100
 # comment comment comment
 # name_of_thing
-    """,
+        """,
         """
 # Comment about something interesting
 # lambda: 2
 # Another comment about something interesting
 # comment comment comment
 # name_of_thing
-    """,
+        """,
         ),
         (
             """
@@ -142,7 +142,7 @@ print('''
 # y = {z}
 '''.format(x=z, z=z)
 )
-    """,
+        """,
         """
 print('''
 # x = 3
@@ -164,7 +164,7 @@ print('''
 # y = {z}
 '''.format(x=z, z=z)
 )
-    """,
+        """,
         ),
         (
             """

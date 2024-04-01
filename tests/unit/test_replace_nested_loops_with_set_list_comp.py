@@ -11,37 +11,36 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
+    test_cases = ((
         """
 l = []
 for a in range(A):
     m = list(range(B))
     l.extend(m)
         """,
-        """
+            """
 l = []
 l.extend((b for a in range(A) for b in list(range(B))))
-        """
+        """,
         ),
         (
-        """
+            """
 q = set()
 for a in [x, y, 1, 2, 3]:
     m = frozenset(range(2, a))
     q.update(m)
         """,
-        """
+            """
 q = set()
 q.update((
     b
     for a in [x, y, 1, 2, 3]
     for b in frozenset(range(2, a))
 ))
-        """
+        """,
         ),
         (
-        """
+            """
 q = set()
 for a in [x, y, 1, 2, 3]:
     for x in (1, 2, 3):
@@ -50,7 +49,7 @@ for a in [x, y, 1, 2, 3]:
                 m = frozenset(range(2, a, x))
                 q.update(m)
         """,
-        """
+            """
 q = set()
 q.update((
     b
@@ -60,10 +59,10 @@ q.update((
     for _ in range(11)
     for b in frozenset(range(2, a, x))
 ))
-        """
+        """,
         ),
         (  # If there isn't a loop around it, it should not be replaced.
-        """
+            """
 q = set()
 if x * a > 3:
     q.update(
@@ -72,7 +71,7 @@ if x * a > 3:
         for b in frozenset(range(2, a, x))
     )
         """,
-        """
+            """
 q = set()
 if x * a > 3:
     q.update(
@@ -80,17 +79,17 @@ if x * a > 3:
         for _ in range(11)
         for b in frozenset(range(2, a, x))
     )
-        """
+        """,
         ),
         (
-        """
+            """
 l = []
 for a in range(A):
     if a % 2 == 0:
         m = list(range(B))
         l.extend(m)
         """,
-        """
+            """
 l = []
 l.extend((
     b
@@ -98,17 +97,17 @@ l.extend((
     if a % 2 == 0
     for b in list(range(B))
 ))
-        """
+        """,
         ),
         (
-        """
+            """
 q = set()
 for a in [x, y, 1, 2, 3]:
     if random() > 0.5:
         m = frozenset(range(2, a))
         q.update(m)
         """,
-        """
+            """
 q = set()
 q.update((
     b
@@ -116,10 +115,10 @@ q.update((
     if random() > 0.5
     for b in frozenset(range(2, a))
 ))
-        """
+        """,
         ),
         (
-        """
+            """
 q = set()
 if complicated_condition(q, 1, 2):
     for a in [x, y, 1, 2, 3]:
@@ -127,7 +126,7 @@ if complicated_condition(q, 1, 2):
             m = frozenset(range(2, a))
             q.update(m)
         """,
-        """
+            """
 q = set()
 if complicated_condition(q, 1, 2):
     q.update((
@@ -136,10 +135,10 @@ if complicated_condition(q, 1, 2):
         if random() > 0.5
         for b in frozenset(range(2, a))
     ))
-        """
+        """,
         ),
         (
-        """
+            """
 q = set()
 for a in [x, y, 1, 2, 3]:
     for x in (1, 2, 3):
@@ -150,7 +149,7 @@ for a in [x, y, 1, 2, 3]:
                 for b in frozenset(range(2, a, x))
             )
         """,
-        """
+            """
 q = set()
 q.update((
     c
@@ -162,9 +161,8 @@ q.update((
         for _ in range(11)
         for b in frozenset(range(2, a, x))
 )))
-        """
-        ),
-    )
+        """,
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.replace_nested_loops_with_set_list_comp(source)

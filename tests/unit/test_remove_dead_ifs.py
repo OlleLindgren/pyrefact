@@ -19,7 +19,7 @@ if True:
         """,
             """
 print(2)
-    """,
+        """,
         ),
         (
             """
@@ -52,7 +52,7 @@ if x == 3:
 
 print(x + x)
 print(222222)
-    """,
+        """,
         ),
         (
             """
@@ -82,7 +82,7 @@ d = 13 if () else {2: 3}
 e = 14 if list((1, 2, 3)) else 13
 print(3 if 2 > 0 else 2)
 print(14 if False else 2)
-    """,
+        """,
         """
 x = 13
 a = x if x > 3 else 0
@@ -92,55 +92,55 @@ d = {2: 3}
 e = 14
 print(3)
 print(2)
-    """,
+        """,
         ),
         (
             """
 y = (i for i in range(11) if not ())
-    """,
+        """,
         """
 y = (i for i in range(11))
-    """,
+        """,
         ),
         (
             """
 y = (i for i in range(11) if 7 and not () if foo() if bar() if baz() and wombat() ** 3)
-    """,
+        """,
         """
 y = (i for i in range(11) if foo() if bar() if baz() and wombat() ** 3)
-    """,
+        """,
         ),
         (
             """
 y = (i for i in range(11) if ())
-    """,
+        """,
         """
 y = ()
-    """,
+        """,
         ),
         (
             """
 y = [i for i in range(11) if ()]
-    """,
+        """,
         """
 y = []
-    """,
+        """,
         ),
         (
             """
 y = {i for i in range(11) if ()}
-    """,
+        """,
         """
 y = set()
-    """,
+        """,
         ),
         (
             """
 y = {i: i for i in range(11) if ()}
-    """,
+        """,
         """
 y = {}
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

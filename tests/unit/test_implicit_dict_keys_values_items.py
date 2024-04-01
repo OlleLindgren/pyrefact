@@ -14,34 +14,34 @@ def main() -> int:
         (  # Items to keys
             """
 (x for x, _ in d.items())
-    """,
+        """,
         """
 (x for x in d.keys())
-    """,
+        """,
         ),
         (
             """
 {x: 100 - x for x, _ in d.items()}
-    """,
+        """,
         """
 {x: 100 - x for x in d.keys()}
-    """,
+        """,
         ),
         (  # Items to values
             """
 [x for _, x in d.items() if foo if bar if x if baz]
-    """,
+        """,
         """
 [x for x in d.values() if foo if bar if x if baz]
-    """,
+        """,
         ),
         (
             """
 {x for _, x in d.items() if foo if bar if x if baz}
-    """,
+        """,
         """
 {x for x in d.values() if foo if bar if x if baz}
-    """,
+        """,
         ),
         (
             """
@@ -66,10 +66,10 @@ for x in d.values():
         (  # Implicit items
             """
 {(x, d[x]) for x in d.keys()}
-    """,
+        """,
         """
 {(x, d_x) for x, d_x in d.items()}
-    """,
+        """,
         ),
         (
             """
@@ -86,10 +86,10 @@ for x, d_x in d.items():
         (  # Implicit values
             """
 [d[x] for x in d.keys()]
-    """,
+        """,
         """
 [d_x for x, d_x in d.items()]
-    """,
+        """,
         ),
         (
             """

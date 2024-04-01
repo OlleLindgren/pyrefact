@@ -10,8 +10,7 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
+    test_cases = ((
         """
 #!/usr/bin/env python3
 '''docstring'''
@@ -90,14 +89,14 @@ def hoo():
         """,
         ),
         (
-        """
+            """
 import sys
 if sys.version_info >= (3, 11):
     from tomllib import load  # pyrefact: ignore
 else:
     from tomli import load  # pyrefact: ignore
         """,
-        """
+            """
 import sys
 if sys.version_info >= (3, 11):
     from tomllib import load  # pyrefact: ignore
@@ -106,7 +105,7 @@ else:
         """,
         ),
         (
-        """
+            """
 import sys
 if sys.version_info >= (3, 11):
     import re
@@ -114,7 +113,7 @@ if sys.version_info >= (3, 11):
 else:
     from tomli import load  # pyrefact: ignore
         """,
-        """
+            """
 import re
 import sys
 if sys.version_info >= (3, 11):
@@ -122,8 +121,7 @@ if sys.version_info >= (3, 11):
 else:
     from tomli import load  # pyrefact: ignore
         """,
-        ),
-    )
+    ),)
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.move_imports_to_toplevel(source)

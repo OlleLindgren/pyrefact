@@ -14,10 +14,10 @@ def main() -> int:
         """
 x = {z: 21 for z in range(3)}
 x.update({10: 100})
-    """,
+        """,
         """
 x = {**{z: 21 for z in range(3)}, **{10: 100}}
-    """,
+        """,
         ),
         (
             """
@@ -25,10 +25,10 @@ x = {z: 21 for z in range(3)}
 x.update({10: 100})
 x.update({101: 220})
 x.update({103: 223})
-    """,
+        """,
         """
 x = {**{z: 21 for z in range(3)}, **{10: 100}, **{101: 220}, **{103: 223}}
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

@@ -13,42 +13,42 @@ def main() -> int:
     test_cases = ((
         """
 x = (a for _, a in zip(range(3), range(1, 3)))
-    """,
+        """,
         """
 x = (a for a in range(1, 3))
-    """,
+        """,
         ),
         (
             """
 x = {a for _, a in zip(range(3), range(1, 3))}
-    """,
+        """,
         """
 x = {a for a in range(1, 3)}
-    """,
+        """,
         ),
         (
             """
 x = [a for _, a in zip(range(3), range(1, 3))]
-    """,
+        """,
         """
 x = [a for a in range(1, 3)]
-    """,
+        """,
         ),
         (
             """
 x = (1 for _, _ in zip(range(3), range(1, 3)))
-    """,
+        """,
         """
 x = (1 for _ in range(3))
-    """,
+        """,
         ),
         (
             """
 x = (1 for a, q, _, _ in zip(range(3), range(1, 3), range(3, 5), (1, 2, 3)))
-    """,
+        """,
         """
 x = (1 for a, q in zip(range(3), range(1, 3)))
-    """,
+        """,
         ),
         (
             """

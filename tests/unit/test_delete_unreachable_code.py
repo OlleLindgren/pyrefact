@@ -62,7 +62,7 @@ for i in range(10):
     print(2)
     if [1]:
         break
-            """,
+        """,
         ),
         (
             """
@@ -89,7 +89,7 @@ for i in range(10):
         break
     else:
         continue
-            """,
+        """,
         ),
         (
             """

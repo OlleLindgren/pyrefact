@@ -25,7 +25,7 @@ f = sorted(p)[13:]
 sorted(x)[3:8]
 print(sorted(z, key=lambda x: -x)[:94])
 print(sorted(z, key=lambda x: -x)[-4:])
-    """,
+        """,
         """
 x = sorted(y)
 z = min(p)
@@ -40,7 +40,7 @@ f = sorted(p)[13:]
 sorted(x)[3:8]
 print(heapq.nsmallest(94, z, key=lambda x: -x))
 print(list(reversed(heapq.nlargest(4, z, key=lambda x: -x))))
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

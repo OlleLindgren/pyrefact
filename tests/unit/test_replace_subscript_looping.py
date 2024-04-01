@@ -19,7 +19,7 @@ import numpy
 [a[i, :] for i in range(len(a))]
 [a[i, :] for i in range(a.shape[0])]
 [a[:, i] for i in range(a.shape[1])]
-            """,
+        """,
             """
 import numpy
 list(a)
@@ -35,7 +35,7 @@ import numpy
 (a[i, :] for i in range(len(a)))
 (a[i, :] for i in range(a.shape[0]))
 (a[:, i] for i in range(a.shape[1]))
-            """,
+        """,
             """
 import numpy
 iter(a)

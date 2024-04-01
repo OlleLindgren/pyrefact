@@ -362,9 +362,7 @@ class {{name2}}({{base2}}):
         self.assertIsInstance(m, core.Match)
 
         expected = core.Match(
-            span=core.Range(start=1, end=222),
-            source=source,
-            groups=(core.parse(source),),
+            span=core.Range(start=1, end=222), source=source, groups=(core.parse(source),)
         )
 
         self.assertEqual(m.span, expected.span)
@@ -649,18 +647,14 @@ if __name__ == "__main__":
 
 
 class TestCompile(unittest.TestCase):
-
     def test_function_alias(self):
         assert pattern_matching.compile is core.compile_template
 
     def test_basic_code(self):
-
         source = "x = 10"
         pattern = core.compile_template(source)
         expected = ast.Assign(
-            targets=[ast.Name(id='x')],
-            value=ast.Constant(value=10, kind=None),
-            type_comment=None,
+            targets=[ast.Name(id="x")], value=ast.Constant(value=10, kind=None), type_comment=None
         )
         assert core.match_template(pattern, expected)
         assert core.match_template(expected, pattern)
@@ -681,9 +675,7 @@ class TestCompile(unittest.TestCase):
         """
         pattern = core.compile_template(source)
         expected = ast.Assign(
-            targets=[ast.Name(id='x')],
-            value=ast.Constant(value=10, kind=None),
-            type_comment=None,
+            targets=[ast.Name(id="x")], value=ast.Constant(value=10, kind=None), type_comment=None
         )
         assert core.match_template(pattern, expected)
         assert core.match_template(expected, pattern)
@@ -698,27 +690,25 @@ class TestCompile(unittest.TestCase):
         """
         pattern = core.compile_template(source)
         expected = [
-            ast.Import(names=[ast.alias(name='os', asname=None)]),
+            ast.Import(names=[ast.alias(name="os", asname=None)]),
             ast.ClassDef(
-                name='Foo',
-                bases=[ast.Name(id='bar')],
+                name="Foo",
+                bases=[ast.Name(id="bar")],
                 keywords=[],
                 body=[
                     ast.AnnAssign(
-                        target=ast.Name(id='x'),
-                        annotation=ast.Name(id='int'),
+                        target=ast.Name(id="x"),
+                        annotation=ast.Name(id="int"),
                         value=ast.Constant(value=10, kind=None),
                         simple=1,
-                    ),
-                ],
+                )],
                 decorator_list=[],
             ),
             ast.Assign(
-                targets=[ast.Name(id='h')],
+                targets=[ast.Name(id="h")],
                 value=ast.Constant(value=100, kind=None),
                 type_comment=None,
-            ),
-        ]
+        ),]
         assert isinstance(pattern, list)
         assert len(pattern) == len(expected)
         assert core.match_template(pattern, expected)
@@ -734,13 +724,13 @@ class TestCompile(unittest.TestCase):
         pattern = core.compile_template(source)
         expected = [
             ast.Assign(
-                targets=[ast.Name(id='x')],
+                targets=[ast.Name(id="x")],
                 value=ast.Constant(value=10, kind=None),
                 type_comment=None,
             ),
             core.ZeroOrOne(object),
             ast.Assign(
-                targets=[ast.Name(id='z')],
+                targets=[ast.Name(id="z")],
                 value=ast.Constant(value=1, kind=None),
                 type_comment=None,
             ),
@@ -763,13 +753,13 @@ class TestCompile(unittest.TestCase):
         pattern = core.compile_template(source)
         expected = [
             ast.Assign(
-                targets=[ast.Name(id='x')],
+                targets=[ast.Name(id="x")],
                 value=ast.Constant(value=10, kind=None),
                 type_comment=None,
             ),
             core.Wildcard(name="Ellipsis_anything", template=object, common=False),
             ast.Assign(
-                targets=[ast.Name(id='z')],
+                targets=[ast.Name(id="z")],
                 value=ast.Constant(value=1, kind=None),
                 type_comment=None,
             ),
@@ -792,13 +782,13 @@ class TestCompile(unittest.TestCase):
         pattern = core.compile_template(source)
         expected = [
             ast.Assign(
-                targets=[ast.Name(id='x')],
+                targets=[ast.Name(id="x")],
                 value=ast.Constant(value=10, kind=None),
                 type_comment=None,
             ),
             core.ZeroOrMany(object),
             ast.Assign(
-                targets=[ast.Name(id='z')],
+                targets=[ast.Name(id="z")],
                 value=ast.Constant(value=1, kind=None),
                 type_comment=None,
             ),
@@ -820,13 +810,13 @@ class TestCompile(unittest.TestCase):
         pattern = core.compile_template(source)
         expected = [
             ast.Assign(
-                targets=[ast.Name(id='x')],
+                targets=[ast.Name(id="x")],
                 value=ast.Constant(value=10, kind=None),
                 type_comment=None,
             ),
             core.OneOrMany(object),
             ast.Assign(
-                targets=[ast.Name(id='z')],
+                targets=[ast.Name(id="z")],
                 value=ast.Constant(value=1, kind=None),
                 type_comment=None,
             ),
@@ -849,8 +839,7 @@ class TestCompile(unittest.TestCase):
                 ast.Constant(value=3, kind=None),
                 ast.Constant(value=4, kind=None),
                 core.ZeroOrOne(object),
-            ]
-        )
+        ])
         assert isinstance(pattern, ast.List)
 
         assert len(pattern.elts) == len(expected.elts)
@@ -872,8 +861,7 @@ class TestCompile(unittest.TestCase):
                 ast.Constant(value=3, kind=None),
                 ast.Constant(value=4, kind=None),
                 core.Wildcard(name="Ellipsis_anything", template=object, common=False),
-            ]
-        )
+        ])
         assert isinstance(pattern, ast.List)
 
         assert len(pattern.elts) == len(expected.elts)
@@ -895,8 +883,7 @@ class TestCompile(unittest.TestCase):
                 ast.Constant(value=3, kind=None),
                 ast.Constant(value=4, kind=None),
                 core.ZeroOrMany(object),
-            ]
-        )
+        ])
         assert isinstance(pattern, ast.List)
 
         assert len(pattern.elts) == len(expected.elts)
@@ -918,8 +905,7 @@ class TestCompile(unittest.TestCase):
                 ast.Constant(value=3, kind=None),
                 ast.Constant(value=4, kind=None),
                 core.OneOrMany(object),
-            ]
-        )
+        ])
         assert isinstance(pattern, ast.List)
 
         assert len(pattern.elts) == len(expected.elts)
@@ -937,11 +923,7 @@ class TestCompile(unittest.TestCase):
             module="foo",
             names=[
                 ast.alias(
-                    name=core.Wildcard(
-                        name="Ellipsis_anything",
-                        template=object,
-                        common=False
-                    ),
+                    name=core.Wildcard(name="Ellipsis_anything", template=object, common=False),
                     asname=None,
             )],
             level=0,
@@ -957,16 +939,8 @@ class TestCompile(unittest.TestCase):
             module="foo",
             names=[
                 ast.alias(
-                    name=core.Wildcard(
-                        name="Ellipsis_anything",
-                        template=object,
-                        common=False
-                    ),
-                    asname=core.Wildcard(
-                        name="Ellipsis_anything",
-                        template=object,
-                        common=False
-                    ),
+                    name=core.Wildcard(name="Ellipsis_anything", template=object, common=False),
+                    asname=core.Wildcard(name="Ellipsis_anything", template=object, common=False),
             )],
             level=0,
         )
@@ -979,14 +953,7 @@ class TestCompile(unittest.TestCase):
         source = "from foo import {{...+}}"
         pattern = core.compile_template(source)
         expected = ast.ImportFrom(
-            module="foo",
-            names=[
-                core.OneOrMany(
-                    ast.alias(
-                        name=object,
-                        asname=object,
-            ))],
-            level=0,
+            module="foo", names=[core.OneOrMany(ast.alias(name=object, asname=object))], level=0
         )
         assert isinstance(pattern, ast.ImportFrom)
         assert pattern.module == expected.module
@@ -1001,11 +968,7 @@ class TestCompile(unittest.TestCase):
             names=[
                 core.OneOrMany(
                     ast.alias(
-                        name=core.Wildcard(
-                            name="name",
-                            template=object,
-                            common=False
-                        ),
+                        name=core.Wildcard(name="name", template=object, common=False),
                         asname=object,
             ))],
             level=0,

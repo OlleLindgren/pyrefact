@@ -13,58 +13,58 @@ def main() -> int:
     test_cases = ((
         """
 x = foo(a, b, *(c, d), e, *{f}, *[k, v, h])
-    """,
+        """,
         """
 x = foo(a, b, c, d, e, f, k, v, h)
-    """,
+        """,
         ),
         (
             """
 x = foo(*(1, 2))
-    """,
+        """,
         """
 x = foo(1, 2)
-    """,
+        """,
         ),
         (
             """
 x = foo(*[1, 2])
-    """,
+        """,
         """
 x = foo(1, 2)
-    """,
+        """,
         ),
         (  # Set of > 1 length should not be unpacked
             """
 x = foo(*{1, 2})
-    """,
+        """,
         """
 x = foo(*{1, 2})
-    """,
+        """,
         ),
         (
             """
 x = foo(*(1,))
-    """,
+        """,
         """
 x = foo(1)
-    """,
+        """,
         ),
         (
             """
 x = foo(*[1])
-    """,
+        """,
         """
 x = foo(1)
-    """,
+        """,
         ),
         (
             """
 x = foo(*{1})
-    """,
+        """,
         """
 x = foo(1)
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

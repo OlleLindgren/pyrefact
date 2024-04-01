@@ -21,7 +21,7 @@ for x in range(10):
         d[x].append(y)
     else:
         d[x] = [y]
-            """,
+        """,
             """
 def f(x: int) -> int:
     return x+1
@@ -42,7 +42,7 @@ for x in range(10):
         d[x].add(y)
     else:
         d[x] = {y}
-            """,
+        """,
             """
 def f(x: int) -> int:
     return x+1
@@ -62,7 +62,7 @@ for x in range(10):
         d[x].append(f(x))
     else:
         d[x] = [f(x)]
-            """,
+        """,
             """
 def f(x: int) -> int:
     return x+1
@@ -90,7 +90,7 @@ for x in range(10):
         d[w].extend([z, 9, 12])
     else:
         d[w] = [z, 9, 12]
-            """,
+        """,
             """
 def f(x: int) -> int:
     return x+1
@@ -120,7 +120,7 @@ for x in range(10):
         d[w].add(f(x))
     else:
         d[w] = {f(x)}
-            """,
+        """,
             """
 def f(x: int) -> int:
     return x+1
@@ -135,7 +135,7 @@ for x in range(10):
         d[w].add(f(x))
     else:
         d[w] = {f(x)}
-            """,
+        """,
         ),
         (
             """
@@ -147,7 +147,7 @@ for x in range(10):
         d[x].add(f(x))
     else:
         d[x] = [f(x)]
-            """,
+        """,
             """
 def f(x: int) -> int:
     return x+1
@@ -157,7 +157,7 @@ for x in range(10):
         d[x].add(f(x))
     else:
         d[x] = [f(x)]
-            """,
+        """,
         ),
         (
             """
@@ -203,7 +203,7 @@ for x in range(10):
         d[x].extend(i for i in range(100))
     else:
         d[x] = [i for i in range(100)]
-            """,
+        """,
             """
 d = collections.defaultdict(list)
 for x in range(10):

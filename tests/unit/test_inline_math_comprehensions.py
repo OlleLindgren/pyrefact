@@ -16,21 +16,21 @@ def main() -> int:
             """
 z = {a for a in range(10)}
 x = sum(z)
-    """,
+        """,
         """
 z = {a for a in range(10)}
 x = sum({a for a in range(10)})
-    """,
+        """,
         ),
         (
             """
 w = [a ** 2 for a in range(10)]
 y = sum(w)
-    """,
+        """,
         """
 w = [a ** 2 for a in range(10)]
 y = sum([a ** 2 for a in range(10)])
-    """,
+        """,
         ),
         (
             """
@@ -38,13 +38,13 @@ k = True
 w = [a ** 2 for a in range(11) if k]
 k = False
 y = sum(w)
-    """,
+        """,
         """
 k = True
 w = [a ** 2 for a in range(11) if k]
 k = False
 y = sum(w)
-    """,
+        """,
         ),
         (
             """

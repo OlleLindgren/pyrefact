@@ -10,13 +10,12 @@ import testing_infra
 
 
 def main() -> int:
-    test_cases = (
-        (
-            """
+    test_cases = ((
+        """
 import os
 import sys
         """,
-            """
+        """
 import os
 import sys
         """,
@@ -25,7 +24,7 @@ import sys
             """
 from c import z
         """,
-            """
+        """
 from d import y as z
         """,
         ),
@@ -33,7 +32,7 @@ from d import y as z
             """
 from d import sys
         """,
-            """
+        """
 import sys
         """,
         ),
@@ -43,7 +42,7 @@ from c import z
 from b import x as k
 from d import sys
         """,
-            """
+        """
 from d import x as k
 from d import y as z
 import sys
@@ -56,7 +55,7 @@ from b import x as k
 from d import sys
 from e import hh
         """,
-            """
+        """
 from d import x as k
 from d import y as z
 import sys
@@ -64,7 +63,7 @@ from e import hh
         """,
         ),
         (  # This fix doesn't touch starred imports. They're fixed by fix_starred_imports
-        """
+            """
 from c import *
 from e import *
         """,
@@ -72,8 +71,7 @@ from e import *
 from c import *
 from e import *
         """,
-        ),
-    )
+    ),)
 
     sys.path.append(str(Path(__file__).parents[1] / "integration" / "tracing_test_files"))
     for source, expected_abstraction in test_cases:

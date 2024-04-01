@@ -21,7 +21,7 @@ for x in range(100):
         print(x > 30)
         y = 100 - sum(x, 2, 3)
 print(x)
-    """,
+        """,
         """
 for x in range(100):
     if x > 10:
@@ -33,7 +33,7 @@ for x in range(100):
         print(x > 30)
         y = 100 - sum(x, 2, 3)
 print(x)
-    """,
+        """,
         ),
         (
             """
@@ -45,7 +45,7 @@ for i in range(100):
         import sys
         print(os.getcwd())
         print(sys is os)
-            """,
+        """,
             """
 for i in range(100):
     if i % 3 != 2:
@@ -57,7 +57,7 @@ for i in range(100):
         import sys
         print(os.getcwd())
         print(sys is os)
-            """,
+        """,
         ),
         (
             """
@@ -66,14 +66,14 @@ for i in range(100):
         print(i ** i)
         print(i ** 3)
         print(i ** 4)
-            """,
+        """,
             """
 for i in range(100):
     if i % 3 == 2:
         print(i ** i)
         print(i ** 3)
         print(i ** 4)
-            """,
+        """,
         ),
         (
             """
@@ -83,7 +83,7 @@ for i in range(100):
             print(i ** i)
             print(i ** 3)
             print(i ** 4)
-            """,
+        """,
             """
 for i in range(100):
     if i % 3 == 2:
@@ -91,7 +91,7 @@ for i in range(100):
             print(i ** i)
             print(i ** 3)
             print(i ** 4)
-            """,
+        """,
         ),
         (
             """
@@ -101,7 +101,7 @@ for i in range(100):
         if i % 6 == 1:
             print(i ** 3)
             print(i ** 4)
-            """,
+        """,
             """
 for i in range(100):
     if i % 3 == 2:
@@ -109,7 +109,7 @@ for i in range(100):
         if i % 6 == 1:
             print(i ** 3)
             print(i ** 4)
-            """,
+        """,
         ),
         (
             """
@@ -123,7 +123,7 @@ for i in range(100):
         if i % 6 == 1:
             print(i ** 3)
             print(i ** 4)
-            """,
+        """,
             """
 for i in range(100):
     if i % 3 != 2:
@@ -137,7 +137,7 @@ for i in range(100):
         if i % 6 == 1:
             print(i ** 3)
             print(i ** 4)
-            """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

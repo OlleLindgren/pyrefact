@@ -88,7 +88,7 @@ for _, x in df.iterrows():
     y += x.at["qwerty"] ** x.iat[9]
     if y >= 199 and x.iat[13] + x.iat[8] > x["q"]:
         print(x["jk"] + x["e"])
-            """,
+        """,
             """
 for x in df.itertuples():
     print(x.value)
@@ -96,7 +96,7 @@ for x in df.itertuples():
     y += x.qwerty ** x[9 + 1]
     if y >= 199 and x[13 + 1] + x[8 + 1] > x.q:
         print(x.jk + x.e)
-            """,
+        """,
         ),
         (
             """

@@ -261,9 +261,7 @@ def format_code(
     return source
 
 
-def format_file(
-    filename: Path, preserve: Collection[str] = frozenset(), safe: bool = False
-) -> int:
+def format_file(filename: Path, preserve: Collection[str] = frozenset(), safe: bool = False) -> int:
     """Fix a file.
 
     Args:

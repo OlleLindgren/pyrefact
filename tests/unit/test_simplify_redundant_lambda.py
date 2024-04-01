@@ -72,11 +72,11 @@ def main() -> int:
             """
 lambda *args: w(*args)
 lambda **kwargs: r(**kwargs)
-    """,
+        """,
         """
 w
 r
-    """,
+        """,
         ),
         (
             """
@@ -87,7 +87,7 @@ lambda z, k, /, w, h, *args: rrr(z, k, w, h, *args)
 lambda z, k, /, w, h, *args, **kwargs: rfr(z, k, w, h, *args, **kwargs)
 lambda z, k, /, w, h, *args: rrr(z, k, w, w, *args)
 lambda z, k, /, w, h: rrr(z, k, w, w, *args)
-    """,
+        """,
         """
 h
 f
@@ -96,7 +96,7 @@ rrr
 rfr
 lambda z, k, /, w, h, *args: rrr(z, k, w, w, *args)
 lambda z, k, /, w, h: rrr(z, k, w, w, *args)
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

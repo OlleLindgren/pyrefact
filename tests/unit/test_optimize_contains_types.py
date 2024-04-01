@@ -26,7 +26,7 @@ w in {x for x in [1, 3, "", 909, ()]}
 w in [x for x in [1, 3, "", 909, ()]]
 w in (x for x in [1, 3, "", 909, ()])
 x in sorted([1, 2, 3])
-    """,
+        """,
         """
 1 in {1, 2, 3}
 x in {1, 2, ()}
@@ -41,7 +41,7 @@ w in (x for x in [1, 3, "", 909, ()])
 w in (x for x in [1, 3, "", 909, ()])
 w in (x for x in [1, 3, "", 909, ()])
 x in {1, 2, 3}
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

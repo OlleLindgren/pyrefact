@@ -24,7 +24,7 @@ for x in range(11):
         continue
 
     print(x)
-    """,
+        """,
         """
 def _pyrefact_abstraction_1(x) -> bool:
     if x == 3:
@@ -43,7 +43,7 @@ for x in range(11):
         continue
 
     print(x)
-    """,
+        """,
         ),
         (
             """
@@ -57,7 +57,7 @@ for x in range(11):
         break
 
     print(x)
-    """,
+        """,
         """
 def _pyrefact_abstraction_1(x) -> bool:
     if x == 3:
@@ -76,7 +76,7 @@ for x in range(11):
         break
 
     print(x)
-    """,
+        """,
         ),
         (
             """
@@ -93,7 +93,7 @@ for x in range(11):
     print(x)
     print(x, 1, 2)
     print(x, x, x)
-    """,
+        """,
         """
 def _pyrefact_abstraction_1(x):
     if x == 3:
@@ -112,7 +112,7 @@ for x in range(11):
     print(x)
     print(x, 1, 2)
     print(x, x, x)
-    """,
+        """,
         ),
         (
             """
@@ -259,7 +259,7 @@ else:
     z = 99
 
 print(q, z)
-    """,
+        """,
         """
 def _pyrefact_abstraction_1(x):
     if x == 3:
@@ -306,7 +306,7 @@ z = _pyrefact_abstraction_3(q)
 
 print(q, z)
 
-    """,
+        """,
         ),  # Duplicate functions should be removed, but not by create_abstractions().
     )
 

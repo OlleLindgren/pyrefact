@@ -13,18 +13,18 @@ def main() -> int:
     test_cases = ((
         """
 (x for _, x in enumerate(y))
-    """,
+        """,
         """
 (x for x in y)
-    """,
+        """,
         ),
         (
             """
 (x for i, x in enumerate(y))
-    """,
+        """,
         """
 (x for i, x in enumerate(y))
-    """,
+        """,
         ),
         (
             """

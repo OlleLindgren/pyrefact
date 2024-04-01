@@ -26,7 +26,7 @@ v = np.array([[np.dot(b_, a_) for b_ in b.T] for a_ in a])
 
 print(np.sum((u - np.matmul(a, b)).ravel()))
 print(np.sum((v - np.matmul(a, b)).ravel()))
-            """,
+        """,
             """
 import numpy as np
 
@@ -40,7 +40,7 @@ v = np.matmul(a, b)
 
 print(np.sum((u - np.matmul(a, b)).ravel()))
 print(np.sum((v - np.matmul(a, b)).ravel()))
-            """,
+        """,
         ),
         (
             """
@@ -62,7 +62,7 @@ print(np.sum((u - np.matmul(a, b)).ravel()))
 print(np.sum((v - np.matmul(a, c.T)).ravel()))
 print(np.sum((w - np.matmul(b.T, d).T).ravel()))
 print(np.sum((z - np.matmul(b.T, a.T)).ravel()))
-            """,
+        """,
             """
 import numpy as np
 
@@ -82,17 +82,17 @@ print(np.sum((u - np.matmul(a, b)).ravel()))
 print(np.sum((v - np.matmul(a, c.T)).ravel()))
 print(np.sum((w - np.matmul(b.T, d).T).ravel()))
 print(np.sum((z - np.matmul(b.T, a.T)).ravel()))
-            """,
+        """,
         ),
         (
             """
 for i in range(len(left)):
     for j in range(len(right[0])):
         result[i][j] = np.dot(left[i] * right.T[j])
-            """,
+        """,
             """
 result = np.matmul(left, right)
-            """,
+        """,
         ),
         (
             """
@@ -100,10 +100,10 @@ for i in range(len(left)):
     for j in range(len(right[0])):
         for k in range(len(right)):
             result[i][j] += left[i][k] * right[k][j]
-            """,
+        """,
             """
 result = np.matmul(left, right)
-            """,
+        """,
         ),
         (
             """
@@ -114,10 +114,10 @@ result = [
     ]
     for i in range(len(left))
 ]
-            """,
+        """,
             """
 result = np.matmul(left, right)
-            """,
+        """,
         ),
         (
             """
@@ -131,10 +131,10 @@ result = [
     ]
     for i in range(len(left))
 ]
-            """,
+        """,
             """
 result = np.matmul(left, right)
-            """,
+        """,
         ),
     )
 

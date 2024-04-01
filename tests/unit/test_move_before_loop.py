@@ -293,13 +293,13 @@ for i in range(10):
     x = (1, 2, 3)
     for y in x:
         print(y)
-            """,
+        """,
             """
 x = (1, 2, 3)
 for i in range(10):
     for y in x:
         print(y)
-            """,
+        """,
         ),
         (
             """
@@ -352,7 +352,7 @@ for i in range(10):
         inner_header = outer_header[i]
         print(inner_header[y])
         print(len(second_outer_header))
-            """,
+        """,
             """
 import h5py
 f = h5py.File("path/to/file.hdf5")
@@ -363,7 +363,7 @@ for i in range(10):
     for y in x:
         print(inner_header[y])
         print(len(second_outer_header))
-            """,
+        """,
         ),
         (
             """
@@ -397,7 +397,7 @@ for i in range(10):
     nested_header = f["level_1"]["level_3"]["paths"]
     for y in nested_header:
         print(y)
-            """,
+        """,
             """
 import h5py
 f = h5py.File("path/to/file.hdf5")
@@ -405,7 +405,7 @@ nested_header = f["level_1"]["level_3"]["paths"]
 for i in range(10):
     for y in nested_header:
         print(y)
-            """,
+        """,
         ),
         (  # multiline string
             """

@@ -47,7 +47,7 @@ if random.random() < 2:
 else:
     print(21)
 print(100)
-    """,
+        """,
         ),
         (  # Before and after
             """
@@ -69,7 +69,7 @@ if random.random() < 2:
 else:
     print(21)
 print(100)
-    """,
+        """,
         ),
         (  # body becomes empty
             """
@@ -87,7 +87,7 @@ if random.random() < 2:
 else:
     print(33)
 print(100)
-    """,
+        """,
         ),
         (  # orelse becomes empty
             """
@@ -160,7 +160,7 @@ elif random.random() >= 2:
 else:
     print(21)
 print(100)
-    """,
+        """,
         ),
         (  # nested if, match inner but not outer
             """
@@ -234,7 +234,7 @@ if random.random() < 2:
 else:
     if random is heapq:
         print(100)
-            """,
+        """,
             """
 import random
 import heapq
@@ -259,7 +259,7 @@ elif random.random() >= 2:
 else:
     if random is heapq:
         print(100)
-            """,
+        """,
             """
 import random
 import heapq
@@ -272,7 +272,7 @@ elif random.random() >= 2:
 else:
     if random is heapq:
         print(100)
-            """,
+        """,
         ),
         (  # nested if, match end due to exception
             """
@@ -294,7 +294,7 @@ elif random.random() >= 2:
 else:
     raise Exception()
 print(100)
-    """,
+        """,
         ),
         (  # Implicit if/else
             """
@@ -332,7 +332,7 @@ def foo(x: str):
     return 5
     if x == 89:
         pass
-            """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

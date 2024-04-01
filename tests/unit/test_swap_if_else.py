@@ -21,7 +21,7 @@ def f(x) -> int:
         return 100 - sum(x, 2, 3)
     else:
         return 13
-            """,
+        """,
             """
 def f(x) -> int:
     if x <= 10:
@@ -31,7 +31,7 @@ def f(x) -> int:
         x *= 12
         print(x > 30)
         return 100 - sum(x, 2, 3)
-            """,
+        """,
         ),
         (  # Implicit only
             """
@@ -53,7 +53,7 @@ def f(x) -> int:
         x *= 12
         print(x > 30)
         return 100 - sum(x, 2, 3)
-            """,
+        """,
         ),
         (  # No body
             """
@@ -62,12 +62,12 @@ def f(x):
         pass
     else:
         print(2)
-            """,
+        """,
             """
 def f(x):
     if x <= 10:
         print(2)
-            """,
+        """,
         ),
         (  # Combined
             """
@@ -80,7 +80,7 @@ def f(x) -> int:
         return 99
     else:
         return 14
-            """,
+        """,
             """
 def f(x) -> int:
     if x <= 10:
@@ -91,7 +91,7 @@ def f(x) -> int:
         elif x >= 12:
             return 2
         return 99
-            """,
+        """,
         ),
         (  # Non-blocking body -> swap not equivalent
             """
@@ -100,14 +100,14 @@ if X % 5 == 0:
         if X % (X - 4) == 0:
             return 61
 return 12
-    """,
+        """,
         """
 if X % 5 == 0:
     if X % 61 == 0:
         if X % (X - 4) == 0:
             return 61
 return 12
-    """,
+        """,
         ),
         (  # There's a pattern going on here, it shouldn't be disturbed.
             """

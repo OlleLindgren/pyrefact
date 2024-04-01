@@ -15,11 +15,11 @@ def main() -> int:
         """
 import os
 import re
-    """,
+        """,
         """
 import os
 import re
-    """,
+        """,
         ),
         (
             """
@@ -27,11 +27,11 @@ import os
 
 
 import re
-    """,
+        """,
         """
 import os
 import re
-    """,
+        """,
         ),
         (
             """
@@ -53,22 +53,22 @@ import os; import sys
 
 
 import re
-    """,
+        """,
         """
 import os; import sys
 import re
-    """,
+        """,
         ),
         (
             """
 import os
 
 from re import findall
-    """,
+        """,
         """
 import os
 from re import findall
-    """,
+        """,
         ),
         (
             """
@@ -82,7 +82,7 @@ from pathlib import (
 )
 import numpy
 import pandas as pd
-    """,
+        """,
         """
 import os
 import re
@@ -93,7 +93,7 @@ from pathlib import (
 
 import numpy
 import pandas as pd
-    """,
+        """,
         ),
         (
             """
@@ -111,7 +111,7 @@ def foo():
     print(100)
 import pandas
 foo()
-    """,
+        """,
         """
 import os
 
@@ -131,7 +131,7 @@ def foo():
 import pandas
 
 foo()
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:

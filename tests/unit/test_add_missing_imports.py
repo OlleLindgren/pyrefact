@@ -13,23 +13,23 @@ def main() -> int:
     test_cases = ((
         """
 sys.path.append(os.getcwd())
-    """,
+        """,
         """
 import os
 import sys
 
 sys.path.append(os.getcwd())
-    """,
+        """,
         ),
         (
             """
 functools.reduce(lambda x: x+y, [1, 2, 3])
-    """,
+        """,
         """
 import functools
 
 functools.reduce(lambda x: x+y, [1, 2, 3])
-    """,
+        """,
         ),
         (
             """
@@ -37,27 +37,27 @@ import scipy.stats
 
 a, b = 1.25, 0.5
 mean, var, skew, kurt = scipy.stats.norminvgauss.stats(a, b, moments='mvsk')
-    """,
+        """,
         """
 import scipy.stats
 
 a, b = 1.25, 0.5
 mean, var, skew, kurt = scipy.stats.norminvgauss.stats(a, b, moments='mvsk')
-    """,
+        """,
         ),
         (
             """
 print(wierdo_library.strange_function())
-    """,
+        """,
         """
 print(wierdo_library.strange_function())
-    """,
+        """,
         ),
         (
             """
 x = np.array()
 z = pd.DataFrame()
-    """,
+        """,
         """
 import numpy as np
 import pandas as pd
@@ -65,17 +65,17 @@ import pandas as pd
 
 x = np.array()
 z = pd.DataFrame()
-    """,
+        """,
         ),
         (
             """
 w = numpy.zeros(10, dtype=numpy.float32)
-    """,
+        """,
         """
 import numpy
 
 w = numpy.zeros(10, dtype=numpy.float32)
-    """,
+        """,
         ),
         (
             """
@@ -86,7 +86,7 @@ from typing import (
     TypeVar,
 )
 y = Iterable
-    """,
+        """,
         """
 from typing import Iterable
 from typing import (
@@ -95,7 +95,7 @@ from typing import (
     TypeVar,
 )
 y = Iterable
-    """,
+        """,
     ),)
 
     for source, expected_abstraction in test_cases:
