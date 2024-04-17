@@ -563,11 +563,11 @@ print(S)
         ),
         (
         """
-q = set()
+q = list()
 for a in [x, y, 1, 2, 3]:
     for x in (1, 2, 3):
         if x * a > 3:
-            q.update(
+            q.extend(
                 b
                 for _ in range(11)
                 for b in frozenset(range(2, a, x))
@@ -575,14 +575,14 @@ for a in [x, y, 1, 2, 3]:
 print(q)
         """,
         """
-Q = {
+Q = [
     c
     for a in [x, y, 1, 2, 3]
     for x in (1, 2, 3)
     if x * a > 3
     for _ in range(11)
     for c in frozenset(range(2, a, x))
-}
+]
 print(Q)
         """
         ),

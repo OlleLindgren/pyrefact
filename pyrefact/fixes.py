@@ -1664,7 +1664,7 @@ def replace_nested_loops_with_set_list_comp(source: str) -> str:
     expression = core.Wildcard("expression", ast.AST)
     outer_container_add_to = core.Wildcard(
         "outer_container_add_to",
-        ast.Attribute(attr=("extend", "update"))
+        ast.Attribute(attr="extend")
     )
 
     assign_expression_to_container = ast.Assign(targets=[container], value=expression)

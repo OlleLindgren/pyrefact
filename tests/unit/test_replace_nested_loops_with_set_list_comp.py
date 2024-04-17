@@ -25,14 +25,14 @@ l.extend((b for a in range(A) for b in list(range(B))))
         ),
         (
             """
-q = set()
+q = []
 for a in [x, y, 1, 2, 3]:
     m = frozenset(range(2, a))
-    q.update(m)
+    q.extend(m)
         """,
             """
-q = set()
-q.update((
+q = []
+q.extend((
     b
     for a in [x, y, 1, 2, 3]
     for b in frozenset(range(2, a))
@@ -41,17 +41,17 @@ q.update((
         ),
         (
             """
-q = set()
+q = []
 for a in [x, y, 1, 2, 3]:
     for x in (1, 2, 3):
         if x * a > 3:
             for _ in range(11):
                 m = frozenset(range(2, a, x))
-                q.update(m)
+                q.extend(m)
         """,
             """
-q = set()
-q.update((
+q = []
+q.extend((
     b
     for a in [x, y, 1, 2, 3]
     for x in (1, 2, 3)
@@ -63,18 +63,18 @@ q.update((
         ),
         (  # If there isn't a loop around it, it should not be replaced.
             """
-q = set()
+q = []
 if x * a > 3:
-    q.update(
+    q.extend(
         b
         for _ in range(11)
         for b in frozenset(range(2, a, x))
     )
         """,
             """
-q = set()
+q = []
 if x * a > 3:
-    q.update(
+    q.extend(
         b
         for _ in range(11)
         for b in frozenset(range(2, a, x))
@@ -101,15 +101,15 @@ l.extend((
         ),
         (
             """
-q = set()
+q = []
 for a in [x, y, 1, 2, 3]:
     if random() > 0.5:
         m = frozenset(range(2, a))
-        q.update(m)
+        q.extend(m)
         """,
             """
-q = set()
-q.update((
+q = []
+q.extend((
     b
     for a in [x, y, 1, 2, 3]
     if random() > 0.5
@@ -119,17 +119,17 @@ q.update((
         ),
         (
             """
-q = set()
+q = []
 if complicated_condition(q, 1, 2):
     for a in [x, y, 1, 2, 3]:
         if random() > 0.5:
             m = frozenset(range(2, a))
-            q.update(m)
+            q.extend(m)
         """,
             """
-q = set()
+q = []
 if complicated_condition(q, 1, 2):
-    q.update((
+    q.extend((
         b
         for a in [x, y, 1, 2, 3]
         if random() > 0.5
@@ -139,19 +139,19 @@ if complicated_condition(q, 1, 2):
         ),
         (
             """
-q = set()
+q = []
 for a in [x, y, 1, 2, 3]:
     for x in (1, 2, 3):
         if x * a > 3:
-            q.update(
+            q.extend(
                 b
                 for _ in range(11)
                 for b in frozenset(range(2, a, x))
             )
         """,
             """
-q = set()
-q.update((
+q = []
+q.extend((
     c
     for a in [x, y, 1, 2, 3]
     for x in (1, 2, 3)
