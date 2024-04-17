@@ -62,10 +62,10 @@ def match(pattern: str | ast.AST, source: str) -> core.Match | None:
     if not root.body:
         return None
 
+    module_body_ranges = [core.get_charnos(node, source) for node in root.body]
     for rng, _, groups in processing.find_replace(source, pattern, "", yield_match=True, root=root):
         m = core.Match(rng, source, groups)
 
-        module_body_ranges = [core.get_charnos(node, source) for node in root.body]
         module_body_range = core.Range(
             start=min(rng.start for rng in module_body_ranges),
             end=max(rng.end for rng in module_body_ranges),
@@ -82,10 +82,10 @@ def fullmatch(pattern: str | ast.AST, source: str) -> core.Match | None:
     if not root.body:
         return None
 
+    module_body_ranges = [core.get_charnos(node, source) for node in root.body]
     for rng, _, groups in processing.find_replace(source, pattern, "", yield_match=True, root=root):
         m = core.Match(rng, source, groups)
 
-        module_body_ranges = [core.get_charnos(node, source) for node in root.body]
         module_body_range = core.Range(
             start=min(rng.start for rng in module_body_ranges),
             end=max(rng.end for rng in module_body_ranges),
