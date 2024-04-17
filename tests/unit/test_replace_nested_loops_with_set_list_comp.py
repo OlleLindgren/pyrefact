@@ -162,7 +162,36 @@ q.extend((
         for b in frozenset(range(2, a, x))
 )))
         """,
-    ),)
+        ),
+        (
+            """
+q = []
+for a in [x, y, 1, 2, 3]:
+    for x in (1, 2, 3):
+        if x * a > 3:
+            q.extend(
+                b
+                for _ in range(11)
+                for b in frozenset(range(2, a, x))
+            )
+        else:
+            q.extend([1, 2, 3])
+        """,
+            """
+q = []
+for a in [x, y, 1, 2, 3]:
+    for x in (1, 2, 3):
+        if x * a > 3:
+            q.extend(
+                b
+                for _ in range(11)
+                for b in frozenset(range(2, a, x))
+            )
+        else:
+            q.extend([1, 2, 3])
+        """,
+        ),
+    )
 
     for source, expected_abstraction in test_cases:
         processed_content = fixes.replace_nested_loops_with_set_list_comp(source)

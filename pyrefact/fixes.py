@@ -1696,7 +1696,7 @@ def replace_nested_loops_with_set_list_comp(source: str) -> str:
                 ifs=[],
                 is_async=int(isinstance(node, ast.AsyncFor)),
         )]
-        while core.match_template(node.body, [(ast.For, ast.If, ast.AsyncFor)]):
+        while core.match_template(node.body, [(ast.For(orelse=[]), ast.If(orelse=[]), ast.AsyncFor(orelse=[]))]):
             node = node.body[0]
             if isinstance(node, (ast.For, ast.AsyncFor)):
                 generators.append(
