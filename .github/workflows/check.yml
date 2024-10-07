@@ -143,7 +143,7 @@ jobs:
       run: python -m build
     - name: Publish package
       if: env.GIT_DIFF && env.MATCHED_FILES
-      uses: pypa/gh-action-pypi-publish@8a08d616893759ef8e1aa1f2785787c0b97e20d6
+      uses: pypa/gh-action-pypi-publish@f7600683efdcb7656dec5b29656edb7bc586e597
       with:
         user: __token__
         password: ${{ secrets.PYPI_DEPLOY_TOKEN_MAINONLY }}
