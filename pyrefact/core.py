@@ -919,7 +919,7 @@ def literal_value(node: ast.AST) -> bool:
     if match_template(node, ast.UnaryOp(op=ast.Not, operand=object)):
         return not literal_value(node.operand)
 
-    if match_template(node, ast.BoolOp(op=(ast.And, ast.Or))):
+    if match_template(node, ast.BoolOp(op=(ast.And, ast.Or), values=list)):
         if not node.values:
             raise ValueError("Cannot find a deterministic value for an empty BoolOp")
         if isinstance(node.op, ast.And):
@@ -943,7 +943,7 @@ def literal_value(node: ast.AST) -> bool:
             return result
 
     # For e.g. "".join(("1", "2"))
-    if match_template(node, ast.Call(func=ast.Attribute(value=ast.Constant), keywords=[])):
+    if match_template(node, ast.Call(func=ast.Attribute(attr=object, value=ast.Constant), keywords=[], args=list)):
         node_value = literal_value(node.func.value)
         args = [literal_value(arg) for arg in node.args]
         return getattr(node_value, node.func.attr)(*args)
