@@ -653,7 +653,7 @@ class TestCompile(unittest.TestCase):
         source = "x = 10"
         pattern = core.compile_template(source)
         expected = ast.Assign(
-            targets=[ast.Name(id="x")], value=ast.Constant(value=10, kind=None), type_comment=None
+            targets=[ast.Name(id="x", ctx=ast.Store())], value=ast.Constant(value=10, kind=None), type_comment=None
         )
         assert core.match_template(pattern, expected)
         assert core.match_template(expected, pattern)
@@ -674,7 +674,7 @@ class TestCompile(unittest.TestCase):
         """
         pattern = core.compile_template(source)
         expected = ast.Assign(
-            targets=[ast.Name(id="x")], value=ast.Constant(value=10, kind=None), type_comment=None
+            targets=[ast.Name(id="x", ctx=ast.Store())], value=ast.Constant(value=10, kind=None), type_comment=None
         )
         assert core.match_template(pattern, expected)
         assert core.match_template(expected, pattern)
@@ -692,19 +692,19 @@ class TestCompile(unittest.TestCase):
             ast.Import(names=[ast.alias(name="os", asname=None)]),
             ast.ClassDef(
                 name="Foo",
-                bases=[ast.Name(id="bar")],
+                bases=[ast.Name(id="bar", ctx=ast.Load())],
                 keywords=[],
                 body=[
                     ast.AnnAssign(
-                        target=ast.Name(id="x"),
-                        annotation=ast.Name(id="int"),
+                        target=ast.Name(id="x", ctx=ast.Store()),
+                        annotation=ast.Name(id="int", ctx=ast.Load()),
                         value=ast.Constant(value=10, kind=None),
                         simple=1,
                 )],
                 decorator_list=[],
             ),
             ast.Assign(
-                targets=[ast.Name(id="h")],
+                targets=[ast.Name(id="h", ctx=ast.Store())],
                 value=ast.Constant(value=100, kind=None),
                 type_comment=None,
         ),]
@@ -723,13 +723,13 @@ class TestCompile(unittest.TestCase):
         pattern = core.compile_template(source)
         expected = [
             ast.Assign(
-                targets=[ast.Name(id="x")],
+                targets=[ast.Name(id="x", ctx=ast.Store())],
                 value=ast.Constant(value=10, kind=None),
                 type_comment=None,
             ),
             core.ZeroOrOne(object),
             ast.Assign(
-                targets=[ast.Name(id="z")],
+                targets=[ast.Name(id="z", ctx=ast.Store())],
                 value=ast.Constant(value=1, kind=None),
                 type_comment=None,
             ),
@@ -752,13 +752,13 @@ class TestCompile(unittest.TestCase):
         pattern = core.compile_template(source)
         expected = [
             ast.Assign(
-                targets=[ast.Name(id="x")],
+                targets=[ast.Name(id="x", ctx=ast.Store())],
                 value=ast.Constant(value=10, kind=None),
                 type_comment=None,
             ),
             core.Wildcard(name="Ellipsis_anything", template=object, common=False),
             ast.Assign(
-                targets=[ast.Name(id="z")],
+                targets=[ast.Name(id="z", ctx=ast.Store())],
                 value=ast.Constant(value=1, kind=None),
                 type_comment=None,
             ),
@@ -781,13 +781,13 @@ class TestCompile(unittest.TestCase):
         pattern = core.compile_template(source)
         expected = [
             ast.Assign(
-                targets=[ast.Name(id="x")],
+                targets=[ast.Name(id="x", ctx=ast.Store())],
                 value=ast.Constant(value=10, kind=None),
                 type_comment=None,
             ),
             core.ZeroOrMany(object),
             ast.Assign(
-                targets=[ast.Name(id="z")],
+                targets=[ast.Name(id="z", ctx=ast.Store())],
                 value=ast.Constant(value=1, kind=None),
                 type_comment=None,
             ),
@@ -809,13 +809,13 @@ class TestCompile(unittest.TestCase):
         pattern = core.compile_template(source)
         expected = [
             ast.Assign(
-                targets=[ast.Name(id="x")],
+                targets=[ast.Name(id="x", ctx=ast.Store())],
                 value=ast.Constant(value=10, kind=None),
                 type_comment=None,
             ),
             core.OneOrMany(object),
             ast.Assign(
-                targets=[ast.Name(id="z")],
+                targets=[ast.Name(id="z", ctx=ast.Store())],
                 value=ast.Constant(value=1, kind=None),
                 type_comment=None,
             ),
