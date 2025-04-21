@@ -1313,7 +1313,7 @@ def early_return(source: str) -> str:
             else:
                 recursive_last_nonif_nodes.append(last_orelse)
         if all((
-            core.match_template(node, ast.Assign(targets=[ast.Name(id=retval)]))
+            core.match_template(node, ast.Assign(targets=[ast.Name(id=retval, ctx=ast.Store())]))
             for node in recursive_last_nonif_nodes
         )):
             for node in recursive_last_nonif_nodes:
