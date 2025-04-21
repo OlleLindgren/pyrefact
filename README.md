@@ -85,7 +85,7 @@ pyreplace "x = {{value}}" "x = 1 - {{value}} ** 3" /path/to/filename.py
 
 ## Installation
 
-Pyrefact can be installed with pip, and works on Python 3.8 or newer:
+Pyrefact can be installed with pip, and works on Python 3.9 or newer:
 
 ```bash
 pip install pyrefact

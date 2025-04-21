@@ -153,17 +153,6 @@ def remove_redundant_chained_calls(source: str) -> str:
         yield node, replacement
 
 
-def _slice_of(node: ast.Subscript) -> ast.AST:
-    node_slice = node.slice
-    if constants.PYTHON_VERSION < (3, 9):
-        if isinstance(node_slice, ast.Index):
-            return node_slice.value
-        if isinstance(node_slice, ast.ExtSlice):
-            return ast.Tuple(elts=node_slice.dims)
-
-    return node_slice
-
-
 @processing.fix
 def replace_sorted_heapq(source: str) -> str:
     root = core.parse(source)
@@ -188,7 +177,7 @@ def replace_sorted_heapq(source: str) -> str:
     for node in core.walk(root, template_sorted_subscript):
         args = node.value.args
         keywords = node.value.keywords
-        node_slice = _slice_of(node)
+        node_slice = node.slice
         if core.match_template(node_slice, template_first_element):
             replacement = ast.Call(
                 func=builtin_min, args=args, keywords=keywords, lineno=node.lineno

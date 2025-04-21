@@ -7,7 +7,7 @@ name = "pyrefact"
 version = "100"
 description = "Automated Python refactoring"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = {file = "LICENSE"}
 authors = [
     {email = "olle.ln@outlook.com"},
@@ -19,12 +19,11 @@ dependencies = [
     "compactify>=2",
     "rmspace>=7",
     "sympy>=1.11.0",
-    'astunparse==1.6.3; python_version<"3.9"',
     'tomli>=2.0.0; python_version<"3.11"'
 ]
 
 [project.optional-dependencies]
-dev = ["astunparse==1.6.3", "ruff==0.8.1"]
+dev = ["ruff==0.8.1"]
 
 [project.urls]
 repository="https://github.com/OlleLindgren/pyrefact"

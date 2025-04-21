@@ -57,7 +57,7 @@ def main() -> int:
     "b'bytes_string'",
     "r'''raw_string_literal\n'''",
     'f"i={i:.3f}"',
-    "{}" if constants.PYTHON_VERSION < (3, 9) else "f'{x=}'",
+    "f'{x=}'",
     "'foo = {}'.format(foo)",
     ):
         node = core.parse(source).body[0]
@@ -90,7 +90,7 @@ def main() -> int:
     "deep_nested_dict[a][b][c][d][e][f][g] = something",
     "f'''y={1 + foo()}'''",
     'f"i={i - i ** (1 - f(i)):.3f}"',
-    "k = 1" if constants.PYTHON_VERSION < (3, 9) else "f'{(x := 10)=}'",
+    "f'{(x := 10)=}'",
     "'foo() = {}'.format(foo())",
     "x.append(10)",
     ):

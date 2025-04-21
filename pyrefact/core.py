@@ -7,6 +7,7 @@ import dataclasses
 import functools
 import itertools
 import re
+import sys
 import textwrap
 import traceback
 from pathlib import Path
@@ -26,7 +27,7 @@ from typing import (
 )
 
 
-from pyrefact import constants, formatting, logs as logger
+from pyrefact import constants, logs as logger
 
 Template = TypeVar("Template", bound=Union[ast.AST, type, Collection[Union[ast.AST, type]]])
 
@@ -40,26 +41,8 @@ __all__ = ["Wildcard", "ZeroOrOne", "ZeroOrMany", "OneOrMany", "match_template",
 def unparse(node: ast.AST | str) -> str:
     if isinstance(node, str):
         return node  # Hack to allow format_template to accept strings matched by wildcards.
-    if constants.PYTHON_VERSION >= (3, 9):
-        return ast.unparse(node)
 
-    import astunparse
-
-    source = astunparse.unparse(node)
-
-    if not isinstance(node, ast.stmt):
-        source = source.rstrip()
-
-    toml_line_length = parse_line_length_from_pyproject_toml() - getattr(node, "col_offset", 0)
-    line_length = max(60, toml_line_length)
-    try:
-        ast.parse(source)
-    except (SyntaxError, ValueError):
-        source = formatting.format_with_black(source, line_length=line_length)
-    source = formatting.collapse_trailing_parentheses(source)
-    source = textwrap.dedent(source).lstrip()
-
-    return source
+    return ast.unparse(node)
 
 
 @dataclasses.dataclass(eq=True, frozen=True)
@@ -1401,7 +1384,7 @@ def format_template(source: str, template_match: NamedTuple, **callables) -> str
 
 @functools.lru_cache(maxsize=1)
 def parse_line_length_from_pyproject_toml() -> int:
-    if constants.PYTHON_VERSION >= (3, 11):
+    if sys.version_info >= (3, 11):
         # tomllib is new in 3.11
         from tomllib import load  # pyrefact: ignore
     else:

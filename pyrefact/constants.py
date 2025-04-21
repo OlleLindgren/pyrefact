@@ -437,8 +437,6 @@ PYTHON_KEYWORDS = frozenset(
     + ["_", "case", "match", "type"]  # keyword.softkwlist as of 3.12b2
 )
 
-PYTHON_VERSION = tuple(sys.version_info)
-
 REVERSE_OPERATOR_MAPPING = MappingProxyType({
     ast.Eq: ast.NotEq,
     ast.NotEq: ast.Eq,

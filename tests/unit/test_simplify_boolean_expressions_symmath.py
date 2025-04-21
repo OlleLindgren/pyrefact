@@ -52,9 +52,7 @@ a and b and c and d
     False
 )
         """,
-        )
-        if constants.PYTHON_VERSION >= (3, 9)
-        else ("", ""),
+        ),
         (
             """
 x = [a for a in range(10) if a % 2 == 0 and a > 5 and a % 2 == 0]

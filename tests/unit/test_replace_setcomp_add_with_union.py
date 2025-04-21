@@ -31,9 +31,7 @@ x.update({"sadf", 312})
         """
 x = {foo(z) ** 2 for z in range(3)} | {zua - 1 for zua in range(3)} | set((1, 3, 2)) | set({"sadf", 312})
         """,
-        )
-        if constants.PYTHON_VERSION > (3, 9)
-        else ("", ""),
+        ),
         (
             """
 x = [foo(z) ** 2 for z in range(3)]
@@ -59,9 +57,7 @@ for fua in range(9):
             """
 x = {1, 2, 3} | {zua - 1 for zua in range(3)} | {zua ** 3 - 1 for zua in range(9)} | {fua ** 2 - 1 for fua in range(9)}
         """,
-        )
-        if constants.PYTHON_VERSION > (3, 9)
-        else ("", ""),
+        ),
     )
 
     for source, expected_abstraction in test_cases:
