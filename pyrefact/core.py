@@ -1246,9 +1246,7 @@ class _NameWildcardTransformer(ast.NodeTransformer):
 @functools.lru_cache(maxsize=10_000)
 def compile_template(
     source: str | Set[str] | Tuple[str, ...],
-    ignore: Collection[str] = frozenset(
-        ("lineno", "col_offset", "end_lineno", "end_col_offset", "ctx")
-    ),
+    ignore: Collection[str] = frozenset(("lineno", "col_offset", "end_lineno", "end_col_offset")),
     keep_expr: bool = False,
     expand: Collection[str] = frozenset(),
     **wildcards: ast.AST,
