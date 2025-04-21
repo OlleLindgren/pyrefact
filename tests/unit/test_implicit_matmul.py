@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-from pyrefact import fixes, performance, performance_numpy
+from pyrefact import fixes, performance_numpy
 
 sys.path.append(str(Path(__file__).parents[1]))
 import testing_infra

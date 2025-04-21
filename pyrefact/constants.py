@@ -3,7 +3,6 @@ import builtins
 import keyword
 import operator
 import pathlib
-import sys
 import types
 import typing
 from types import MappingProxyType

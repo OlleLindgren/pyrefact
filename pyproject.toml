@@ -19,7 +19,7 @@ dependencies = [
     "compactify>=2",
     "rmspace>=7",
     "sympy>=1.11.0",
-    'tomli>=2.0.0; python_version<"3.11"'
+    'tomli>=2.0.0; python_version<"3.11"',
 ]
 
 [project.optional-dependencies]
@@ -42,3 +42,12 @@ line_length = 100
 
 [tool.pyrefact]
 line_length = 100
+
+[tool.ruff.lint.per-file-ignores]
+"tests/unit/test_literal_value.py" = ["F403", "E711", "E712"]
+"tests/unit/test_trace_origin.py" = ["F403"]
+"tests/integration/tracing_test_files/a.py" = ["F401"]
+"tests/integration/tracing_test_files/b.py" = ["F403"]
+"tests/integration/tracing_test_files/c.py" = ["F401"]
+"tests/integration/tracing_test_files/d.py" = ["F401", "E402"]
+"tests/integration/tracing_test_files/e.py" = ["F821"]

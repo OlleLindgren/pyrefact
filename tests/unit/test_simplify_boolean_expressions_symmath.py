@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-from pyrefact import constants, symbolic_math
+from pyrefact import symbolic_math
 
 sys.path.append(str(Path(__file__).parents[1]))
 import testing_infra

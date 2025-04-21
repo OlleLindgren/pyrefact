@@ -2,7 +2,7 @@
 
 import ast
 
-from pyrefact import constants, core, processing
+from pyrefact import core, processing
 
 
 def _can_be_evaluated_safe(node: ast.AST) -> bool:

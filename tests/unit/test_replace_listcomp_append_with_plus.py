@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from pyrefact import constants, fixes
+from pyrefact import fixes
 
 sys.path.append(str(Path(__file__).parents[1]))
 import testing_infra

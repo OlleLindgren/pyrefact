@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import ast
-import sys
 import unittest
 from typing import Iterable, Sequence
 

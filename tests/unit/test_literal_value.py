@@ -1,7 +1,7 @@
 import ast
 import unittest
 
-from pyrefact import core, constants
+from pyrefact import core
 
 
 def parse_one_node(source: str) -> ast.AST:

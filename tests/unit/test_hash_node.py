@@ -3,7 +3,7 @@
 import ast
 import sys
 
-from pyrefact import abstractions, constants, core, parsing
+from pyrefact import abstractions, constants, core
 
 
 def _error_message(left: ast.AST, right: ast.AST, *, positive: bool) -> str:

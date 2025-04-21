@@ -3,7 +3,7 @@
 import ast
 import sys
 
-from pyrefact import constants, core, parsing
+from pyrefact import constants, core
 
 
 def main() -> int:
