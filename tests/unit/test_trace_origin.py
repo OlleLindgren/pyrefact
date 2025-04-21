@@ -18,9 +18,9 @@ def main() -> int:
     with Path(__file__).open("r", encoding="utf-8") as stream:
         source = stream.read()
 
-    assert tracing.trace_origin("tracing", source)[:2] == ("from pyrefact import constants, tracing", 10)
-    assert tracing.trace_origin("sys", source)[:2] == ("import sys as sys, os", 7)
-    assert tracing.trace_origin("sys", source)[:2] == ("import sys as sys, os", 7)
+    assert tracing.trace_origin("tracing", source)[:2] == ("from pyrefact import tracing", 10)
+    assert tracing.trace_origin("sys", source)[:2] == ("import sys as sys", 7)
+    assert tracing.trace_origin("sys", source)[:2] == ("import sys as sys", 7)
     assert tracing.trace_origin("main", source)[1] == 17
     assert tracing.trace_origin("important_variable", source)[:2] == ("important_variable = 42", 12)
 
