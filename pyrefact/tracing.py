@@ -318,7 +318,7 @@ def trace_origin(name: str, source: str, *, __all__: bool = False) -> _TraceResu
         ):
             return _TraceResult(core.get_code(node, source), node.lineno, node)
 
-        if isinstance(node, ast.NamedExpr) and core.match_template(node.target, ast.Name(id=name)):
+        if isinstance(node, ast.NamedExpr) and core.match_template(node.target, ast.Name(id=name, ctx=ast.Store)):
             return _TraceResult(core.get_code(node, source), node.lineno, node)
 
     return None
