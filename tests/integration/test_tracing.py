@@ -29,13 +29,13 @@ class TestTraceImports(unittest.TestCase):
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "x = 1"
         assert result.lineno == 3
-        assert core.match_template(result.ast, ast.Assign(targets=[ast.Name(id="x")], value=ast.Constant(value=1)))
+        assert core.match_template(result.ast, ast.Assign(targets=[ast.Name(id="x", ctx=ast.Store)], value=ast.Constant(value=1)))
 
         result = tracing.trace_origin("y", d_py.read_text())
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "y = 100"
         assert result.lineno == 4
-        assert core.match_template(result.ast, ast.Assign(targets=[ast.Name(id="y")], value=ast.Constant(value=100)))
+        assert core.match_template(result.ast, ast.Assign(targets=[ast.Name(id="y", ctx=ast.Store)], value=ast.Constant(value=100)))
 
     @staticmethod
     def test_cross_file_trace():
@@ -108,7 +108,7 @@ class TestTraceImports(unittest.TestCase):
         assert isinstance(result, tracing._TraceResult)
         assert result.source == "hh = aabb"
         assert result.lineno == 5
-        assert core.match_template(result.ast, ast.Assign(targets=[ast.Name(id="hh")], value=ast.Name(id="aabb")))
+        assert core.match_template(result.ast, ast.Assign(targets=[ast.Name(id="hh", ctx=ast.Store)], value=ast.Name(id="aabb", ctx=ast.Load())))
 
         result = tracing.trace_origin("x", c_py.read_text())
         assert isinstance(result, tracing._TraceResult)
