@@ -71,8 +71,8 @@ def optimize_contains_types(source: str) -> str:
 @processing.fix
 def remove_redundant_iter(source: str) -> str:
     root = core.parse(source)
-    iter_template = ast.Call(func=ast.Name(id=("iter", "list", "tuple")), args=[object])
-    template = (ast.For(iter=iter_template), ast.comprehension(iter=iter_template))
+    iter_template = ast.Call(func=ast.Name(id=("iter", "list", "tuple")), args=[object], keywords=[])
+    template = (ast.For(iter=iter_template, body=list, orelse=[]), ast.comprehension(iter=iter_template))
 
     for node in core.walk(root, template):
         yield node.iter, node.iter.args[0]
@@ -126,7 +126,15 @@ def remove_redundant_chained_calls(source: str) -> str:
         yield node, node.args[0]
 
     reversed_sorted_template = ast.Call(
-        func=ast.Name(id="reversed"), args=[ast.Call(func=ast.Name(id="sorted"))]
+        func=ast.Name(id="reversed", ctx=ast.Load),
+        args=[
+            ast.Call(
+                func=ast.Name(id="sorted", ctx=ast.Load),
+                args=[object],
+                keywords=list,
+            )
+        ],
+        keywords=([], [object])
     )
     for node in core.walk(root, reversed_sorted_template):
         replacement = node.args[0]
@@ -284,16 +292,17 @@ def _replace_subscript_looping_complex_cases(source: str) -> str:
     comprehension_template = ast.comprehension(
         target=index_template,
         iter=ast.Call(
-            func=ast.Name(id="range"),
+            func=ast.Name(id="range", ctx=ast.Load),
             args=[(target_length_template, target_length_template_transpose)],
+            keywords=[],
         ),
         ifs=[],
     )
     comp_template = (
-        ast.ListComp(generators=[comprehension_template]),
-        ast.GeneratorExp(generators=[comprehension_template]),
-        ast.SetComp(generators=[comprehension_template]),
-        ast.DictComp(generators=[comprehension_template]),
+        ast.ListComp(generators=[comprehension_template], elt=object),
+        ast.GeneratorExp(generators=[comprehension_template], elt=object),
+        ast.SetComp(generators=[comprehension_template], elt=object),
+        ast.DictComp(generators=[comprehension_template], key=object, value=object),
     )
     root = core.parse(source)
     for template_match in core.walk_wildcard(root, comp_template):
@@ -301,14 +310,15 @@ def _replace_subscript_looping_complex_cases(source: str) -> str:
         target_indexed_template = core.compile_template(
             ("{{target}}[{{index}}]", "{{target}}[{{index}}, :]", "{{target}}[:, {{index}}]"),
             target=template_match.target,
-            index=template_match.index,
+            index=ast.Name(id=template_match.index.id, ctx=ast.Load),
         )
         target_indexed_nodes = set(core.walk(template_match.root, target_indexed_template))
-        target_used_nodes = set(core.walk(template_match.root, template_match.target)) - {
+        index_used_nodes = set(core.walk(template_match.root, ast.Name(id=template_match.index.id, ctx=ast.Load))) - {
             comprehension.target
         }
 
-        if len(target_indexed_nodes) != len(target_used_nodes):
+        # If all the usages of the index are not to index the target, we can't replace it safely
+        if len(target_indexed_nodes) != len(index_used_nodes):
             continue
 
         new_index_name = f"{template_match.target.id}_{template_match.index.id}"

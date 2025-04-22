@@ -36,7 +36,7 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, source: str) -> Iterable[ast.Nam
     else:
         raise NotImplementedError(f"Unknown type: {type(node)}")
 
-    if all(usage is node for usage in core.walk(scope, ast.Name(id=name))):
+    if all(usage is node for usage in core.walk(scope, ast.Name(id=name, ctx=object))):
         return
 
     is_maybe_unordered_scope = isinstance(scope, (ast.Module, ast.ClassDef, ast.While, ast.For))
@@ -54,7 +54,7 @@ def _get_uses_of(node: ast.AST, scope: ast.AST, source: str) -> Iterable[ast.Nam
     augass_candidates = {
         target
         for augass in core.walk(scope, ast.AugAssign)
-        for target in core.walk(augass, ast.Name(id=name))
+        for target in core.walk(augass, ast.Name(id=name, ctx=ast.Store))
     }
 
     ctx_load_candidates = {
@@ -505,7 +505,7 @@ def align_variable_names_with_convention(
                     continue
                 if node.id in preserve:
                     continue
-                replacement = ast.Name(id=substitute)
+                replacement = ast.Name(id=substitute, ctx=(ast.Load, ast.Store))
             elif isinstance(node, ast.FunctionDef):
                 if node.name == substitute:
                     continue
@@ -584,7 +584,7 @@ def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset
             and name not in class_body_blacklist
             and name not in yielded
         ):
-            yield name, ast.Name(id="_")
+            yield name, ast.Name(id="_", ctx=name.ctx)
             yielded.add(name)
 
     for node in core.walk(
@@ -592,12 +592,14 @@ def undefine_unused_variables(source: str, preserve: Collection[str] = frozenset
         (
             ast.Assign(
                 targets={
-                    ast.Name(id="_"),
-                    ast.Starred(value=ast.Name(id="_")),
-                    ast.Tuple(elts={ast.Name(id="_"), ast.Starred(value=ast.Name(id="_"))}),
-            }),
-            ast.AnnAssign(target=ast.Name(id="_")),
-            ast.AugAssign(target=ast.Name(id="_")),
+                    ast.Name(id="_", ctx=ast.Store),
+                    ast.Starred(value=ast.Name(id="_", ctx=ast.Store), ctx=ast.Store),
+                    ast.Tuple(elts={ast.Name(id="_", ctx=ast.Store), ast.Starred(value=ast.Name(id="_", ctx=ast.Store), ctx=ast.Store)}, ctx=ast.Store),
+                },
+                value=object,
+            ),
+            ast.AnnAssign(target=ast.Name(id="_", ctx=ast.Store), annotation=object, value=object),
+            ast.AugAssign(target=ast.Name(id="_", ctx=ast.Store), op=object, value=object),
     ),):
         if node not in class_body_blacklist:
             yield node, node.value
@@ -612,7 +614,7 @@ def _iter_unused_names(
     names_in_scope = {name.id for name in core.walk(scope, ast.Name)}
     for name in names_in_scope - preserve:
         if not any(core.walk(scope, ast.Name(id=name, ctx=(ast.Load)))):
-            for node in core.walk(scope, ast.Name(id=name)):
+            for node in core.walk(scope, ast.Name(id=name, ctx=object)):
                 yield node
 
     # For everything else, the algorithm is like this:
@@ -688,7 +690,7 @@ def _iter_unused_names(
                         # of (name) that (node) considers unused are still surely unused.
                         yield from core.filter_nodes(
                             _iter_unused_names(node, preserve=preserve | subsequent_required),
-                            ast.Name(id=name),
+                            ast.Name(id=name, ctx=object),
                         )
 
 
@@ -705,14 +707,14 @@ def move_before_loop(source: str) -> str:
 
             # If targets are likely to be mutated in the loop, keep them in the loop.
             targets = tuple(name.id for name in parsing.assignment_targets(node))
-            if any(core.walk(scope, ast.Call(func=ast.Attribute(value=ast.Name(id=targets))))):
+            if any(core.walk(scope, ast.Call(func=ast.Attribute(value=ast.Name(id=targets, ctx=object))))):
                 continue  # i.e. x.append(y)
             if any(
                 core.walk(
-                    scope, ast.Subscript(value=ast.Name(id=targets), ctx=(ast.Store, ast.Del))
+                    scope, ast.Subscript(value=ast.Name(id=targets, ctx=ast.Load), ctx=(ast.Store, ast.Del))
             )):
                 continue  # i.e. x[3] = 2
-            if any(core.walk(scope, ast.AugAssign(target=ast.Name(id=targets)))):
+            if any(core.walk(scope, ast.AugAssign(target=ast.Name(id=targets, ctx=ast.Store)))):
                 continue  # i.e. x += 1
 
             remainder = scope.body[i + 1 :] + scope.body[:i]
@@ -860,7 +862,7 @@ def delete_unused_functions_and_classes(
             constructor_usages = name_usages[parent_class.name]
         else:
             constructor_usages = set()
-        recursive_usages = set(core.walk(def_node, ast.Name(id=def_node.name)))
+        recursive_usages = set(core.walk(def_node, ast.Name(id=def_node.name, ctx=ast.Load)))
         if not (usages | constructor_usages) - recursive_usages:
             yield def_node, None
 
@@ -1139,7 +1141,7 @@ def singleton_eq_comparison(source: str) -> str:
 
 
 def _negate_condition(node: ast.AST) -> ast.AST:
-    if core.match_template(node, ast.UnaryOp(op=ast.Not)):
+    if core.match_template(node, ast.UnaryOp(op=ast.Not, operand=object)):
         return node.operand
 
     if core.match_template(
@@ -1404,10 +1406,10 @@ def merge_nested_comprehensions(source: str) -> str:
     x_for_x_in_iter_template = ast.comprehension(
         target=ast.Name,
         iter=(
-            ast.SetComp(elt=ast.Name),
-            ast.ListComp(elt=ast.Name),
-            ast.GeneratorExp(elt=ast.Name),
-            ast.DictComp(key=ast.Name),
+            ast.SetComp(elt=ast.Name, generators=list),
+            ast.ListComp(elt=ast.Name, generators=list),
+            ast.GeneratorExp(elt=ast.Name, generators=list),
+            ast.DictComp(key=ast.Name, value=object, generators=list),
         ),
         ifs=[],
         is_async=0,
@@ -1437,7 +1439,7 @@ def merge_nested_comprehensions(source: str) -> str:
                 else:
                     target_name_inner = comprehension.iter.elt.id
 
-                if not core.match_template(comprehension.iter.generators[-1].target, ast.Name(id=target_name_inner)):
+                if not core.match_template(comprehension.iter.generators[-1].target, ast.Name(id=target_name_inner, ctx=ast.Store)):
                     new_generators.append(comprehension)
                     continue
 
@@ -1448,8 +1450,8 @@ def merge_nested_comprehensions(source: str) -> str:
                     and not core.match_template(
                         node,
                         (
-                            ast.SetComp(elt=ast.Name(id=comprehension.target.id)),
-                            ast.DictComp(key=ast.Name(id=comprehension.target.id)),
+                            ast.SetComp(elt=ast.Name(id=comprehension.target.id, ctx=ast.Load), generators=list),
+                            ast.DictComp(key=ast.Name(id=comprehension.target.id, ctx=ast.Load), value=object, generators=list),
                 ))):
                     new_generators.append(comprehension)
                     continue
@@ -1480,7 +1482,7 @@ def replace_functions_with_literals(source: str) -> str:
 
     template = core.compile_template(
         "{{func}}({{arg}})",
-        func=ast.Name(id=("list", "tuple", "set", "iter")),
+        func=ast.Name(id=("list", "tuple", "set", "iter"), ctx=ast.Load),
         arg=(ast.List, ast.ListComp, ast.Tuple, ast.Set, ast.SetComp, ast.GeneratorExp),
     )
     for node, arg, func in core.walk_wildcard(root, template):
@@ -1513,7 +1515,7 @@ def replace_functions_with_literals(source: str) -> str:
 def replace_for_loops_with_dict_comp(source: str) -> str:
     assign_template = ast.Assign(
         value=core.Wildcard("value", (ast.Dict, ast.DictComp)),
-        targets=[ast.Name(id=core.Wildcard("target", str))],
+        targets=[ast.Name(id=core.Wildcard("target", str), ctx=ast.Store)],
     )
 
     transaction = 0
@@ -1524,7 +1526,7 @@ def replace_for_loops_with_dict_comp(source: str) -> str:
         transaction += 1
 
         while core.match_template(
-            body_node, (ast.For(body=[object]), ast.If(body=[object], orelse=[]))
+            body_node, (ast.For(body=[object], orelse=list, iter=object, target=object), ast.If(body=[object], orelse=[]))
         ):
             if isinstance(body_node, ast.If):
                 generators[-1].ifs.append(body_node.test)
@@ -1543,7 +1545,7 @@ def replace_for_loops_with_dict_comp(source: str) -> str:
                 comprehension.ifs = [ast.BoolOp(op=ast.And(), values=comprehension.ifs)]
 
         if not core.match_template(
-            body_node, ast.Assign(targets=[ast.Subscript(value=ast.Name(id=target))])
+            body_node, ast.Assign(targets=[ast.Subscript(value=ast.Name(id=target, ctx=ast.Load), ctx=ast.Store)])
         ):
             continue
 
@@ -1569,12 +1571,12 @@ def replace_for_loops_with_dict_comp(source: str) -> str:
 @processing.fix
 def replace_for_loops_with_set_list_comp(source: str) -> str:
     assign_template = ast.Assign(
-        value=core.Wildcard("value", object), targets=[ast.Name(id=core.Wildcard("target", str))]
+        value=core.Wildcard("value", object), targets=[ast.Name(id=core.Wildcard("target", str), ctx=ast.Store)]
     )
-    for_template = ast.For(body=[object])
+    for_template = ast.For(body=[object], orelse=list, iter=object, target=object)
     if_template = ast.If(body=[object], orelse=[])
 
-    set_init_template = ast.Call(func=ast.Name(id="set"), args=[], keywords=[])
+    set_init_template = ast.Call(func=ast.Name(id="set", ctx=ast.Load), args=[], keywords=[])
     list_init_template = ast.List(elts=[])  # list() should have been replaced by [] elsewhere.
 
     transaction = 0
@@ -1604,12 +1606,12 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
         target_alter_template = ast.Expr(
             value=ast.Call(
                 func=ast.Attribute(
-                    value=ast.Name(id=target), attr=core.Wildcard("attr", ("add", "append"))
+                    value=ast.Name(id=target, ctx=ast.Load), attr=core.Wildcard("attr", ("add", "append"))
                 ),
                 args=[object],
         ))
 
-        augass_template = ast.AugAssign(op=(ast.Add, ast.Sub), target=ast.Name(id=target))
+        augass_template = ast.AugAssign(op=(ast.Add, ast.Sub), target=ast.Name(id=target, ctx=ast.Store))
 
         if template_match := core.match_template(body_node, target_alter_template):
             if core.match_template(value, list_init_template) and (template_match.attr == "append"):
@@ -1627,7 +1629,7 @@ def replace_for_loops_with_set_list_comp(source: str) -> str:
                 replacement = ast.ListComp(elt=body_node.value, generators=generators)
             else:
                 comprehension = ast.GeneratorExp(elt=body_node.value, generators=generators)
-                replacement = ast.Call(func=ast.Name(id="sum"), args=[comprehension], keywords=[])
+                replacement = ast.Call(func=ast.Name(id="sum", ctx=ast.Load), args=[comprehension], keywords=[])
 
             try:
                 if not core.literal_value(value):
@@ -1696,7 +1698,13 @@ def replace_nested_loops_with_set_list_comp(source: str) -> str:
                 ifs=[],
                 is_async=int(isinstance(node, ast.AsyncFor)),
         )]
-        while core.match_template(node.body, [(ast.For(orelse=[]), ast.If(orelse=[]), ast.AsyncFor(orelse=[]))]):
+        while core.match_template(
+            node.body,
+            [(
+                ast.For(orelse=[], body=list, iter=object, target=object),
+                ast.If(orelse=[], test=object, body=list),
+            )]
+        ):
             node = node.body[0]
             if isinstance(node, (ast.For, ast.AsyncFor)):
                 generators.append(
@@ -1717,10 +1725,10 @@ def replace_nested_loops_with_set_list_comp(source: str) -> str:
             except StopIteration:
                 return
 
-            elt = ast.Name(id=new_loop_variable_name)
+            elt = ast.Name(id=new_loop_variable_name, ctx=ast.Load)
             generators.append(
                 ast.comprehension(
-                    target=ast.Name(id=new_loop_variable_name),
+                    target=ast.Name(id=new_loop_variable_name, ctx=ast.Store),
                     iter=m.expression,
                     ifs=[],
                     is_async=0,
@@ -1734,6 +1742,7 @@ def replace_nested_loops_with_set_list_comp(source: str) -> str:
 
             yield outermost_for, call_node, transaction
             transaction += 1
+            break
 
 
 @processing.fix
@@ -1743,15 +1752,15 @@ def replace_redundant_starred(source: str) -> str:
 
     template = ast.List(elts=[ast.Starred(value=value_template)])
     for node, value in core.walk_wildcard(root, template):
-        yield node, ast.Call(func=ast.Name(id="list"), args=[value], keywords=[])
+        yield node, ast.Call(func=ast.Name(id="list", ctx=ast.Load), args=[value], keywords=[])
 
     template = ast.Tuple(elts=[ast.Starred(value=value_template)])
     for node, value in core.walk_wildcard(root, template):
-        yield node, ast.Call(func=ast.Name(id="tuple"), args=[value], keywords=[])
+        yield node, ast.Call(func=ast.Name(id="tuple", ctx=ast.Load), args=[value], keywords=[])
 
     template = ast.Set(elts=[ast.Starred(value=value_template)])
     for node, value in core.walk_wildcard(root, template):
-        yield node, ast.Call(func=ast.Name(id="set"), args=[value], keywords=[])
+        yield node, ast.Call(func=ast.Name(id="set", ctx=ast.Load), args=[value], keywords=[])
 
 
 @processing.fix
@@ -1798,7 +1807,7 @@ def inline_math_comprehensions(source: str) -> str:
             # Check for references to any of the iterator's dependencies between set and use.
             # Perhaps some of these could be skipped, but I'm not sure that's a good idea.
             value_dependencies = tuple({node.id for node in core.walk(value, ast.Name)})
-            for node in core.walk(scope, ast.Name(id=value_dependencies)):
+            for node in core.walk(scope, ast.Name(id=value_dependencies, ctx=object)):
                 start, end = core.get_charnos(node, source)
                 if set_end_charno < start <= end < use_start_charno:
                     blacklist.add(use)
@@ -1808,7 +1817,7 @@ def inline_math_comprehensions(source: str) -> str:
                 break
 
             for call in core.walk(
-                scope, ast.Call(func=ast.Name(id=tuple(constants.MATH_FUNCTIONS)), args=[type(use)])
+                scope, ast.Call(func=ast.Name(id=tuple(constants.MATH_FUNCTIONS), ctx=ast.Load), args=[type(use)])
             ):
                 if call.args[0] is use:
                     if use in replacements:
@@ -1969,7 +1978,7 @@ def remove_dead_ifs(source: str) -> str:
             continue
 
         if isinstance(node, ast.SetComp):
-            yield (node, ast.Call(func=ast.Name(id="set"), args=[], keywords=[]))
+            yield (node, ast.Call(func=ast.Name(id="set", ctx=ast.Load), args=[], keywords=[]))
             continue
 
         # Although an empty generator would be more correctly replaced with iter([]) or
@@ -2107,7 +2116,9 @@ def replace_with_filter(source: str) -> str:
     iterator2 = processing.find_replace(source, template, replace, yield_match=True)
 
     filter_derivative_template = ast.Call(
-        func=core.compile_template(("filter", "filterfalse", "itertools.filterfalse"))
+        func=core.compile_template(("filter", "filterfalse", "itertools.filterfalse")),
+        args=[object, object],
+        keywords=[],
     )
 
     for range_, replacement, template_match in itertools.chain(iterator1, iterator2):
@@ -2202,7 +2213,7 @@ def implicit_defaultdict(source: str) -> str:
             if core.match_template(f_value, ast.List(elts=[])) and (t_call in {"append", "extend"}):
                 loop_removals.add(condition)
                 continue
-            if core.match_template(f_value, ast.Call(func=ast.Name(id="set"), args=[])) and (
+            if core.match_template(f_value, ast.Call(func=ast.Name(id="set", ctx=ast.Load), args=[])) and (
                 t_call in {"add", "update"}
             ):
                 loop_removals.add(condition)
@@ -2264,8 +2275,8 @@ def implicit_defaultdict(source: str) -> str:
             replacements.append((
                 value,
                 ast.Call(
-                    func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
-                    args=[ast.Name(id="set")],
+                    func=ast.Attribute(value=ast.Name(id="collections", ctx=ast.Load), attr="defaultdict"),
+                    args=[ast.Name(id="set", ctx=ast.Load)],
                     keywords=[],
             ),))
 
@@ -2275,8 +2286,8 @@ def implicit_defaultdict(source: str) -> str:
             replacements.append((
                 value,
                 ast.Call(
-                    func=ast.Attribute(value=ast.Name(id="collections"), attr="defaultdict"),
-                    args=[ast.Name(id="list")],
+                    func=ast.Attribute(value=ast.Name(id="collections", ctx=ast.Load), attr="defaultdict"),
+                    args=[ast.Name(id="list", ctx=ast.Load)],
                     keywords=[],
             ),))
 
@@ -2319,19 +2330,19 @@ def _replace_lambda_with_function(source: str) -> str:
             continue
 
         expected_call_args = [
-            ast.Name(id=arg.arg) for arg in sign_args.posonlyargs + sign_args.args
+            ast.Name(id=arg.arg, ctx=ast.Load) for arg in sign_args.posonlyargs + sign_args.args
         ]
         if sign_args.vararg:
-            expected_call_args.append(ast.Starred(value=ast.Name(id=sign_args.vararg.arg)))
+            expected_call_args.append(ast.Starred(value=ast.Name(id=sign_args.vararg.arg, ctx=ast.Load)))
 
         if not core.match_template(call_args, expected_call_args):
             continue
 
         expected_call_keywords = {
-            ast.keyword(arg=arg, value=ast.Name(id=arg)) for arg in sign_args.kwonlyargs
+            ast.keyword(arg=arg, value=ast.Name(id=arg, ctx=ast.Load)) for arg in sign_args.kwonlyargs
         }
         if sign_args.kwarg:
-            expected_call_keywords.add(ast.keyword(value=ast.Name(id=sign_args.kwarg.arg)))
+            expected_call_keywords.add(ast.keyword(value=ast.Name(id=sign_args.kwarg.arg, ctx=ast.Load)))
 
         if not core.match_template(call_keywords, expected_call_keywords):
             continue
@@ -2537,7 +2548,7 @@ def replace_filter_lambda_with_comp(source: str) -> str:
     """
     # Prevent replacement of map() calls where the map() call is the iterated value of a for loop
     root = core.parse(source)
-    for_ranges = {core.get_charnos(node.iter, source) for node in core.walk(root, ast.For())}
+    for_ranges = {core.get_charnos(node.iter, source) for node in core.walk(root, ast.For)}
 
     find = "filter(lambda {{arg}}: {{body}}, {{iterable}})"
     replace = "({{arg}} for {{arg}} in {{iterable}} if {{body}})"
@@ -2573,7 +2584,7 @@ def replace_map_lambda_with_comp(source: str) -> str:
 
     # Prevent replacement of map() calls where the map() call is the iterated value of a for loop
     root = core.parse(source)
-    for_ranges = {core.get_charnos(node.iter, source) for node in core.walk(root, ast.For())}
+    for_ranges = {core.get_charnos(node.iter, source) for node in core.walk(root, ast.For)}
     for replacement_range, replacement in processing.find_replace(source, find, replace):
         if any(replacement_range & for_range for for_range in for_ranges):
             continue
@@ -2584,14 +2595,14 @@ def replace_map_lambda_with_comp(source: str) -> str:
 @processing.fix
 def replace_negated_numeric_comparison(source: str) -> str:
     root = core.parse(source)
-    template = core.compile_template("not {{compare}}", compare=ast.Compare(comparators=[object]))
+    template = core.compile_template("not {{compare}}", compare=ast.Compare(comparators=[object], left=object, ops=list))
 
     numeric_template = ast.Constant(value=(int, float))
     numeric_template = (
         numeric_template,
         ast.UnaryOp(op=ast.USub, operand=numeric_template),
-        ast.BinOp(left=numeric_template),
-        ast.BinOp(right=numeric_template),
+        ast.BinOp(left=numeric_template, op=object, right=object),
+        ast.BinOp(right=numeric_template, op=object, left=object),
     )
     safe_reversible_set_operations = (ast.Eq, ast.NotEq, ast.Is, ast.IsNot, ast.In, ast.NotIn)
     for template_match in core.walk_wildcard(root, template):
@@ -2655,7 +2666,7 @@ def remove_redundant_comprehension_casts(source: str) -> str:
     root = core.parse(source)
 
     template = ast.Call(
-        func=ast.Name(id=core.Wildcard("func", ("list", "set", "iter"))),
+        func=ast.Name(id=core.Wildcard("func", ("list", "set", "iter")), ctx=ast.Load),
         args=[core.Wildcard("comp", (ast.GeneratorExp, ast.ListComp, ast.SetComp))],
         keywords=[],
     )
@@ -2671,7 +2682,7 @@ def remove_redundant_comprehension_casts(source: str) -> str:
             yield ast.GeneratorExp(comp.elt, comp.generators)
 
     template = ast.Call(
-        func=ast.Name(id=core.Wildcard("func", ("list", "set", "iter", "dict"))),
+        func=ast.Name(id=core.Wildcard("func", ("list", "set", "iter", "dict")), ctx=ast.Load),
         args=[core.Wildcard("comp", (ast.DictComp))],
         keywords=[],
     )
@@ -2683,7 +2694,7 @@ def remove_redundant_comprehension_casts(source: str) -> str:
         if func == "set":
             yield node, equivalent_setcomp
         if func in {"list", "iter"}:
-            yield node, ast.Call(func=ast.Name(id=func), args=[equivalent_setcomp], keywords=[])
+            yield node, ast.Call(func=ast.Name(id=func, ctx=ast.Load), args=[equivalent_setcomp], keywords=[])
 
 
 @processing.fix
@@ -2691,10 +2702,10 @@ def remove_redundant_chain_casts(source: str) -> str:
     root = core.parse(source)
 
     template = ast.Call(
-        func=ast.Name(id=core.Wildcard("func_outer", ("list", "set", "iter", "tuple"))),
+        func=ast.Name(id=core.Wildcard("func_outer", ("list", "set", "iter", "tuple")), ctx=ast.Load),
         args=[
             ast.Call(
-                func=ast.Attribute(value=ast.Name(id="itertools"), attr="chain"),
+                func=ast.Attribute(value=ast.Name(id="itertools", ctx=ast.Load), attr="chain"),
                 args=core.Wildcard("args", list),
                 keywords=[],
         )],
@@ -2705,12 +2716,12 @@ def remove_redundant_chain_casts(source: str) -> str:
         if func_outer == "iter" and len(args) >= 1:
             yield node, node.args[0]
         if func_outer == "iter" and not args:
-            yield node, ast.Call(func=ast.Name(id="iter"), args=[], keywords=[])
+            yield node, ast.Call(func=ast.Name(id="iter", ctx=ast.Load), args=[], keywords=[])
         elts = [ast.Starred(value=arg) for arg in args]
         if func_outer == "set" and elts:
             yield node, ast.Set(elts=elts)
         if func_outer == "set" and not elts:
-            yield node, ast.Call(func=ast.Name(id="set"), args=[], keywords=[])
+            yield node, ast.Call(func=ast.Name(id="set", ctx=ast.Load), args=[], keywords=[])
         if func_outer == "list":
             yield node, ast.List(elts=elts)
         if func_outer == "tuple":
@@ -2721,16 +2732,17 @@ def remove_redundant_chain_casts(source: str) -> str:
 def replace_dict_assign_with_dict_literal(source: str) -> str:
     root = core.parse(source)
 
-    target_template = core.Wildcard("target", ast.Name(id=str))
+    target_load_template = core.Wildcard("target", ast.Name(id=str, ctx=ast.Load))
+    target_store_template = core.Wildcard("target", ast.Name(id=str, ctx=ast.Store))
     value_template = ast.Dict(
         keys=core.Wildcard("keys", list), values=core.Wildcard("values", list)
     )
     template = [
-        ast.Assign(targets=[target_template], value=value_template),
+        ast.Assign(targets=[target_store_template], value=value_template),
         ast.Assign(
             targets=[
                 ast.Subscript(
-                    value=target_template, slice=core.Wildcard("key", object, common=False)
+                    value=target_load_template, slice=core.Wildcard("key", object, common=False), ctx=ast.Store
             )],
             value=core.Wildcard("value", object, common=False),
     ),]
@@ -2755,16 +2767,17 @@ def replace_dict_assign_with_dict_literal(source: str) -> str:
 def replace_dict_update_with_dict_literal(source: str) -> str:
     root = core.parse(source)
 
-    target_template = core.Wildcard("target", ast.Name(id=str))
+    target_load_template = core.Wildcard("target", ast.Name(id=str, ctx=ast.Load))
+    target_store_template = core.Wildcard("target", ast.Name(id=str, ctx=ast.Store))
     value_template = ast.Dict(
         keys=core.Wildcard("keys", list, common=False),
         values=core.Wildcard("values", list, common=False),
     )
     template = [
-        ast.Assign(targets=[target_template], value=value_template),
+        ast.Assign(targets=[target_store_template], value=value_template),
         ast.Expr(
             value=ast.Call(
-                func=ast.Attribute(value=target_template),
+                func=ast.Attribute(value=target_load_template),
                 args=[core.Wildcard("other", object, common=False)],
     )),]
 
@@ -2788,13 +2801,13 @@ def replace_dict_update_with_dict_literal(source: str) -> str:
 def replace_dictcomp_assign_with_dict_literal(source: str) -> str:
     root = core.parse(source)
 
-    target_template = core.Wildcard("target", ast.Name(id=str))
+    target_template = core.Wildcard("target", ast.Name(id=str, ctx=object))
     template = [
         ast.Assign(targets=[target_template], value=ast.DictComp),
         ast.Assign(
             targets=[
                 ast.Subscript(
-                    value=target_template, slice=core.Wildcard("key", object, common=False)
+                    value=target_template, slice=core.Wildcard("key", object, common=False), ctx=ast.Store
             )],
             value=core.Wildcard("value", object, common=False),
     ),]
@@ -2819,7 +2832,7 @@ def replace_dictcomp_assign_with_dict_literal(source: str) -> str:
 def replace_dictcomp_update_with_dict_literal(source: str) -> str:
     root = core.parse(source)
 
-    target_template = core.Wildcard("target", ast.Name(id=str))
+    target_template = core.Wildcard("target", ast.Name(id=str, ctx=object))
     template = [
         ast.Assign(targets=[target_template], value=ast.DictComp),
         ast.Expr(
@@ -2984,7 +2997,7 @@ def simplify_collection_unpacks(source: str) -> str:
                 elts.append(elt)
         if replacements:
             if isinstance(node, ast.Set) and (not elts):
-                yield (node, ast.Call(func=ast.Name(id="set"), args=[], keywords=[]))
+                yield (node, ast.Call(func=ast.Name(id="set", ctx=ast.Load), args=[], keywords=[]))
             else:
                 yield (node, type(node)(elts=elts))
 
@@ -3031,15 +3044,16 @@ def remove_duplicate_set_elts(source: str) -> str:
 def replace_collection_add_update_with_collection_literal(source: str) -> str:
     root = core.parse(source)
 
-    target_template = core.Wildcard("common_target", ast.Name(id=str), common=True)
+    target_template = core.Wildcard("common_target", ast.Name(id=str, ctx=(ast.Load, ast.Store)), common=True)
     assign_template = core.compile_template(
         "{{common_target}} = {{other}}",
-        other=(ast.List, ast.Set, ast.ListComp, ast.SetComp, ast.Call(func=ast.Name(id="set"))),
+        other=(ast.List, ast.Set, ast.ListComp, ast.SetComp, ast.Call(func=ast.Name(id="set", ctx=ast.Load))),
         common_target=target_template,
     )
     modify_template = ast.Expr(
         value=ast.Call(
             func=ast.Attribute(value=target_template, attr=("add", "update", "append", "extend")),
+            args=list,
             keywords=[],
     ))
     template = [assign_template, modify_template]
@@ -3083,7 +3097,7 @@ def replace_collection_add_update_with_collection_literal(source: str) -> str:
             for m in matches:
                 yield m.root, None, transaction
 
-        elif core.match_template(assigned_value, ast.Call(func=ast.Name(id="set"))):
+        elif core.match_template(assigned_value, ast.Call(func=ast.Name(id="set", ctx=ast.Load))):
             if assigned_value.args:
                 elts = [ast.Starred(value=assigned_value.args[0])] + other_elts
             else:
@@ -3164,8 +3178,8 @@ def deinterpolate_logging_args(source: str) -> str:
     """
     root = core.parse(source)
     logging_functions = ("info", "debug", "warning", "error", "critical", "exception", "log")
-    logging_module = ast.Name(id="logging")
-    logger_object = ast.Name(id=("log", "logger"))
+    logging_module = ast.Name(id="logging", ctx=ast.Load)
+    logger_object = ast.Name(id=("log", "logger"), ctx=ast.Load)
     template = ast.Call(
         func=ast.Attribute(
             value=(logging_module, logger_object),
@@ -3177,9 +3191,9 @@ def deinterpolate_logging_args(source: str) -> str:
     fstring_template = ast.JoinedStr(
         values={
             ast.Constant(value=str),
-            ast.FormattedValue(format_spec=(None, ast.JoinedStr(values=[ast.Constant(value=str)]))),
+            ast.FormattedValue(format_spec=(None, ast.JoinedStr(values=[ast.Constant(value=str, kind=None)]))),
     })
-    fmtstring_template = ast.Call(func=ast.Attribute(value=ast.Constant(value=str), attr="format"))
+    fmtstring_template = ast.Call(func=ast.Attribute(value=ast.Constant(value=str), attr="format"), keywords=list, args=list)
     for node, function_name in core.walk_wildcard(root, template):
         if function_name == "log" and core.match_template(node.args, [object, fmtstring_template]):
             yield node, ast.Call(
@@ -3187,24 +3201,27 @@ def deinterpolate_logging_args(source: str) -> str:
                 args=[node.args[0], node.args[1].func.value] + node.args[1].args,
                 keywords=node.keywords + node.args[1].keywords,
             )
-        if function_name != "log" and core.match_template(node.args, [fmtstring_template]):
+        elif function_name != "log" and core.match_template(node.args, [fmtstring_template]):
             yield node, ast.Call(
                 func=node.func,
                 args=[node.args[0].func.value] + node.args[0].args,
                 keywords=node.keywords + node.args[0].keywords,
             )
-        if function_name == "log" and core.match_template(node.args, [object, fstring_template]):
+        elif function_name == "log" and core.match_template(node.args, [object, fstring_template]):
             format_string, format_args = _convert_to_string_formatting(node.args[1])
             yield node, ast.Call(
                 func=node.func,
                 args=[node.args[0], format_string] + format_args,
                 keywords=node.keywords,
             )
-        if function_name != "log" and core.match_template(node.args, [fstring_template]):
+        elif function_name != "log" and core.match_template(node.args, [fstring_template]):
             format_string, format_args = _convert_to_string_formatting(node.args[0])
             yield node, ast.Call(
                 func=node.func, args=[format_string] + format_args, keywords=node.keywords
             )
+        else:
+            # Unexpected match, leave it alone
+            continue
 
 
 @processing.fix
@@ -3246,16 +3263,16 @@ def _keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
             transaction,
         )
 
-        yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name)]), transaction
+        yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name, ctx=ast.Store())]), transaction
         for subscript_use in value_target_subscripts:
-            yield subscript_use, ast.Name(id=node_target_name), transaction
+            yield subscript_use, ast.Name(id=node_target_name, ctx=ast.Load()), transaction
 
 
 @processing.fix
 def _items_to_keys(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
     root = core.parse(source)
     template = ast.comprehension(
-        target=ast.Tuple(elts=[core.Wildcard("target", object), ast.Name(id="_")]),
+        target=ast.Tuple(elts=[core.Wildcard("target", object), ast.Name(id="_", ctx=ast.Store)], ctx=ast.Store),
         iter=ast.Call(
             func=ast.Attribute(value=core.Wildcard("value", object), attr="items"),
             args=[],
@@ -3275,7 +3292,7 @@ def _items_to_keys(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
 def _items_to_values(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
     root = core.parse(source)
     template = ast.comprehension(
-        target=ast.Tuple(elts=[ast.Name(id="_"), core.Wildcard("target", object)]),
+        target=ast.Tuple(elts=[ast.Name(id="_", ctx=ast.Store), core.Wildcard("target", object)], ctx=ast.Store),
         iter=ast.Call(
             func=ast.Attribute(value=core.Wildcard("value", object), attr="items"),
             args=[],
@@ -3300,7 +3317,7 @@ def _for_keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
             func=ast.Attribute(value=core.Wildcard("value", object), attr="keys"),
             args=[],
             keywords=[],
-    ),)
+    ), orelse=list, body=list,)
     for transaction, (node, target, value) in enumerate(core.walk_wildcard(root, template)):
         subscript_template = core.compile_template(
             "{{value}}[{{target}}]", value=value, target=target
@@ -3323,21 +3340,21 @@ def _for_keys_to_items(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
             transaction,
         )
 
-        yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name)]), transaction
+        yield target, ast.Tuple(elts=[target, ast.Name(id=node_target_name, ctx=ast.Store)]), transaction
         for subscript_use in value_target_subscripts:
-            yield subscript_use, ast.Name(id=node_target_name), transaction
+            yield subscript_use, ast.Name(id=node_target_name, ctx=ast.Load), transaction
 
 
 @processing.fix
 def _for_items_to_keys(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
     root = core.parse(source)
     template = ast.For(
-        target=ast.Tuple(elts=[core.Wildcard("target", object), ast.Name(id="_")]),
+        target=ast.Tuple(elts=[core.Wildcard("target", object), ast.Name(id="_", ctx=ast.Store)], ctx=ast.Store),
         iter=ast.Call(
             func=ast.Attribute(value=core.Wildcard("value", object), attr="items"),
             args=[],
             keywords=[],
-    ),)
+    ), body=list, orelse=[])
 
     for transaction, (node, target, value) in enumerate(core.walk_wildcard(root, template)):
         yield node.target, target, transaction
@@ -3350,12 +3367,12 @@ def _for_items_to_keys(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
 def _for_items_to_values(source: str) -> Iterable[Tuple[ast.AST, ast.AST]]:
     root = core.parse(source)
     template = ast.For(
-        target=ast.Tuple(elts=[ast.Name(id="_"), core.Wildcard("target", object)]),
+        target=ast.Tuple(elts=[ast.Name(id="_", ctx=ast.Store), core.Wildcard("target", object)], ctx=ast.Store),
         iter=ast.Call(
             func=ast.Attribute(value=core.Wildcard("value", object), attr="items"),
             args=[],
             keywords=[],
-    ),)
+    ), body=list, orelse=[])
 
     for transaction, (node, target, value) in enumerate(core.walk_wildcard(root, template)):
         yield node.target, target, transaction
@@ -3378,13 +3395,13 @@ def implicit_dict_keys_values_items(source: str) -> str:
 def redundant_enumerate(source: str) -> str:
     root = core.parse(source)
     iter_template = ast.Call(
-        func=ast.Name(id="enumerate"), args=[core.Wildcard("iter", object)], keywords=[]
+        func=ast.Name(id="enumerate", ctx=ast.Load), args=[core.Wildcard("iter", object)], keywords=[]
     )
-    target_template = ast.Tuple(elts=[ast.Name(id="_"), core.Wildcard("target", object)])
+    target_template = ast.Tuple(elts=[ast.Name(id="_", ctx=ast.Store), core.Wildcard("target", object)], ctx=ast.Store)
 
     template = (
         ast.comprehension(iter=iter_template, target=target_template),
-        ast.For(iter=iter_template, target=target_template),
+        ast.For(iter=iter_template, target=target_template, body=list, orelse=list),
     )
 
     for transaction, (node, node_iter, target) in enumerate(core.walk_wildcard(root, template)):
@@ -3399,18 +3416,18 @@ def unused_zip_args(source: str) -> str:
         func=core.Wildcard(
             "func",
             (
-                ast.Name(id="zip"),
-                ast.Name(id="zip_longest"),
-                ast.Attribute(value=ast.Name(id="itertools"), attr="zip_longest"),
+                ast.Name(id="zip", ctx=ast.Load),
+                ast.Name(id="zip_longest", ctx=ast.Load),
+                ast.Attribute(value=ast.Name(id="itertools", ctx=ast.Load), attr="zip_longest"),
         ),),
         args=core.Wildcard("iter", list),
         keywords=[],
     )
-    target_template = ast.Tuple(elts=core.Wildcard("elts", list))
+    target_template = ast.Tuple(elts=core.Wildcard("elts", list), ctx=ast.Store)
 
     template = (
         ast.comprehension(iter=iter_template, target=target_template),
-        ast.For(iter=iter_template, target=target_template),
+        ast.For(iter=iter_template, target=target_template, body=list, orelse=list),
     )
 
     safe_callables = parsing.safe_callable_names(root)
@@ -3427,7 +3444,7 @@ def unused_zip_args(source: str) -> str:
             continue
 
         for elt, arg in zip(elts, node_iter):
-            if core.match_template(elt, ast.Name(id="_")) and not core.has_side_effect(
+            if core.match_template(elt, ast.Name(id="_", ctx=object)) and not core.has_side_effect(
                 arg, safe_callables
             ):
                 changes = True
@@ -3447,6 +3464,8 @@ def unused_zip_args(source: str) -> str:
         elif len(new_elts) > 1:  # > 1 args used => remove unused ones, keep zip
             yield node.target, ast.Tuple(elts=new_elts), transaction
             yield node.iter, ast.Call(func=func, args=iters, keywords=[]), transaction
+        else:
+            ...
 
 
 @processing.fix
@@ -3464,13 +3483,13 @@ def simplify_assign_immediate_return(source: str) -> str:
             target.id
             for assignment in core.walk(scope, (ast.Assign, ast.AnnAssign, ast.AugAssign))
             for target in core.filter_nodes(
-                parsing.assignment_targets(assignment), ast.Name(id=str)
+                parsing.assignment_targets(assignment), ast.Name(id=str, ctx=ast.Store)
         ))
 
         names_assigned_only_once = tuple(
             name for name, count in name_assign_counts.items() if count == 1
         )
-        name_template = ast.Name(id=names_assigned_only_once)
+        name_template = ast.Name(id=names_assigned_only_once, ctx=object)
 
         yield from processing.find_replace(
             source,
@@ -3515,8 +3534,8 @@ def missing_context_manager(source: str) -> str:
     ))
 
     template = ast.Assign(
-        targets=[core.Wildcard("target", ast.Name(id=str))],
-        value=core.Wildcard("value", ast.Call(func=func_template)),
+        targets=[core.Wildcard("target", ast.Name(id=str, ctx=ast.Store))],
+        value=core.Wildcard("value", ast.Call(func=func_template, args=list, keywords=list)),
     )
 
     removals = []
@@ -3524,7 +3543,7 @@ def missing_context_manager(source: str) -> str:
     for (asmt, target, value), *nodes in core.walk_sequence(
         root, template, object, expand_last=True
     ):
-        target_template = ast.Name(id=target.id)
+        target_template = ast.Name(id=target.id, ctx=ast.Load)
         if any(
             isinstance(node, (ast.Yield, ast.Return)) and core.walk(node, target_template)
             for node in nodes
@@ -3545,9 +3564,9 @@ def missing_context_manager(source: str) -> str:
             if core.match_template(
                 node,
                 (
-                    ast.Call(func=ast.Attribute(value=target_template, attr="close")),
+                              ast.Call(func=ast.Attribute(value=target_template, attr="close"), args=[], keywords=[]),
                     ast.Expr(
-                        value=ast.Call(func=ast.Attribute(value=target_template, attr="close"))
+                        value=ast.Call(func=ast.Attribute(value=target_template, attr="close"), args=[], keywords=[]),
             ),),):
                 nodes = nodes[:i]  # prevent the close() going into the with statement
                 removals.append(node)
@@ -3975,7 +3994,7 @@ def remove_redundant_boolop_values(source: str) -> str:
     falsy = object()
     truthy = object()
 
-    for node in core.walk(root, ast.BoolOp(op=(ast.Or, ast.And))):
+    for node in core.walk(root, ast.BoolOp(op=(ast.Or, ast.And), values=list)):
         mask = []
         for value in node.values:
             try:

@@ -224,7 +224,7 @@ def simplify_math_iterators(source: str) -> str:
 
     for node in core.walk(root, template):
         arg = node.args[0]
-        if core.match_template(arg, ast.Call(func=ast.Name(id="range"))):
+        if core.match_template(arg, ast.Call(func=ast.Name(id="range"), args=list, keywords=[])):
             if any((node is not arg for node in core.walk(arg, (ast.Attribute, ast.Call)))):
                 continue
             if node.func.id != "sum":
@@ -291,7 +291,7 @@ def simplify_boolean_expressions(source: str) -> str:
             # gave the gt and lt constraints.
             constraint_values = list(node.values)
             for value in constraint_values:
-                if core.match_template(value, ast.BoolOp(op=type(node.op))):
+                if core.match_template(value, ast.BoolOp(op=type(node.op), values=list)):
                     constraint_values.extend(value.values)
                     continue
 
@@ -666,12 +666,14 @@ def simplify_constrained_range(source: str) -> str:
     # {y for y in range(18, 99) if y % 2 == 0} => {y for y in range(18, 99, 2)}
 
     comprehension_template = ast.comprehension(
-        iter=ast.Call(func=ast.Name(id="range"), keywords=[]), target=ast.Name(id=str)
+        iter=ast.Call(func=ast.Name(id="range"), args=list, keywords=[]),
+        target=ast.Name(id=str, ctx=ast.Store),
+        ifs=list,
     )
     template = (
-        ast.GeneratorExp(generators=[comprehension_template]),
-        ast.ListComp(generators=[comprehension_template]),
-        ast.SetComp(generators=[comprehension_template]),
+        ast.GeneratorExp(generators=[comprehension_template], elt=object),
+        ast.ListComp(generators=[comprehension_template], elt=object),
+        ast.SetComp(generators=[comprehension_template], elt=object),
     )
     for node in core.walk(root, template):
         comp = node.generators[0]
@@ -708,7 +710,7 @@ def simplify_constrained_range(source: str) -> str:
         ifs = comp.ifs.copy()
         while ifs:
             condition = ifs.pop()
-            if core.match_template(condition, ast.BoolOp(op=ast.And())):
+            if core.match_template(condition, ast.BoolOp(op=ast.And(), values=list)):
                 ifs.extend(condition.values)
                 continue
 
@@ -716,38 +718,38 @@ def simplify_constrained_range(source: str) -> str:
 
         gt_template = (
             ast.Compare(
-                left=ast.Name(id=target_name), ops=[ast.Gt()], comparators=[ast.Constant()]
+                left=ast.Name(id=target_name), ops=[ast.Gt()], comparators=[ast.Constant]
             ),
             ast.Compare(
-                left=ast.Constant(), ops=[ast.Lt()], comparators=[ast.Name(id=target_name)]
+                left=ast.Constant, ops=[ast.Lt()], comparators=[ast.Name(id=target_name)]
         ),)
         lt_template = (
             ast.Compare(
-                left=ast.Name(id=target_name), ops=[ast.Lt()], comparators=[ast.Constant()]
+                left=ast.Name(id=target_name), ops=[ast.Lt()], comparators=[ast.Constant]
             ),
             ast.Compare(
-                left=ast.Constant(), ops=[ast.Gt()], comparators=[ast.Name(id=target_name)]
+                left=ast.Constant, ops=[ast.Gt()], comparators=[ast.Name(id=target_name)]
         ),)
         gte_template = (
             ast.Compare(
-                left=ast.Name(id=target_name), ops=[ast.GtE()], comparators=[ast.Constant()]
+                left=ast.Name(id=target_name), ops=[ast.GtE()], comparators=[ast.Constant]
             ),
             ast.Compare(
-                left=ast.Constant(), ops=[ast.LtE()], comparators=[ast.Name(id=target_name)]
+                left=ast.Constant, ops=[ast.LtE()], comparators=[ast.Name(id=target_name)]
         ),)
         lte_template = (
             ast.Compare(
-                left=ast.Name(id=target_name), ops=[ast.LtE()], comparators=[ast.Constant()]
+                left=ast.Name(id=target_name), ops=[ast.LtE()], comparators=[ast.Constant]
             ),
             ast.Compare(
-                left=ast.Constant(), ops=[ast.GtE()], comparators=[ast.Name(id=target_name)]
+                left=ast.Constant, ops=[ast.GtE()], comparators=[ast.Name(id=target_name)]
         ),)
         eq_template = (
             ast.Compare(
-                left=ast.Name(id=target_name), ops=[ast.Eq()], comparators=[ast.Constant()]
+                left=ast.Name(id=target_name), ops=[ast.Eq()], comparators=[ast.Constant]
             ),
             ast.Compare(
-                left=ast.Constant(), ops=[ast.Eq()], comparators=[ast.Name(id=target_name)]
+                left=ast.Constant, ops=[ast.Eq()], comparators=[ast.Name(id=target_name)]
         ),)
         templates = (gt_template, lt_template, gte_template, lte_template, eq_template)
 

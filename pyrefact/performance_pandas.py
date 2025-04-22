@@ -33,15 +33,15 @@ def replace_loc_at_iloc_iat(source: str) -> str:
 def replace_iterrows_index(source: str) -> str:
     root = core.parse(source)
 
-    target_template = ast.Tuple(elts=[core.Wildcard("new_target", object), ast.Name(id="_")])
+    target_template = ast.Tuple(elts=[core.Wildcard("new_target", object), ast.Name(id="_", ctx=ast.Store)], ctx=ast.Store)
     iter_template = ast.Call(
-        func=ast.Attribute(value=core.Wildcard("underlying_object", object), attr="iterrows"),
+        func=ast.Attribute(value=core.Wildcard("underlying_object", object), attr="iterrows", ctx=ast.Load),
         args=[],
         keywords=[],
     )
 
     template = (
-        ast.For(target=target_template, iter=iter_template),
+        ast.For(target=target_template, iter=iter_template, body=list, orelse=[]),
         ast.comprehension(target=target_template, iter=iter_template),
     )
 
@@ -55,14 +55,15 @@ def replace_iterrows_itertuples(source: str) -> str:
     root = core.parse(source)
     replacements = {}
     target_template = ast.Tuple(
-        elts=[ast.Name(id="_"), ast.Name(id=core.Wildcard("new_target_id", str))]
+        elts=[ast.Name(id="_", ctx=ast.Store), ast.Name(id=core.Wildcard("new_target_id", str), ctx=ast.Store)],
+        ctx=ast.Store,
     )
     iter_template = ast.Call(
         func=ast.Attribute(value=core.Wildcard("underlying_object", object), attr="iterrows"),
         args=[],
         keywords=[],
     )
-    template = ast.For(target=target_template, iter=iter_template)
+    template = ast.For(target=target_template, iter=iter_template, body=list, orelse=[])
     for node, new_target_id, underlying_object in core.walk_wildcard(root, template):
         # If new_target is modified, the underlying dataframe is also modified. This cannot be
         # done with itertuples() since tuples are immutable.
