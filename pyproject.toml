@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff==0.8.1"]
+dev = ["ruff==0.12.2"]
 
 [project.urls]
 repository="https://github.com/OlleLindgren/pyrefact"
